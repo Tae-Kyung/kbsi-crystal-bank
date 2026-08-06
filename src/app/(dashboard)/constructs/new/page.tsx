@@ -1,6 +1,6 @@
 'use client';
 
-import { useState } from 'react';
+import { useState, Suspense } from 'react';
 import { useRouter, useSearchParams } from 'next/navigation';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
@@ -11,7 +11,7 @@ import { EnumSelect } from '@/components/forms/enum-select';
 const CONSTRUCT_TYPES = ['full-length', 'domain', 'truncation', 'fusion', 'mutant'] as const;
 const TAG_POSITIONS = ['N-terminal', 'C-terminal'] as const;
 
-export default function NewConstructPage() {
+function NewConstructForm() {
   const router = useRouter();
   const searchParams = useSearchParams();
   const proteinId = searchParams.get('protein_id') || '';
@@ -129,5 +129,13 @@ export default function NewConstructPage() {
         </CardContent>
       </Card>
     </div>
+  );
+}
+
+export default function NewConstructPage() {
+  return (
+    <Suspense fallback={<div className="p-8 text-center text-muted-foreground">Loading...</div>}>
+      <NewConstructForm />
+    </Suspense>
   );
 }
