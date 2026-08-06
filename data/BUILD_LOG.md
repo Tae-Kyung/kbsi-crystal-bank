@@ -31,3 +31,4 @@
 | 2026-08-06 08:08:39 | P2.3 | Dashboard: stats cards + pipeline funnel + outcome pie + pH/temp scatter |
 | 2026-08-06 08:08:42 | P2.1 | LLM extraction API (OpenAI + CrossRef) + staging review UI |
 | 2026-08-06 08:08:44 | P2.4 | CSV/JSON export + CSV bulk import APIs |
+| 2026-08-06 08:21:13 | DEPLOY | Pushed to github.com/Tae-Kyung/kbsi-crystal-bank (secrets removed from history) |
