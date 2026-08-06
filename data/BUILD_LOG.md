@@ -33,3 +33,10 @@
 | 2026-08-06 08:08:44 | P2.4 | CSV/JSON export + CSV bulk import APIs |
 | 2026-08-06 08:21:13 | DEPLOY | Pushed to github.com/Tae-Kyung/kbsi-crystal-bank (secrets removed from history) |
 | 2026-08-06 08:28:08 | DOCS | TASK.md/PRD.md에 Phase 2/3 태스크 추가, verify.ts에 P2/P3 검증 등록 |
+| 2026-08-06 08:34:05 | P3.2.1 | UniProt API client (fetch + search) |
+| 2026-08-06 08:34:08 | P3.2.2 | PDB API client (fetch + search) |
+| 2026-08-06 08:34:10 | P3.1.4 | ML feature engineering + k-NN + 14 tests |
+| 2026-08-06 08:34:12 | P3.1.1 | Crystallization condition recommender API (k-NN) |
+| 2026-08-06 08:34:15 | P3.1.2 | Crystallization success probability prediction API |
+| 2026-08-06 08:34:17 | P3.3.1 | RBAC migration (admin/researcher/viewer + RLS policies) |
+| 2026-08-06 08:34:19 | P3.3.3 | Audit log dashboard page |
