@@ -84,9 +84,18 @@ export async function POST(request: NextRequest) {
   const openaiData = await openaiRes.json();
   const content = openaiData.choices?.[0]?.message?.content;
 
+  if (!content) {
+    return NextResponse.json({ error: 'Empty response from LLM' }, { status: 502 });
+  }
+
   let extracted: any[];
   try {
-    const parsed = JSON.parse(content);
+    // LLM이 ```json ... ``` 코드블록으로 감싸는 경우 제거
+    let jsonStr = (content || '').trim();
+    if (jsonStr.startsWith('```')) {
+      jsonStr = jsonStr.replace(/^```(?:json)?\s*\n?/, '').replace(/\n?```\s*$/, '');
+    }
+    const parsed = JSON.parse(jsonStr);
     extracted = Array.isArray(parsed) ? parsed : parsed.data || parsed.results || [parsed];
   } catch {
     return NextResponse.json({ error: 'Failed to parse LLM response', raw: content }, { status: 500 });
