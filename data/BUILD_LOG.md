@@ -20,3 +20,9 @@
 | 2026-08-06 07:50:28 | P1.6.3 | Crystallization API + validation tests |
 | 2026-08-06 07:50:31 | P1.6.4 | Characterization + Storage + Diffraction APIs |
 | 2026-08-06 07:50:33 | P1.6.5 | NMR + CryoEM + Structure APIs |
+| 2026-08-06 07:58:32 | P1.4.2 | Protein list page with search + DataTable |
+| 2026-08-06 07:58:34 | P1.4.3 | Protein create/edit forms |
+| 2026-08-06 07:58:37 | P1.4.4 | Protein detail page (DB IDs, constructs list) |
+| 2026-08-06 07:58:39 | P1.5.2 | Construct list + detail pages (stats, sequences, mutations) |
+| 2026-08-06 07:58:42 | P1.7.1 | Experiment tabs UI (Expression, Purification, Crystallization, Characterization, Structure) |
+| 2026-08-06 07:58:44 | P1.8.1 | Supabase Auth login + middleware redirect |
