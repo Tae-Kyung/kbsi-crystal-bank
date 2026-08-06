@@ -27,3 +27,7 @@
 | 2026-08-06 07:58:42 | P1.7.1 | Experiment tabs UI (Expression, Purification, Crystallization, Characterization, Structure) |
 | 2026-08-06 07:58:44 | P1.8.1 | Supabase Auth login + middleware redirect |
 | 2026-08-06 07:59:56 | P1.9.1 | Phase 1 preflight PASS: tsc + 53 tests + build |
+| 2026-08-06 08:08:37 | P2.2 | Ligand CRUD API + page + form dialog |
+| 2026-08-06 08:08:39 | P2.3 | Dashboard: stats cards + pipeline funnel + outcome pie + pH/temp scatter |
+| 2026-08-06 08:08:42 | P2.1 | LLM extraction API (OpenAI + CrossRef) + staging review UI |
+| 2026-08-06 08:08:44 | P2.4 | CSV/JSON export + CSV bulk import APIs |
