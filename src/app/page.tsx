@@ -132,7 +132,7 @@ export default function HomePage() {
             사용 가이드
           </h2>
           <p className="mx-auto mt-3 max-w-xl text-center text-gray-500">
-            5단계로 시작하는 단백질 결정화 데이터 관리
+            KRAS 단백질을 예시로 따라하는 결정화 데이터 관리
           </p>
 
           <div className="mt-12 space-y-0">
@@ -142,59 +142,130 @@ export default function HomePage() {
                 title: '회원가입 및 로그인',
                 description: '이메일로 간편하게 가입하고 로그인합니다. 가입 즉시 researcher 권한이 부여되어 데이터 입력이 가능합니다.',
                 details: [
-                  '상단 "시작하기" 버튼을 클릭합니다.',
-                  '이메일과 비밀번호를 입력하여 계정을 생성합니다.',
-                  '로그인 후 대시보드로 이동합니다.',
+                  '상단 "시작하기" 버튼을 클릭하여 로그인 페이지로 이동합니다.',
+                  '이메일(예: researcher@kbsi.re.kr)과 비밀번호를 입력하여 계정을 생성합니다.',
+                  '로그인하면 좌측 사이드바가 있는 대시보드 화면으로 이동합니다.',
                 ],
                 link: { href: '/login', label: '로그인 페이지로' },
               },
               {
                 step: 'Step 2',
-                title: '단백질 및 Construct 등록',
-                description: '연구 대상 단백질의 기본 정보를 등록하고, 실험에 사용할 Construct를 설계합니다. 서열 입력 시 분자량(MW)과 등전점(pI)이 자동 계산됩니다.',
+                title: '단백질 등록 — KRAS 예시',
+                description: '신약 타겟으로 많이 연구되는 KRAS 단백질을 등록해봅니다.',
                 details: [
-                  'Proteins 메뉴에서 "New Protein"을 클릭합니다.',
-                  '단백질명, 유전자명, 생물종 등 기본 정보를 입력합니다.',
-                  '단백질 상세 페이지에서 Construct를 추가합니다 — 잔기 범위, 벡터, 태그 등을 지정합니다.',
-                  'UniProt ID를 입력하면 외부 DB에서 서열·기능 정보를 자동으로 가져옵니다.',
+                  '좌측 사이드바에서 Proteins 메뉴를 클릭하고, "New Protein" 버튼을 누릅니다.',
+                  'Full Name: Kirsten Rat Sarcoma Viral Proto-Oncogene',
+                  'Abbreviation: KRAS',
+                  'Gene Name: KRAS',
+                  'Organism: Homo sapiens',
+                  '"Save"를 클릭하면 단백질이 등록되고 상세 페이지로 이동합니다.',
                 ],
                 link: { href: '/proteins/new', label: '단백질 등록하기' },
+                example: {
+                  title: 'Construct 추가 예시',
+                  fields: [
+                    { label: 'Name', value: 'KRAS-G12D-1-169' },
+                    { label: 'Residues', value: '1-169' },
+                    { label: 'Type', value: 'truncation' },
+                    { label: 'Vector', value: 'pET-28a' },
+                    { label: 'Tag', value: 'His6 (N-terminal)' },
+                    { label: 'Expression System', value: 'E. coli BL21(DE3)' },
+                  ],
+                },
               },
               {
                 step: 'Step 3',
-                title: '실험 데이터 기록',
-                description: 'Construct별로 발현, 정제, 특성분석, 결정화, 회절, 구조결정 데이터를 단계별로 기록합니다. 실패 데이터도 함께 기록하여 향후 분석에 활용합니다.',
+                title: '실험 데이터 기록 — 발현부터 결정화까지',
+                description: 'KRAS-G12D Construct의 발현, 정제, 결정화 실험 결과를 기록합니다. 성공뿐 아니라 실패 데이터도 함께 기록하는 것이 핵심입니다.',
                 details: [
-                  'Construct 상세 페이지의 "Experiments" 탭으로 이동합니다.',
-                  'Expression, Purification, Crystallization 등 각 탭에서 실험 결과를 입력합니다.',
-                  '결정화 실험: 침전제 종류·농도, pH, 온도, 결과 등급(clear → diffraction_quality)을 기록합니다.',
-                  '각 실험에 attempt_number가 자동 부여되어 반복 실험을 추적할 수 있습니다.',
+                  'Construct 상세 페이지에서 "Experiments" 탭을 클릭합니다.',
                 ],
                 link: { href: '/constructs', label: 'Construct 목록 보기' },
+                experiments: [
+                  {
+                    name: 'Expression (발현)',
+                    fields: [
+                      { label: 'Host', value: 'E. coli' },
+                      { label: 'Strain', value: 'BL21(DE3)' },
+                      { label: 'Induction Temp', value: '18°C' },
+                      { label: 'Yield', value: '15.5 mg/L' },
+                      { label: 'Result Level', value: 'high' },
+                      { label: 'Conditions', value: 'IPTG 0.5mM, 18°C, 16h' },
+                    ],
+                  },
+                  {
+                    name: 'Purification (정제)',
+                    fields: [
+                      { label: 'Method', value: 'Ni-NTA → TEV cleavage → SEC' },
+                      { label: 'Final Purity', value: '95%' },
+                      { label: 'Yield', value: '8 mg' },
+                      { label: 'Result Level', value: 'high' },
+                    ],
+                  },
+                  {
+                    name: 'Crystallization (결정화) — 성공',
+                    fields: [
+                      { label: 'Protein Conc.', value: '10 mg/mL' },
+                      { label: 'Precipitant', value: 'PEG 3350, 20%' },
+                      { label: 'Buffer / pH', value: 'Bis-Tris / 6.5' },
+                      { label: 'Temperature', value: '18°C' },
+                      { label: 'Outcome', value: 'single_crystal' },
+                      { label: 'Days to Crystal', value: '7일' },
+                    ],
+                  },
+                  {
+                    name: 'Crystallization (결정화) — 실패',
+                    fields: [
+                      { label: 'Protein Conc.', value: '10 mg/mL' },
+                      { label: 'Precipitant', value: 'Ammonium Sulfate, 2M' },
+                      { label: 'Buffer / pH', value: 'HEPES / 7.5' },
+                      { label: 'Temperature', value: '18°C' },
+                      { label: 'Outcome', value: 'precipitate' },
+                      { label: 'Notes', value: '즉시 침전 발생' },
+                    ],
+                  },
+                ],
               },
               {
                 step: 'Step 4',
-                title: 'AI 분석 및 예측 활용',
-                description: '축적된 데이터를 기반으로 AI가 결정화 조건을 추천하고 성공 확률을 예측합니다. 논문에서 실험 조건을 자동 추출하여 데이터를 빠르게 확장할 수도 있습니다.',
+                title: 'AI 예측 — 다음 실험 조건 추천받기',
+                description: '축적된 결정화 데이터를 기반으로 AI가 최적 조건을 추천합니다. 아래 조건을 입력해보세요.',
                 details: [
-                  '대시보드에서 파이프라인 진행 현황과 성공률 차트를 확인합니다.',
-                  'AI 예측: pH, 온도, 침전제 조건을 입력하면 유사 실험 기반 성공 확률을 예측합니다.',
-                  'LLM 추출: 논문 텍스트를 붙여넣으면 발현·결정화 조건이 자동 추출됩니다.',
-                  '추출된 데이터는 Staging에서 검토 후 승인하면 본 데이터에 통합됩니다.',
+                  '대시보드에서 파이프라인 현황과 결정화 성공률 차트를 확인합니다.',
                 ],
                 link: { href: '/dashboard', label: '대시보드 보기' },
+                example: {
+                  title: 'AI 예측 입력 예시',
+                  fields: [
+                    { label: 'Protein Conc.', value: '12 mg/mL' },
+                    { label: 'Precipitant', value: 'PEG 4000' },
+                    { label: 'Precipitant Conc.', value: '25%' },
+                    { label: 'pH', value: '7.0' },
+                    { label: 'Temperature', value: '20°C' },
+                  ],
+                },
+                aiResult: '→ AI가 유사 실험 데이터를 분석하여 성공 확률과 추천 조건을 제시합니다.',
               },
               {
                 step: 'Step 5',
-                title: '데이터 공유 및 Export',
-                description: '프로젝트별로 데이터를 관리하고, CSV/JSON 형식으로 내보내어 논문 작성이나 ML 학습에 활용합니다.',
+                title: '문헌 추출 및 데이터 Export',
+                description: '논문 텍스트에서 실험 조건을 AI로 자동 추출하고, 축적된 데이터를 CSV/JSON으로 내보냅니다.',
                 details: [
-                  'Export: 테이블별로 CSV 또는 JSON 형식으로 데이터를 다운로드합니다.',
-                  'Import: 기존 실험 데이터를 CSV 파일로 일괄 업로드합니다.',
-                  '프로젝트를 생성하여 팀원과 데이터를 공유하고, 역할(owner/member/viewer)별 접근 권한을 관리합니다.',
-                  'Audit Log에서 데이터 변경 이력을 추적할 수 있습니다.',
+                  'Staging Review 메뉴에서 논문 텍스트를 붙여넣고 "Extract" 버튼을 클릭합니다.',
                 ],
-                link: { href: '/login', label: '시작하기' },
+                link: { href: '/staging', label: 'Staging Review' },
+                example: {
+                  title: 'LLM 추출 입력 예시 (논문 텍스트)',
+                  text: '"KRAS G12D (residues 1-169) was expressed in E. coli BL21(DE3) at 18°C with 0.5 mM IPTG. The protein was purified using Ni-NTA followed by size exclusion chromatography. Crystals were obtained in 20% PEG 3350, 0.1 M Bis-Tris pH 6.5 at 18°C."',
+                },
+                exportExample: {
+                  title: 'Export 예시',
+                  items: [
+                    'GET /api/export?table=kbsi_crystallization&format=csv → CSV 다운로드',
+                    'GET /api/export?table=kbsi_protein&format=json → JSON 다운로드',
+                    'construct_id 필터: /api/export?table=kbsi_expression&construct_id=1&format=csv',
+                  ],
+                },
               },
             ].map((tutorial, i) => (
               <div key={tutorial.step} className="relative flex gap-6 pb-12 last:pb-0">
@@ -225,6 +296,81 @@ export default function HomePage() {
                       </li>
                     ))}
                   </ul>
+
+                  {/* Example fields table */}
+                  {'example' in tutorial && tutorial.example && 'fields' in tutorial.example && (
+                    <div className="mt-4 rounded-lg border bg-white p-4">
+                      <h4 className="text-xs font-semibold uppercase tracking-wider text-gray-500 mb-3">
+                        {tutorial.example.title}
+                      </h4>
+                      <div className="grid grid-cols-2 gap-x-6 gap-y-1.5 text-sm">
+                        {(tutorial.example.fields as { label: string; value: string }[])?.map((f, k) => (
+                          <div key={k} className="flex gap-2">
+                            <span className="text-gray-500 shrink-0">{f.label}:</span>
+                            <span className="font-medium text-gray-900">{f.value}</span>
+                          </div>
+                        ))}
+                      </div>
+                    </div>
+                  )}
+
+                  {/* Example text block */}
+                  {'example' in tutorial && tutorial.example && 'text' in tutorial.example && (
+                    <div className="mt-4 rounded-lg border bg-white p-4">
+                      <h4 className="text-xs font-semibold uppercase tracking-wider text-gray-500 mb-3">
+                        {tutorial.example.title}
+                      </h4>
+                      <p className="text-sm text-gray-700 italic leading-relaxed bg-gray-50 p-3 rounded border-l-2 border-blue-400">
+                        {tutorial.example.text}
+                      </p>
+                    </div>
+                  )}
+
+                  {/* Experiment cards */}
+                  {'experiments' in tutorial && tutorial.experiments && (
+                    <div className="mt-4 grid gap-3 md:grid-cols-2">
+                      {tutorial.experiments.map((exp: { name: string; fields: { label: string; value: string }[] }, k: number) => (
+                        <div key={k} className="rounded-lg border bg-white p-4">
+                          <h4 className="text-sm font-semibold text-gray-800 mb-2 flex items-center gap-2">
+                            <span className={`inline-block h-2 w-2 rounded-full ${exp.name.includes('실패') ? 'bg-red-400' : 'bg-green-400'}`} />
+                            {exp.name}
+                          </h4>
+                          <div className="space-y-1 text-xs">
+                            {exp.fields.map((f, l) => (
+                              <div key={l} className="flex gap-2">
+                                <span className="text-gray-500 shrink-0 w-28">{f.label}:</span>
+                                <span className="font-medium text-gray-800">{f.value}</span>
+                              </div>
+                            ))}
+                          </div>
+                        </div>
+                      ))}
+                    </div>
+                  )}
+
+                  {/* AI result note */}
+                  {'aiResult' in tutorial && tutorial.aiResult && (
+                    <div className="mt-3 rounded-lg bg-blue-50 border border-blue-200 p-3">
+                      <p className="text-sm text-blue-800 font-medium">{tutorial.aiResult}</p>
+                    </div>
+                  )}
+
+                  {/* Export example */}
+                  {'exportExample' in tutorial && tutorial.exportExample && (
+                    <div className="mt-4 rounded-lg border bg-white p-4">
+                      <h4 className="text-xs font-semibold uppercase tracking-wider text-gray-500 mb-3">
+                        {tutorial.exportExample.title}
+                      </h4>
+                      <div className="space-y-1.5">
+                        {tutorial.exportExample.items.map((item: string, k: number) => (
+                          <p key={k} className="text-xs font-mono text-gray-700 bg-gray-50 p-2 rounded">
+                            {item}
+                          </p>
+                        ))}
+                      </div>
+                    </div>
+                  )}
+
                   <div className="mt-4">
                     <Link href={tutorial.link.href}>
                       <Button variant="outline" size="sm">
