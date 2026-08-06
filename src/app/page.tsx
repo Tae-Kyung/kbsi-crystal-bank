@@ -1,5 +1,19 @@
+'use client';
+
+import { useState, useEffect } from 'react';
 import Link from 'next/link';
 import { Button } from '@/components/ui/button';
+import { LandingNav } from '@/components/layout/landing-nav';
+import { type Locale, t, getLocaleFromStorage } from '@/lib/i18n';
+
+const FEATURE_KEYS = [
+  { titleKey: 'feature.protein.title' as const, descKey: 'feature.protein.desc' as const, icon: '🧬' },
+  { titleKey: 'feature.pipeline.title' as const, descKey: 'feature.pipeline.desc' as const, icon: '🔬' },
+  { titleKey: 'feature.ai.title' as const, descKey: 'feature.ai.desc' as const, icon: '🤖' },
+  { titleKey: 'feature.llm.title' as const, descKey: 'feature.llm.desc' as const, icon: '📄' },
+  { titleKey: 'feature.db.title' as const, descKey: 'feature.db.desc' as const, icon: '🔗' },
+  { titleKey: 'feature.export.title' as const, descKey: 'feature.export.desc' as const, icon: '📊' },
+];
 
 const FEATURES = [
   {
@@ -44,32 +58,48 @@ const PIPELINE_STEPS = [
 ];
 
 export default function HomePage() {
+  const [locale, setLocale] = useState<Locale>('ko');
+
+  useEffect(() => {
+    setLocale(getLocaleFromStorage());
+  }, []);
+
+  const pipelineSteps = [
+    { step: '1', label: 'Expression', desc: t('pipeline.expression', locale) },
+    { step: '2', label: 'Purification', desc: t('pipeline.purification', locale) },
+    { step: '3', label: 'Characterization', desc: t('pipeline.characterization', locale) },
+    { step: '4', label: 'Crystallization', desc: t('pipeline.crystallization', locale) },
+    { step: '5', label: 'Diffraction', desc: t('pipeline.diffraction', locale) },
+    { step: '6', label: 'Structure', desc: t('pipeline.structure', locale) },
+  ];
+
   return (
     <div className="min-h-screen">
+      <LandingNav onLocaleChange={setLocale} />
+
       {/* Hero Section */}
-      <section className="relative overflow-hidden bg-gradient-to-b from-blue-50 to-white py-20 md:py-32">
+      <section className="relative overflow-hidden bg-gradient-to-b from-blue-50 to-white dark:from-gray-900 dark:to-gray-950 py-20 md:py-32">
         <div className="mx-auto max-w-5xl px-6 text-center">
-          <div className="mb-6 inline-block rounded-full bg-blue-100 px-4 py-1.5 text-sm font-medium text-blue-700">
-            KBSI 한국기초과학지원연구원
+          <div className="mb-6 inline-block rounded-full bg-blue-100 dark:bg-blue-900 px-4 py-1.5 text-sm font-medium text-blue-700 dark:text-blue-300">
+            {t('hero.badge', locale)}
           </div>
-          <h1 className="text-4xl font-bold tracking-tight text-gray-900 md:text-6xl">
-            단백질 결정화은행
+          <h1 className="text-4xl font-bold tracking-tight text-gray-900 dark:text-white md:text-6xl">
+            {t('hero.title1', locale)}
             <br />
-            <span className="text-blue-600">AI 데이터 허브</span>
+            <span className="text-blue-600">{t('hero.title2', locale)}</span>
           </h1>
-          <p className="mx-auto mt-6 max-w-2xl text-lg text-gray-600 md:text-xl">
-            단백질의 발현부터 구조결정까지, 전 과정의 실험 데이터를 체계적으로 관리하고
-            AI 기반 결정화 조건 예측으로 신약개발 연구를 가속화합니다.
+          <p className="mx-auto mt-6 max-w-2xl text-lg text-gray-600 dark:text-gray-400 md:text-xl">
+            {t('hero.desc', locale)}
           </p>
           <div className="mt-10 flex flex-col items-center gap-4 sm:flex-row sm:justify-center">
             <Link href="/login">
               <Button size="lg" className="px-8 text-base">
-                시작하기
+                {t('hero.start', locale)}
               </Button>
             </Link>
             <Link href="/dashboard">
               <Button variant="outline" size="lg" className="px-8 text-base">
-                대시보드 보기
+                {t('hero.dashboard', locale)}
               </Button>
             </Link>
           </div>
@@ -77,25 +107,25 @@ export default function HomePage() {
       </section>
 
       {/* Pipeline Section */}
-      <section className="py-16 bg-white">
+      <section className="py-16 bg-white dark:bg-gray-950">
         <div className="mx-auto max-w-5xl px-6">
-          <h2 className="text-center text-2xl font-bold text-gray-900 md:text-3xl">
-            실험 파이프라인 전 과정을 한 플랫폼에서
+          <h2 className="text-center text-2xl font-bold text-gray-900 dark:text-white md:text-3xl">
+            {t('pipeline.title', locale)}
           </h2>
-          <p className="mx-auto mt-3 max-w-xl text-center text-gray-500">
-            실패 데이터를 포함한 모든 실험 기록을 체계적으로 축적하여 데이터 기반 연구를 지원합니다.
+          <p className="mx-auto mt-3 max-w-xl text-center text-gray-500 dark:text-gray-400">
+            {t('pipeline.desc', locale)}
           </p>
           <div className="mt-12 flex flex-wrap items-center justify-center gap-2 md:gap-0">
-            {PIPELINE_STEPS.map((s, i) => (
+            {pipelineSteps.map((s, i) => (
               <div key={s.step} className="flex items-center">
                 <div className="flex flex-col items-center">
                   <div className="flex h-12 w-12 items-center justify-center rounded-full bg-blue-600 text-lg font-bold text-white">
                     {s.step}
                   </div>
-                  <div className="mt-2 text-sm font-semibold text-gray-900">{s.label}</div>
-                  <div className="text-xs text-gray-500">{s.desc}</div>
+                  <div className="mt-2 text-sm font-semibold text-gray-900 dark:text-white">{s.label}</div>
+                  <div className="text-xs text-gray-500 dark:text-gray-400">{s.desc}</div>
                 </div>
-                {i < PIPELINE_STEPS.length - 1 && (
+                {i < pipelineSteps.length - 1 && (
                   <div className="mx-2 hidden h-0.5 w-8 bg-blue-300 md:block" />
                 )}
               </div>
@@ -105,20 +135,20 @@ export default function HomePage() {
       </section>
 
       {/* Features Grid */}
-      <section className="py-16 bg-gray-50">
+      <section className="py-16 bg-gray-50 dark:bg-gray-900">
         <div className="mx-auto max-w-5xl px-6">
-          <h2 className="text-center text-2xl font-bold text-gray-900 md:text-3xl">
-            주요 기능
+          <h2 className="text-center text-2xl font-bold text-gray-900 dark:text-white md:text-3xl">
+            {t('features.title', locale)}
           </h2>
           <div className="mt-12 grid gap-6 md:grid-cols-2 lg:grid-cols-3">
-            {FEATURES.map((f) => (
+            {FEATURE_KEYS.map((f) => (
               <div
-                key={f.title}
-                className="rounded-xl border bg-white p-6 shadow-sm transition-shadow hover:shadow-md"
+                key={f.titleKey}
+                className="rounded-xl border bg-white dark:bg-gray-800 dark:border-gray-700 p-6 shadow-sm transition-shadow hover:shadow-md"
               >
                 <div className="mb-3 text-3xl">{f.icon}</div>
-                <h3 className="text-lg font-semibold text-gray-900">{f.title}</h3>
-                <p className="mt-2 text-sm text-gray-600 leading-relaxed">{f.description}</p>
+                <h3 className="text-lg font-semibold text-gray-900 dark:text-white">{t(f.titleKey, locale)}</h3>
+                <p className="mt-2 text-sm text-gray-600 dark:text-gray-400 leading-relaxed">{t(f.descKey, locale)}</p>
               </div>
             ))}
           </div>
@@ -126,13 +156,13 @@ export default function HomePage() {
       </section>
 
       {/* Tutorial Section */}
-      <section className="py-16 bg-white">
+      <section className="py-16 bg-white dark:bg-gray-950">
         <div className="mx-auto max-w-5xl px-6">
-          <h2 className="text-center text-2xl font-bold text-gray-900 md:text-3xl">
-            사용 가이드
+          <h2 className="text-center text-2xl font-bold text-gray-900 dark:text-white md:text-3xl">
+            {t('tutorial.title', locale)}
           </h2>
-          <p className="mx-auto mt-3 max-w-xl text-center text-gray-500">
-            KRAS 단백질을 예시로 따라하는 결정화 데이터 관리
+          <p className="mx-auto mt-3 max-w-xl text-center text-gray-500 dark:text-gray-400">
+            {t('tutorial.subtitle', locale)}
           </p>
 
           <div className="mt-12 space-y-0">
@@ -386,18 +416,18 @@ export default function HomePage() {
       </section>
 
       {/* Stats Section */}
-      <section className="py-16 bg-gray-50">
+      <section className="py-16 bg-gray-50 dark:bg-gray-900">
         <div className="mx-auto max-w-4xl px-6">
           <div className="grid grid-cols-2 gap-8 md:grid-cols-4">
             {[
-              { value: '21+', label: '데이터 테이블' },
-              { value: '6', label: '실험 단계' },
-              { value: '3', label: '외부 DB 연동' },
-              { value: 'AI', label: '결정화 예측' },
+              { value: '21+', labelKey: 'stats.tables' as const },
+              { value: '6', labelKey: 'stats.stages' as const },
+              { value: '3', labelKey: 'stats.db' as const },
+              { value: 'AI', labelKey: 'stats.ai' as const },
             ].map((stat) => (
-              <div key={stat.label} className="text-center">
+              <div key={stat.labelKey} className="text-center">
                 <div className="text-3xl font-bold text-blue-600 md:text-4xl">{stat.value}</div>
-                <div className="mt-1 text-sm text-gray-500">{stat.label}</div>
+                <div className="mt-1 text-sm text-gray-500 dark:text-gray-400">{t(stat.labelKey, locale)}</div>
               </div>
             ))}
           </div>
@@ -408,15 +438,15 @@ export default function HomePage() {
       <section className="py-16 bg-blue-600">
         <div className="mx-auto max-w-3xl px-6 text-center">
           <h2 className="text-2xl font-bold text-white md:text-3xl">
-            데이터 기반 단백질 연구를 시작하세요
+            {t('cta.title', locale)}
           </h2>
           <p className="mt-4 text-blue-100">
-            KBSI 단백질 결정화은행 데이터 플랫폼으로 실험 효율을 높이고, AI 예측으로 최적의 결정화 조건을 찾아보세요.
+            {t('cta.desc', locale)}
           </p>
           <div className="mt-8">
             <Link href="/login">
               <Button size="lg" variant="secondary" className="px-8 text-base">
-                무료로 시작하기
+                {t('cta.button', locale)}
               </Button>
             </Link>
           </div>
@@ -424,10 +454,10 @@ export default function HomePage() {
       </section>
 
       {/* Footer */}
-      <footer className="border-t bg-white py-8">
-        <div className="mx-auto max-w-5xl px-6 text-center text-sm text-gray-500">
-          <p>&copy; {new Date().getFullYear()} KBSI 한국기초과학지원연구원. All rights reserved.</p>
-          <p className="mt-1">단백질 결정화은행 기반 신약개발 AI 데이터 허브</p>
+      <footer className="border-t bg-white dark:bg-gray-950 dark:border-gray-800 py-8">
+        <div className="mx-auto max-w-5xl px-6 text-center text-sm text-gray-500 dark:text-gray-400">
+          <p>&copy; {new Date().getFullYear()} {t('footer.org', locale)}. All rights reserved.</p>
+          <p className="mt-1">{t('footer.desc', locale)}</p>
         </div>
       </footer>
     </div>
