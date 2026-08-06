@@ -73,6 +73,11 @@
 - 침전제별 성공률 차트
 - 시간별 데이터 축적 추이
 
+### F9-2. 데이터 Import/Export
+- CSV/JSON export (테이블별, construct_id 필터)
+- CSV bulk import (기존 연구자 데이터 마이그레이션)
+- 엑셀 템플릿 다운로드
+
 ## 5. Phase 3 Features
 
 ### F10. AI/ML 분석

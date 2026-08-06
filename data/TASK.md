@@ -125,6 +125,105 @@ P1.9.1 (Phase 1 통합 검증) ← 모든 P1.* 완료 후
 
 ---
 
+## Phase 2: LLM 파이프라인 + 시각화 + Import/Export
+
+### 2.1 LLM 문헌 추출
+
+| ID | 태스크 | 선행 | 검증 | 테스트 |
+|----|--------|------|------|--------|
+| P2.1.1 | LLM 추출 프롬프트 설계 | P1.9.1 | `extraction-prompt.ts` 존재 | - |
+| P2.1.2 | 추출 API (OpenAI + CrossRef) | P2.1.1 | `/api/extract/route.ts` 존재 | `extract.test.ts` |
+| P2.1.3 | Staging 검토 API (PATCH 승인/거부) | P2.1.2 | `/api/staging/route.ts` 존재 | - |
+| P2.1.4 | Staging 검토 UI | P2.1.3 | `/staging/page.tsx` + `staging-review-list.tsx` + `extraction-form.tsx` | - |
+
+### 2.2 리간드·복합체
+
+| ID | 태스크 | 선행 | 검증 | 테스트 |
+|----|--------|------|------|--------|
+| P2.2.1 | Ligand API (CRUD) | P1.9.1 | `/api/ligands/route.ts` 존재 | `ligands.test.ts` |
+| P2.2.2 | Construct-Ligand 바인딩 API | P2.2.1 | `/api/construct-ligands/route.ts` 존재 | - |
+| P2.2.3 | Ligand 목록 페이지 + 폼 | P2.2.1 | `/ligands/page.tsx` + `ligand-form-dialog.tsx` | - |
+
+### 2.3 대시보드
+
+| ID | 태스크 | 선행 | 검증 | 테스트 |
+|----|--------|------|------|--------|
+| P2.3.1 | Dashboard 페이지 + 통계 카드 | P1.9.1 | `/dashboard/page.tsx` 존재 | - |
+| P2.3.2 | Pipeline Funnel 차트 | P2.3.1 | `pipeline-funnel.tsx` 존재 | - |
+| P2.3.3 | Outcome 분포 차트 | P2.3.1 | `outcome-distribution.tsx` 존재 | - |
+| P2.3.4 | pH×온도 Scatter Plot | P2.3.1 | `crystallization-heatmap.tsx` 존재 | - |
+
+### 2.4 데이터 Import/Export
+
+| ID | 태스크 | 선행 | 검증 | 테스트 |
+|----|--------|------|------|--------|
+| P2.4.1 | CSV/JSON Export API | P1.9.1 | `/api/export/route.ts` 존재 | `export.test.ts` |
+| P2.4.2 | CSV Bulk Import API | P2.4.1 | `/api/import/route.ts` 존재 | `import.test.ts` |
+
+### 2.9 통합 검증
+
+| ID | 태스크 | 선행 | 검증 |
+|----|--------|------|------|
+| P2.9.1 | Phase 2 전체 | 모든 P2.* | `npm run preflight` 통과 |
+
+---
+
+## Phase 3: AI/ML + 외부 DB 연동 + 고급 접근 제어
+
+### 3.1 AI/ML 분석
+
+| ID | 태스크 | 선행 | 검증 | 테스트 |
+|----|--------|------|------|--------|
+| P3.1.1 | 결정화 조건 추천 API (k-NN) | P2.9.1 | `/api/recommend/route.ts` 존재 | `recommend.test.ts` |
+| P3.1.2 | 결정화 성공 확률 예측 API | P3.1.1 | `/api/predict/route.ts` 존재 | `predict.test.ts` |
+| P3.1.3 | 예측 결과 시각화 UI | P3.1.2 | 예측 결과 컴포넌트 존재 | - |
+| P3.1.4 | ML Feature Engineering 파이프라인 | P3.1.1 | `src/lib/ml/features.ts` 존재 | `features.test.ts` |
+
+### 3.2 외부 DB 연동
+
+| ID | 태스크 | 선행 | 검증 | 테스트 |
+|----|--------|------|------|--------|
+| P3.2.1 | UniProt API 연동 | P2.9.1 | `src/lib/external/uniprot.ts` 존재 | `uniprot.test.ts` |
+| P3.2.2 | PDB API 연동 | P2.9.1 | `src/lib/external/pdb.ts` 존재 | `pdb.test.ts` |
+| P3.2.3 | AlphaFold DB 연동 | P2.9.1 | `src/lib/external/alphafold.ts` 존재 | - |
+| P3.2.4 | DOI → CrossRef 자동 fetch | P2.1.2 | 추출 API에 CrossRef 로직 포함 | - |
+
+### 3.3 고급 접근 제어
+
+| ID | 태스크 | 선행 | 검증 | 테스트 |
+|----|--------|------|------|--------|
+| P3.3.1 | RBAC (admin/researcher/viewer) | P1.8.1 | RLS 정책 + role 테이블 migration | - |
+| P3.3.2 | 프로젝트별 데이터 격리 | P3.3.1 | `kbsi_project` 테이블 + RLS 정책 | - |
+| P3.3.3 | Audit Log 대시보드 | P3.3.1 | `/audit/page.tsx` 존재 | - |
+
+### 3.9 통합 검증
+
+| ID | 태스크 | 선행 | 검증 |
+|----|--------|------|------|
+| P3.9.1 | Phase 3 전체 | 모든 P3.* | `npm run preflight` 통과 |
+
+---
+
+## Phase 2/3 의존성 그래프
+
+```
+P1.9.1 (Phase 1 완료)
+  ├── P2.1.1 → P2.1.2 → P2.1.3 → P2.1.4  (LLM 추출 파이프라인)
+  ├── P2.2.1 → P2.2.2, P2.2.3             (리간드)
+  ├── P2.3.1 → P2.3.2, P2.3.3, P2.3.4    (대시보드)
+  └── P2.4.1 → P2.4.2                     (Import/Export)
+       ↓
+P2.9.1 (Phase 2 완료)
+  ├── P3.1.1 → P3.1.2 → P3.1.3           (AI/ML)
+  │   └── P3.1.4                          (Feature Engineering)
+  ├── P3.2.1, P3.2.2, P3.2.3             (외부 DB — 병렬 가능)
+  └── P3.3.1 → P3.3.2, P3.3.3            (접근 제어)
+       ↓
+P3.9.1 (Phase 3 완료)
+```
+
+---
+
 ## 검증 스크립트 사용법
 
 ```bash

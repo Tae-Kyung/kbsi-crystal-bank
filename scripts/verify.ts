@@ -302,6 +302,216 @@ const TASKS: Task[] = [
       { type: 'COMMAND', command: 'npx tsc --noEmit', description: '타입 체크 통과' },
     ],
   },
+
+  // ============================================================
+  // Phase 2: LLM 파이프라인 + 시각화 + Import/Export
+  // ============================================================
+
+  // ── Phase 2.1: LLM 문헌 추출 ──
+  {
+    id: 'P2.1.1',
+    title: 'LLM 추출 프롬프트 설계',
+    depends_on: ['P1.9.1'],
+    verifications: [
+      { type: 'FILE_EXISTS', target: 'src/lib/llm/extraction-prompt.ts', description: '추출 프롬프트 파일' },
+    ],
+  },
+  {
+    id: 'P2.1.2',
+    title: '추출 API (OpenAI + CrossRef)',
+    depends_on: ['P2.1.1'],
+    verifications: [
+      { type: 'FILE_EXISTS', target: 'src/app/api/extract/route.ts', description: '추출 API' },
+    ],
+  },
+  {
+    id: 'P2.1.3',
+    title: 'Staging 검토 API',
+    depends_on: ['P2.1.2'],
+    verifications: [
+      { type: 'FILE_EXISTS', target: 'src/app/api/staging/route.ts', description: 'Staging API' },
+    ],
+  },
+  {
+    id: 'P2.1.4',
+    title: 'Staging 검토 UI',
+    depends_on: ['P2.1.3'],
+    verifications: [
+      { type: 'FILE_EXISTS', target: 'src/app/(dashboard)/staging/page.tsx', description: 'Staging 페이지' },
+      { type: 'FILE_EXISTS', target: 'src/components/staging/staging-review-list.tsx', description: '검토 리스트' },
+      { type: 'FILE_EXISTS', target: 'src/components/staging/extraction-form.tsx', description: '추출 폼' },
+    ],
+  },
+
+  // ── Phase 2.2: 리간드 ──
+  {
+    id: 'P2.2.1',
+    title: 'Ligand API (CRUD)',
+    depends_on: ['P1.9.1'],
+    verifications: [
+      { type: 'FILE_EXISTS', target: 'src/app/api/ligands/route.ts', description: 'Ligand API' },
+      { type: 'FILE_EXISTS', target: 'src/lib/validations/ligand.ts', description: 'Ligand 검증 스키마' },
+    ],
+  },
+  {
+    id: 'P2.2.2',
+    title: 'Construct-Ligand 바인딩 API',
+    depends_on: ['P2.2.1'],
+    verifications: [
+      { type: 'FILE_EXISTS', target: 'src/app/api/construct-ligands/route.ts', description: 'Construct-Ligand API' },
+    ],
+  },
+  {
+    id: 'P2.2.3',
+    title: 'Ligand 목록 페이지 + 폼',
+    depends_on: ['P2.2.1'],
+    verifications: [
+      { type: 'FILE_EXISTS', target: 'src/app/(dashboard)/ligands/page.tsx', description: 'Ligand 페이지' },
+      { type: 'FILE_EXISTS', target: 'src/components/forms/ligand-form-dialog.tsx', description: 'Ligand 폼' },
+    ],
+  },
+
+  // ── Phase 2.3: 대시보드 ──
+  {
+    id: 'P2.3.1',
+    title: 'Dashboard 페이지 + 통계 카드',
+    depends_on: ['P1.9.1'],
+    verifications: [
+      { type: 'FILE_EXISTS', target: 'src/app/(dashboard)/dashboard/page.tsx', description: 'Dashboard 페이지' },
+    ],
+  },
+  {
+    id: 'P2.3.2',
+    title: 'Pipeline Funnel 차트',
+    depends_on: ['P2.3.1'],
+    verifications: [
+      { type: 'FILE_EXISTS', target: 'src/components/charts/pipeline-funnel.tsx', description: 'Pipeline Funnel' },
+    ],
+  },
+  {
+    id: 'P2.3.3',
+    title: 'Outcome 분포 차트',
+    depends_on: ['P2.3.1'],
+    verifications: [
+      { type: 'FILE_EXISTS', target: 'src/components/charts/outcome-distribution.tsx', description: 'Outcome 분포' },
+    ],
+  },
+  {
+    id: 'P2.3.4',
+    title: 'pH×온도 Scatter Plot',
+    depends_on: ['P2.3.1'],
+    verifications: [
+      { type: 'FILE_EXISTS', target: 'src/components/charts/crystallization-heatmap.tsx', description: 'Crystallization Heatmap' },
+    ],
+  },
+
+  // ── Phase 2.4: Import/Export ──
+  {
+    id: 'P2.4.1',
+    title: 'CSV/JSON Export API',
+    depends_on: ['P1.9.1'],
+    verifications: [
+      { type: 'FILE_EXISTS', target: 'src/app/api/export/route.ts', description: 'Export API' },
+    ],
+  },
+  {
+    id: 'P2.4.2',
+    title: 'CSV Bulk Import API',
+    depends_on: ['P2.4.1'],
+    verifications: [
+      { type: 'FILE_EXISTS', target: 'src/app/api/import/route.ts', description: 'Import API' },
+    ],
+  },
+
+  // ── Phase 2.9: 통합 검증 ──
+  {
+    id: 'P2.9.1',
+    title: 'Phase 2 전체 빌드 + 테스트',
+    depends_on: ['P2.1.4', 'P2.2.3', 'P2.3.4', 'P2.4.2'],
+    verifications: [
+      { type: 'COMMAND', command: 'npx next build', description: '전체 빌드 성공' },
+      { type: 'COMMAND', command: 'npx vitest run', description: '전체 테스트 통과' },
+      { type: 'COMMAND', command: 'npx tsc --noEmit', description: '타입 체크 통과' },
+    ],
+  },
+
+  // ============================================================
+  // Phase 3: AI/ML + 외부 DB 연동 + 고급 접근 제어
+  // ============================================================
+
+  // ── Phase 3.1: AI/ML ──
+  {
+    id: 'P3.1.1',
+    title: '결정화 조건 추천 API (k-NN)',
+    depends_on: ['P2.9.1'],
+    verifications: [
+      { type: 'FILE_EXISTS', target: 'src/app/api/recommend/route.ts', description: '추천 API' },
+    ],
+  },
+  {
+    id: 'P3.1.2',
+    title: '결정화 성공 확률 예측 API',
+    depends_on: ['P3.1.1'],
+    verifications: [
+      { type: 'FILE_EXISTS', target: 'src/app/api/predict/route.ts', description: '예측 API' },
+    ],
+  },
+  {
+    id: 'P3.1.4',
+    title: 'ML Feature Engineering',
+    depends_on: ['P3.1.1'],
+    verifications: [
+      { type: 'FILE_EXISTS', target: 'src/lib/ml/features.ts', description: 'Feature 파이프라인' },
+    ],
+  },
+
+  // ── Phase 3.2: 외부 DB 연동 ──
+  {
+    id: 'P3.2.1',
+    title: 'UniProt API 연동',
+    depends_on: ['P2.9.1'],
+    verifications: [
+      { type: 'FILE_EXISTS', target: 'src/lib/external/uniprot.ts', description: 'UniProt 클라이언트' },
+    ],
+  },
+  {
+    id: 'P3.2.2',
+    title: 'PDB API 연동',
+    depends_on: ['P2.9.1'],
+    verifications: [
+      { type: 'FILE_EXISTS', target: 'src/lib/external/pdb.ts', description: 'PDB 클라이언트' },
+    ],
+  },
+
+  // ── Phase 3.3: 고급 접근 제어 ──
+  {
+    id: 'P3.3.1',
+    title: 'RBAC (admin/researcher/viewer)',
+    depends_on: ['P1.8.1'],
+    verifications: [
+      { type: 'FILE_EXISTS', target: 'supabase/migrations/00002_rbac.sql', description: 'RBAC migration' },
+    ],
+  },
+  {
+    id: 'P3.3.3',
+    title: 'Audit Log 대시보드',
+    depends_on: ['P3.3.1'],
+    verifications: [
+      { type: 'FILE_EXISTS', target: 'src/app/(dashboard)/audit/page.tsx', description: 'Audit 페이지' },
+    ],
+  },
+
+  // ── Phase 3.9: 통합 검증 ──
+  {
+    id: 'P3.9.1',
+    title: 'Phase 3 전체 빌드 + 테스트',
+    depends_on: ['P3.1.2', 'P3.2.1', 'P3.2.2', 'P3.3.3'],
+    verifications: [
+      { type: 'COMMAND', command: 'npx next build', description: '전체 빌드 성공' },
+      { type: 'COMMAND', command: 'npx vitest run', description: '전체 테스트 통과' },
+      { type: 'COMMAND', command: 'npx tsc --noEmit', description: '타입 체크 통과' },
+    ],
+  },
 ];
 
 // ============================================================

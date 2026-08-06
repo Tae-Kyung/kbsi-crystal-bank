@@ -32,3 +32,4 @@
 | 2026-08-06 08:08:42 | P2.1 | LLM extraction API (OpenAI + CrossRef) + staging review UI |
 | 2026-08-06 08:08:44 | P2.4 | CSV/JSON export + CSV bulk import APIs |
 | 2026-08-06 08:21:13 | DEPLOY | Pushed to github.com/Tae-Kyung/kbsi-crystal-bank (secrets removed from history) |
+| 2026-08-06 08:28:08 | DOCS | TASK.md/PRD.md에 Phase 2/3 태스크 추가, verify.ts에 P2/P3 검증 등록 |
