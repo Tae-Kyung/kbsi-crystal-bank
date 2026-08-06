@@ -11,18 +11,21 @@ import {
   Pill,
 } from 'lucide-react';
 import { cn } from '@/lib/utils';
+import { useLocale } from '@/lib/locale-context';
+import { t, type TranslationKey } from '@/lib/i18n';
 
 const NAV_ITEMS = [
-  { href: '/dashboard', label: 'Dashboard', icon: LayoutDashboard },
-  { href: '/proteins', label: 'Proteins', icon: Dna },
-  { href: '/constructs', label: 'Constructs', icon: FlaskConical },
-  { href: '/experiments', label: 'Experiments', icon: TestTubes },
-  { href: '/ligands', label: 'Ligands', icon: Pill },
-  { href: '/staging', label: 'Staging Review', icon: ClipboardCheck },
+  { href: '/dashboard', labelKey: 'nav.dashboard' as TranslationKey, icon: LayoutDashboard },
+  { href: '/proteins', labelKey: 'nav.proteins' as TranslationKey, icon: Dna },
+  { href: '/constructs', labelKey: 'nav.constructs' as TranslationKey, icon: FlaskConical },
+  { href: '/experiments', labelKey: 'nav.experiments' as TranslationKey, icon: TestTubes },
+  { href: '/ligands', labelKey: 'nav.ligands' as TranslationKey, icon: Pill },
+  { href: '/staging', labelKey: 'nav.staging' as TranslationKey, icon: ClipboardCheck },
 ] as const;
 
 export function Sidebar() {
   const pathname = usePathname();
+  const { locale } = useLocale();
 
   return (
     <aside className="hidden md:flex md:w-60 md:flex-col md:border-r bg-sidebar">
@@ -32,7 +35,7 @@ export function Sidebar() {
         </Link>
       </div>
       <nav className="flex-1 space-y-1 p-3" data-testid="sidebar-nav">
-        {NAV_ITEMS.map(({ href, label, icon: Icon }) => {
+        {NAV_ITEMS.map(({ href, labelKey, icon: Icon }) => {
           const isActive = pathname.startsWith(href);
           return (
             <Link
@@ -46,7 +49,7 @@ export function Sidebar() {
               )}
             >
               <Icon className="h-4 w-4" />
-              {label}
+              {t(labelKey, locale)}
             </Link>
           );
         })}
