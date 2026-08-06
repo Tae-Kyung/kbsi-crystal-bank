@@ -26,3 +26,4 @@
 | 2026-08-06 07:58:39 | P1.5.2 | Construct list + detail pages (stats, sequences, mutations) |
 | 2026-08-06 07:58:42 | P1.7.1 | Experiment tabs UI (Expression, Purification, Crystallization, Characterization, Structure) |
 | 2026-08-06 07:58:44 | P1.8.1 | Supabase Auth login + middleware redirect |
+| 2026-08-06 07:59:56 | P1.9.1 | Phase 1 preflight PASS: tsc + 53 tests + build |
