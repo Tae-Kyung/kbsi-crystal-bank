@@ -47,8 +47,8 @@ export async function POST(request: NextRequest) {
     );
   }
 
-  const { data, error } = await supabase
-    .from('kbsi_protein')
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  const { data, error } = await (supabase.from('kbsi_protein') as any)
     .insert(parsed.data)
     .select()
     .single();

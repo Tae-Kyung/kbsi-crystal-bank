@@ -105,6 +105,80 @@ export const crystallizationCreateSchema = z.object({
 });
 
 // --------------------------------------------------------
+// Purification
+// --------------------------------------------------------
+export const purificationCreateSchema = z.object({
+  construct_id: z.number().int().positive(),
+  attempt_number: z.number().int().positive().nullish(),
+  source_type: sourceTypeEnum.default('experimental'),
+  reference_id: z.number().int().positive().nullish(),
+  method_summary: z.string().nullish(),
+  final_purity: z.number().min(0).max(100).nullish(),
+  final_yield: z.number().min(0).nullish(),
+  result_level: purificationResultEnum.nullish(),
+  notes: z.string().nullish(),
+  performed_by: z.string().max(100).nullish(),
+  performed_on: z.string().date().nullish(),
+});
+
+// --------------------------------------------------------
+// Characterization
+// --------------------------------------------------------
+export const characterizationCreateSchema = z.object({
+  construct_id: z.number().int().positive(),
+  attempt_number: z.number().int().positive().nullish(),
+  source_type: sourceTypeEnum.default('experimental'),
+  reference_id: z.number().int().positive().nullish(),
+  method: z.string().min(1),
+  value_num: z.number().nullish(),
+  value_text: z.string().nullish(),
+  unit_normalized: z.string().nullish(),
+  unit_raw: z.string().nullish(),
+  notes: z.string().nullish(),
+  performed_by: z.string().max(100).nullish(),
+  performed_on: z.string().date().nullish(),
+});
+
+// --------------------------------------------------------
+// Diffraction
+// --------------------------------------------------------
+export const diffractionCreateSchema = z.object({
+  construct_id: z.number().int().positive(),
+  attempt_number: z.number().int().positive().nullish(),
+  source_type: sourceTypeEnum.default('experimental'),
+  reference_id: z.number().int().positive().nullish(),
+  crystal_id: z.string().nullish(),
+  beamline: z.string().nullish(),
+  resolution: z.number().positive().nullish(),
+  space_group: z.string().nullish(),
+  unit_cell: z.string().nullish(),
+  data_quality: z.string().nullish(),
+  phasing: z.string().nullish(),
+  notes: z.string().nullish(),
+  performed_by: z.string().max(100).nullish(),
+  performed_on: z.string().date().nullish(),
+});
+
+// --------------------------------------------------------
+// Structure
+// --------------------------------------------------------
+export const structureCreateSchema = z.object({
+  construct_id: z.number().int().positive(),
+  attempt_number: z.number().int().positive().nullish(),
+  source_type: sourceTypeEnum.default('experimental'),
+  reference_id: z.number().int().positive().nullish(),
+  method: z.enum(['X-ray', 'NMR', 'Cryo-EM']),
+  resolution: z.number().positive().nullish(),
+  pdb_id: z.string().nullish(),
+  emdb_id: z.string().nullish(),
+  bmrb_id: z.string().nullish(),
+  publication_ref_id: z.number().int().positive().nullish(),
+  notes: z.string().nullish(),
+  performed_by: z.string().max(100).nullish(),
+  performed_on: z.string().date().nullish(),
+});
+
+// --------------------------------------------------------
 // Extraction Staging
 // --------------------------------------------------------
 export const extractionStagingCreateSchema = z.object({
