@@ -5,6 +5,20 @@
 
 const PDB_API = 'https://data.rcsb.org/rest/v1/core';
 
+export interface PDBCrystallization {
+  method: string | null;
+  ph: number | null;
+  temperature: number | null; // Celsius
+  details: string | null;
+}
+
+export interface PDBExpressionSystem {
+  host: string | null;
+  strain: string | null;
+  vector: string | null;
+  plasmid: string | null;
+}
+
 export interface PDBEntry {
   pdbId: string;
   title: string;
@@ -15,6 +29,8 @@ export interface PDBEntry {
   organism: string | null;
   spaceGroup: string | null;
   unitCell: { a: number; b: number; c: number; alpha: number; beta: number; gamma: number } | null;
+  crystallization: PDBCrystallization | null;
+  expressionSystem: PDBExpressionSystem | null;
   polymerEntities: {
     entityId: string;
     name: string;
@@ -59,6 +75,28 @@ export async function fetchPDBEntry(pdbId: string): Promise<PDBEntry | null> {
       }
     : null;
 
+  // Crystallization conditions
+  const crystalGrow = entry.exptl_crystal_grow?.[0];
+  const crystallization: PDBCrystallization | null = crystalGrow
+    ? {
+        method: crystalGrow.method || null,
+        ph: crystalGrow.pH != null ? parseFloat(crystalGrow.pH) : null,
+        temperature: crystalGrow.temp != null ? parseFloat(crystalGrow.temp) - 273.15 : null, // K → C
+        details: crystalGrow.pdbx_details || null,
+      }
+    : null;
+
+  // Expression system
+  const srcDetails = entity?.rcsb_entity_source_organism?.[0];
+  const expressionSystem: PDBExpressionSystem | null = srcDetails?.expression_host_scientific_name
+    ? {
+        host: srcDetails.expression_host_scientific_name || null,
+        strain: srcDetails.expression_host_strain || null,
+        vector: srcDetails.expression_host_vector_type || null,
+        plasmid: srcDetails.expression_host_plasmid_name || null,
+      }
+    : null;
+
   const polymerEntities: PDBEntry['polymerEntities'] = [];
   if (entity) {
     const uniprotRef = entity.rcsb_polymer_entity_container_identifiers?.uniprot_ids?.[0] || null;
@@ -82,6 +120,8 @@ export async function fetchPDBEntry(pdbId: string): Promise<PDBEntry | null> {
       : null,
     spaceGroup: entry.symmetry?.space_group_name_H_M || null,
     unitCell,
+    crystallization,
+    expressionSystem,
     polymerEntities,
   };
 }

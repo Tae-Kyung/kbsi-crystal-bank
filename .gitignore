@@ -20,3 +20,8 @@ Thumbs.db
 
 # Uploads
 uploads/
+
+# TargetTrack large data files
+data/targettrack/*.tar.gz
+data/targettrack/*.xml.gz
+data/targettrack/*.csv

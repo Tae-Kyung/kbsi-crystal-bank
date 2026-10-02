@@ -9,6 +9,7 @@ import { Badge } from '@/components/ui/badge';
 import { FormField } from '@/components/forms/form-field';
 import { EnumSelect } from '@/components/forms/enum-select';
 import { Plus } from 'lucide-react';
+import { NaturalLanguageInput } from './natural-language-input';
 
 const RESULT_LEVELS = ['no_expression', 'insoluble', 'low', 'moderate', 'high'] as const;
 const RESULT_COLORS: Record<string, string> = {
@@ -35,6 +36,17 @@ export function ExpressionTab({ data, constructId }: ExpressionTabProps) {
   });
 
   const set = (f: string, v: string) => setForm((p) => ({ ...p, [f]: v }));
+
+  function handleNLParsed(data: Record<string, any>) {
+    setForm((p) => {
+      const next = { ...p };
+      for (const [k, v] of Object.entries(data)) {
+        if (v != null && k in next) next[k as keyof typeof next] = String(v);
+      }
+      return next;
+    });
+    setShowForm(true);
+  }
 
   async function handleSubmit(e: React.FormEvent) {
     e.preventDefault();
@@ -71,6 +83,12 @@ export function ExpressionTab({ data, constructId }: ExpressionTabProps) {
           <Plus className="h-4 w-4 mr-1" />{showForm ? 'Cancel' : 'Add Expression'}
         </Button>
       </div>
+
+      <NaturalLanguageInput
+        experimentType="expression"
+        placeholder="예: BL21에서 IPTG 0.5mM, 18도 overnight, yield 25mg/L, 결과 좋음"
+        onParsed={handleNLParsed}
+      />
 
       {showForm && (
         <Card>

@@ -28,10 +28,10 @@ export default async function DashboardPage() {
     { label: 'Pending Review', value: staging.count ?? 0, icon: ClipboardCheck },
   ];
 
-  // Fetch crystallization data for charts
+  // Fetch crystallization data for charts (source_type 포함)
   const { data: crystData } = await supabase
     .from('kbsi_crystallization')
-    .select('ph, temperature, outcome, precipitant_type');
+    .select('ph, temperature, outcome, precipitant_type, source_type');
 
   // Fetch pipeline data
   const pipelineData = {
@@ -78,6 +78,40 @@ export default async function DashboardPage() {
           </CardContent>
         </Card>
       </div>
+
+      {/* Data Source Distribution */}
+      {(() => {
+        const all = crystData ?? [];
+        const experimental = all.filter((d: any) => d.source_type === 'experimental' || d.source_type === 'database');
+        const synthetic = all.filter((d: any) => d.source_type === 'synthetic');
+        const success = all.filter((d: any) => d.outcome === 'diffraction_quality' || d.outcome === 'single_crystal');
+        const failure = all.filter((d: any) => d.outcome === 'clear' || d.outcome === 'precipitate');
+        return (
+          <Card>
+            <CardHeader><CardTitle className="text-base">Crystallization Data Overview</CardTitle></CardHeader>
+            <CardContent>
+              <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
+                <div className="text-center p-3 rounded-lg bg-blue-50 dark:bg-blue-950">
+                  <div className="text-2xl font-bold">{all.length}</div>
+                  <div className="text-xs text-muted-foreground">전체 데이터</div>
+                </div>
+                <div className="text-center p-3 rounded-lg bg-green-50 dark:bg-green-950">
+                  <div className="text-2xl font-bold text-green-700 dark:text-green-300">{success.length}</div>
+                  <div className="text-xs text-muted-foreground">성공 (결정)</div>
+                </div>
+                <div className="text-center p-3 rounded-lg bg-red-50 dark:bg-red-950">
+                  <div className="text-2xl font-bold text-red-700 dark:text-red-300">{failure.length}</div>
+                  <div className="text-xs text-muted-foreground">실패 (투명/침전)</div>
+                </div>
+                <div className="text-center p-3 rounded-lg bg-purple-50 dark:bg-purple-950">
+                  <div className="text-2xl font-bold text-purple-700 dark:text-purple-300">{synthetic.length}</div>
+                  <div className="text-xs text-muted-foreground">합성 데이터</div>
+                </div>
+              </div>
+            </CardContent>
+          </Card>
+        );
+      })()}
 
       <Card>
         <CardHeader><CardTitle className="text-base">Crystallization Conditions (pH vs Temperature)</CardTitle></CardHeader>

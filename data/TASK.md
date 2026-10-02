@@ -196,6 +196,21 @@ P1.9.1 (Phase 1 통합 검증) ← 모든 P1.* 완료 후
 | P3.3.2 | 프로젝트별 데이터 격리 | P3.3.1 | `kbsi_project` 테이블 + RLS 정책 | - |
 | P3.3.3 | Audit Log 대시보드 | P3.3.1 | `/audit/page.tsx` 존재 | - |
 
+### 3.4 PDB Import 및 데이터 증강 파이프라인
+
+| ID | 태스크 | 선행 | 검증 | 상태 |
+|----|--------|------|------|------|
+| P3.4.1 | PDB Import 기본 (검색 + 미리보기 + 등록) | P3.2.2 | `/pdb-import/page.tsx` + `/api/pdb-import/route.ts` 존재 | ✅ 완료 |
+| P3.4.2 | 추천 단백질 DB 관리 (`kbsi_featured_protein`) | P3.4.1 | migration 존재 + `/api/pdb-import/featured/route.ts` CRUD | ✅ 완료 |
+| P3.4.3 | 추천 목록 동적 탐색 (PDB 카테고리별 suggest) | P3.4.2 | `/api/pdb-import/featured/suggest/route.ts` 존재 | ✅ 완료 |
+| P3.4.4 | 체크박스 일괄 등록 + 미등록/등록됨 탭 분리 | P3.4.2 | 일괄 import API `pdbIds[]` 지원 | ✅ 완료 |
+| P3.4.5 | 결정화 조건 LLM 파싱 (Condition Enrichment) | P3.4.1 | `/api/pdb-import/enrich/route.ts` + `condition-enricher.tsx` 존재 | ✅ 완료 |
+| P3.4.6 | Negative Control 합성 (Data Augmentation) | P3.4.5 | `/api/pdb-import/negative-controls/route.ts` + `negative-control-generator.tsx` 존재 | ✅ 완료 |
+| P3.4.7 | TargetTrack/PepcDB 결정화 프로토콜 import | P3.4.5 | `scripts/extract-cryst-protocols.ts` + `scripts/import-cryst-protocols.ts` + 77건 DB 등록 | ✅ 완료 |
+| P3.4.8 | 대시보드 데이터 분포 + 히트맵 성공/실패 시각화 | P3.4.6 | Dashboard Overview 카드 + 히트맵 source_type 구분 (●/▲) | ✅ 완료 |
+| P3.4.9 | ML 학습 데이터셋 Export API | P3.4.6 | `/api/export/ml-dataset` CSV/JSON + 이진분류 옵션 | ✅ 완료 |
+| P3.4.10 | 실험 탭 source_type 구분 표시 | P3.4.6 | 합성→점선+배지, PDB→배지, notes 표시 | ✅ 완료 |
+
 ### 3.9 통합 검증
 
 | ID | 태스크 | 선행 | 검증 |
@@ -217,6 +232,10 @@ P2.9.1 (Phase 2 완료)
   ├── P3.1.1 → P3.1.2 → P3.1.3           (AI/ML)
   │   └── P3.1.4                          (Feature Engineering)
   ├── P3.2.1, P3.2.2, P3.2.3             (외부 DB — 병렬 가능)
+  │   └── P3.2.2 → P3.4.1 → P3.4.2 → P3.4.3, P3.4.4  (PDB Import + 추천)
+  │                  └── P3.4.5 → P3.4.6 → P3.4.8, P3.4.10  (조건 파싱 + Neg.Control + 시각화)
+  │                       ├── P3.4.7                    (TargetTrack 프로토콜 import)
+  │                       └── P3.4.9                    (ML Export)
   └── P3.3.1 → P3.3.2, P3.3.3            (접근 제어)
        ↓
 P3.9.1 (Phase 3 완료)

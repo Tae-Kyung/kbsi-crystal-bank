@@ -520,6 +520,7 @@ CREATE POLICY "Authenticated insert" ON kbsi_characterization FOR INSERT TO auth
 
 CREATE POLICY "Authenticated read all" ON kbsi_crystallization FOR SELECT TO authenticated USING (true);
 CREATE POLICY "Authenticated insert" ON kbsi_crystallization FOR INSERT TO authenticated WITH CHECK (true);
+CREATE POLICY "Authenticated update" ON kbsi_crystallization FOR UPDATE TO authenticated USING (true) WITH CHECK (true);
 
 CREATE POLICY "Authenticated read all" ON kbsi_structure FOR SELECT TO authenticated USING (true);
 CREATE POLICY "Authenticated insert" ON kbsi_structure FOR INSERT TO authenticated WITH CHECK (true);

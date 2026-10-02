@@ -102,6 +102,7 @@ const translations = {
   'nav.experiments': { ko: '실험', en: 'Experiments', zh: '实验' },
   'nav.ligands': { ko: '리간드', en: 'Ligands', zh: '配体' },
   'nav.staging': { ko: 'Staging 검토', en: 'Staging Review', zh: '暂存审核' },
+  'nav.pdb-import': { ko: 'PDB 가져오기', en: 'PDB Import', zh: 'PDB 导入' },
   'common.logout': { ko: '로그아웃', en: 'Logout', zh: '退出' },
   'common.nodata': { ko: '데이터가 없습니다.', en: 'No data available.', zh: '暂无数据。' },
 } as const;

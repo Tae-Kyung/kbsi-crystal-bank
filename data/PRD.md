@@ -85,10 +85,51 @@
 - 결정화 성공 확률 예측 모델
 - 데이터 export (ML 학습용 CSV/Parquet)
 
-### F11. 외부 DB 연동
+### F11. 외부 DB 연동 및 데이터 자동 수집
 - PDB, UniProt, AlphaFold DB 자동 연계
 - DOI로 논문 메타데이터 자동 fetch (CrossRef API)
 - K-BDS 표준 메타데이터 매핑
+
+### F13. PDB Import 및 데이터 증강 파이프라인
+PDB 공개 데이터를 활용하여 결정화 조건 데이터를 체계적으로 축적하는 3단계 파이프라인.
+
+#### F13-1. 추천 단백질 관리 (Featured Proteins)
+- `kbsi_featured_protein` 테이블로 추천 목록 동적 관리
+- 미등록/등록됨 탭 분리, 체크박스 일괄 등록
+- PDB ID 입력으로 추천 목록에 동적 추가 (PDB에서 자동 정보 fetch)
+- "더 추천받기" 기능: PDB에서 카테고리별(키나아제, 프로테아제, 수용체 등) 새 단백질 자동 탐색
+
+#### F13-2. 결정화 조건 자동 파싱 (Condition Enrichment)
+- PDB `exptl_crystal_grow.pdbx_details` free-text를 LLM(GPT-4o-mini)으로 구조화
+- 추출 필드: precipitant_type/conc/unit, buffer_type, salt_type/conc, protein_concentration, additive, drop_ratio
+- 개별 파싱 및 전체 일괄 파싱 지원
+
+#### F13-3. Negative Control 합성 (Data Augmentation)
+- 성공 조건(diffraction_quality/single_crystal) 기반 실패 예상 조건 자동 생성
+- 7가지 변형 전략: pH 극단(상/하), 침전제 없음/과다/부족, 고온, 고농도 염
+- `source_type = 'synthetic'`으로 합성 데이터 구분
+- 전략별 선택 생성 및 일괄 삭제 지원
+- ML 학습용 데이터 불균형 해소 목적
+
+#### F13-4. TargetTrack 대용량 데이터 import
+- Zenodo 아카이브(DOI: 10.5281/zenodo.821654)에서 TargetTrack 데이터 다운로드 (800MB)
+- 335,771 타겟 중 결정화 프로토콜 텍스트 추출 (258K+ crystallization 프로토콜)
+- LLM(GPT-4o-mini)으로 free-text 프로토콜 → 구조화 조건 파싱
+- `source_type = 'literature'`로 DB import
+- 스크립트: `scripts/extract-cryst-protocols.ts` (XML→JSON) + `scripts/import-cryst-protocols.ts` (LLM 파싱→DB)
+
+#### F13-5. 대시보드 시각화 강화
+- Crystallization Data Overview 카드: 전체/성공/실패/합성 건수 요약
+- 결정화 히트맵(pH × 온도): 실험/DB 데이터(●) vs 합성 데이터(▲) 모양 구분, outcome별 색상
+- Outcome 파이차트: 실험+합성 데이터 구분 표시
+- 실험 탭: source_type별 배지(PDB/합성) + 합성 데이터 점선 테두리 구분
+
+#### F13-6. ML 학습 데이터셋 Export
+- `/api/export/ml-dataset` 전용 API
+- 합성 데이터 포함/제외 옵션
+- 이진 분류(success=1/failure=0) 또는 6단계 등급(0~5) 선택
+- CSV/JSON 포맷 다운로드
+- 단백질명, 유기체, 발현 시스템 등 메타데이터 포함
 
 ### F12. 고급 접근 제어
 - 기관별·프로젝트별 RBAC

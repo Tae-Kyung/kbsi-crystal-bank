@@ -9,6 +9,7 @@ import { Badge } from '@/components/ui/badge';
 import { FormField } from '@/components/forms/form-field';
 import { EnumSelect } from '@/components/forms/enum-select';
 import { Plus } from 'lucide-react';
+import { NaturalLanguageInput } from './natural-language-input';
 
 const RESULT_LEVELS = ['failed', 'low', 'acceptable', 'high'] as const;
 
@@ -22,6 +23,17 @@ export function PurificationTab({ data, constructId }: { data: any[]; constructI
   });
 
   const set = (f: string, v: string) => setForm((p) => ({ ...p, [f]: v }));
+
+  function handleNLParsed(data: Record<string, any>) {
+    setForm((p) => {
+      const next = { ...p };
+      for (const [k, v] of Object.entries(data)) {
+        if (v != null && k in next) next[k as keyof typeof next] = String(v);
+      }
+      return next;
+    });
+    setShowForm(true);
+  }
 
   async function handleSubmit(e: React.FormEvent) {
     e.preventDefault();
@@ -53,6 +65,12 @@ export function PurificationTab({ data, constructId }: { data: any[]; constructI
           <Plus className="h-4 w-4 mr-1" />{showForm ? 'Cancel' : 'Add Purification'}
         </Button>
       </div>
+      <NaturalLanguageInput
+        experimentType="purification"
+        placeholder="예: Ni-NTA로 1차 정제 후 SEC, purity 95%, 최종 수율 8mg"
+        onParsed={handleNLParsed}
+      />
+
       {showForm && (
         <Card>
           <CardHeader><CardTitle className="text-base">New Purification</CardTitle></CardHeader>

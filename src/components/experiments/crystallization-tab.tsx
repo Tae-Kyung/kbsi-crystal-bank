@@ -9,6 +9,7 @@ import { Badge } from '@/components/ui/badge';
 import { FormField } from '@/components/forms/form-field';
 import { EnumSelect } from '@/components/forms/enum-select';
 import { Plus } from 'lucide-react';
+import { NaturalLanguageInput } from './natural-language-input';
 
 const OUTCOMES = ['clear', 'precipitate', 'phase_separation', 'microcrystal', 'single_crystal', 'diffraction_quality'] as const;
 const OUTCOME_COLORS: Record<string, string> = {
@@ -37,6 +38,17 @@ export function CrystallizationTab({ data, constructId }: CrystallizationTabProp
   });
 
   const set = (f: string, v: string) => setForm((p) => ({ ...p, [f]: v }));
+
+  function handleNLParsed(data: Record<string, any>) {
+    setForm((p) => {
+      const next = { ...p };
+      for (const [k, v] of Object.entries(data)) {
+        if (v != null && k in next) next[k as keyof typeof next] = String(v);
+      }
+      return next;
+    });
+    setShowForm(true);
+  }
 
   async function handleSubmit(e: React.FormEvent) {
     e.preventDefault();
@@ -77,6 +89,12 @@ export function CrystallizationTab({ data, constructId }: CrystallizationTabProp
           <Plus className="h-4 w-4 mr-1" />{showForm ? 'Cancel' : 'Add Crystallization'}
         </Button>
       </div>
+
+      <NaturalLanguageInput
+        experimentType="crystallization"
+        placeholder="예: BSA 10mg/mL, PEG 4000 20%, pH 7.0, 18도, single crystal 나옴"
+        onParsed={handleNLParsed}
+      />
 
       {showForm && (
         <Card>
@@ -132,7 +150,7 @@ export function CrystallizationTab({ data, constructId }: CrystallizationTabProp
       {data.length > 0 ? (
         <div className="space-y-3">
           {data.map((c) => (
-            <Card key={c.id}>
+            <Card key={c.id} className={c.source_type === 'synthetic' ? 'border-dashed opacity-70' : ''}>
               <CardContent className="p-4">
                 <div className="flex items-start justify-between">
                   <div className="space-y-1">
@@ -144,6 +162,12 @@ export function CrystallizationTab({ data, constructId }: CrystallizationTabProp
                         </span>
                       )}
                       {c.stage && <Badge variant="outline">{c.stage}</Badge>}
+                      {c.source_type === 'synthetic' && (
+                        <Badge variant="secondary" className="text-xs">합성</Badge>
+                      )}
+                      {c.source_type === 'database' && (
+                        <Badge variant="outline" className="text-xs">PDB</Badge>
+                      )}
                     </div>
                     <div className="text-sm text-muted-foreground">
                       {[
@@ -155,6 +179,7 @@ export function CrystallizationTab({ data, constructId }: CrystallizationTabProp
                       ].filter(Boolean).join(' | ')}
                     </div>
                     {c.condition_detail && <p className="text-sm">{c.condition_detail}</p>}
+                    {c.notes && <p className="text-xs text-muted-foreground italic">{c.notes}</p>}
                     {c.days_to_crystal != null && <p className="text-sm">Crystal in {c.days_to_crystal} days</p>}
                   </div>
                   <div className="text-xs text-muted-foreground text-right">

@@ -9,6 +9,7 @@ import { Badge } from '@/components/ui/badge';
 import { FormField } from '@/components/forms/form-field';
 import { EnumSelect } from '@/components/forms/enum-select';
 import { Plus } from 'lucide-react';
+import { NaturalLanguageInput } from './natural-language-input';
 
 const METHODS = ['X-ray', 'NMR', 'Cryo-EM'] as const;
 
@@ -19,6 +20,17 @@ export function StructureTab({ data, constructId }: { data: any[]; constructId: 
   const [form, setForm] = useState({ method: '', resolution: '', pdb_id: '', emdb_id: '', notes: '' });
 
   const set = (f: string, v: string) => setForm((p) => ({ ...p, [f]: v }));
+
+  function handleNLParsed(data: Record<string, any>) {
+    setForm((p) => {
+      const next = { ...p };
+      for (const [k, v] of Object.entries(data)) {
+        if (v != null && k in next) next[k as keyof typeof next] = String(v);
+      }
+      return next;
+    });
+    setShowForm(true);
+  }
 
   async function handleSubmit(e: React.FormEvent) {
     e.preventDefault();
@@ -48,6 +60,12 @@ export function StructureTab({ data, constructId }: { data: any[]; constructId: 
           <Plus className="h-4 w-4 mr-1" />{showForm ? 'Cancel' : 'Add Structure'}
         </Button>
       </div>
+      <NaturalLanguageInput
+        experimentType="structure"
+        placeholder="예: X-ray로 2.1A resolution, PDB ID 6GOD"
+        onParsed={handleNLParsed}
+      />
+
       {showForm && (
         <Card>
           <CardHeader><CardTitle className="text-base">New Structure</CardTitle></CardHeader>

@@ -8,6 +8,7 @@ import { Input } from '@/components/ui/input';
 import { Badge } from '@/components/ui/badge';
 import { FormField } from '@/components/forms/form-field';
 import { Plus } from 'lucide-react';
+import { NaturalLanguageInput } from './natural-language-input';
 
 const METHODS = ['DLS_PDI', 'DLS_Rh', 'DSC_Tm', 'SECMALS_MW', 'MS_mass', 'UV_A280', 'CD', 'other'] as const;
 
@@ -18,6 +19,17 @@ export function CharacterizationTab({ data, constructId }: { data: any[]; constr
   const [form, setForm] = useState({ method: '', value_num: '', value_text: '', unit_raw: '', notes: '' });
 
   const set = (f: string, v: string) => setForm((p) => ({ ...p, [f]: v }));
+
+  function handleNLParsed(data: Record<string, any>) {
+    setForm((p) => {
+      const next = { ...p };
+      for (const [k, v] of Object.entries(data)) {
+        if (v != null && k in next) next[k as keyof typeof next] = String(v);
+      }
+      return next;
+    });
+    setShowForm(true);
+  }
 
   async function handleSubmit(e: React.FormEvent) {
     e.preventDefault();
@@ -54,6 +66,12 @@ export function CharacterizationTab({ data, constructId }: { data: any[]; constr
           <Plus className="h-4 w-4 mr-1" />{showForm ? 'Cancel' : 'Add Measurement'}
         </Button>
       </div>
+      <NaturalLanguageInput
+        experimentType="characterization"
+        placeholder="예: DLS 찍었더니 Rh 3.5nm, PDI 0.15"
+        onParsed={handleNLParsed}
+      />
+
       {showForm && (
         <Card>
           <CardHeader><CardTitle className="text-base">New Characterization</CardTitle></CardHeader>
