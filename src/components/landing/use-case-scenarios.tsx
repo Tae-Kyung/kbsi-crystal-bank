@@ -486,18 +486,61 @@ Crystallization was performed by hanging-drop vapor diffusion at 18°C. Diffract
           ]} />
         </CollapsibleStep>
 
-        <CollapsibleStep title="7-2. MCP 서버 설정 — Claude Desktop/Code 연동">
+        <CollapsibleStep title="7-2. claude.ai 에서 MCP 연동 (가장 쉬운 방법)" defaultOpen>
           <p className="text-sm text-gray-600 dark:text-gray-400">
-            KBSI API를 MCP(Model Context Protocol) 서버로 노출하면 Claude Desktop, Claude Code, 또는 다른 MCP 클라이언트에서 직접 데이터를 조회할 수 있습니다.
+            claude.ai 웹에서 바로 KBSI 데이터에 접근할 수 있습니다. 원격 MCP 서버 엔드포인트를 제공합니다.
+          </p>
+          <div className="space-y-2 text-sm text-gray-700 dark:text-gray-300">
+            <div className="flex items-start gap-3">
+              <span className="flex h-6 w-6 shrink-0 items-center justify-center rounded-full bg-blue-100 text-xs font-bold text-blue-600">1</span>
+              <span><a href="https://claude.ai" className="text-blue-600 underline" target="_blank" rel="noopener noreferrer">claude.ai</a> 접속 &rarr; 좌측 하단 프로필 아이콘 클릭 &rarr; <strong>Settings</strong></span>
+            </div>
+            <div className="flex items-start gap-3">
+              <span className="flex h-6 w-6 shrink-0 items-center justify-center rounded-full bg-blue-100 text-xs font-bold text-blue-600">2</span>
+              <span><strong>Integrations</strong> 메뉴 클릭 &rarr; <strong>&quot;Add More&quot;</strong> 버튼</span>
+            </div>
+            <div className="flex items-start gap-3">
+              <span className="flex h-6 w-6 shrink-0 items-center justify-center rounded-full bg-blue-100 text-xs font-bold text-blue-600">3</span>
+              <span><strong>&quot;Add custom integration&quot;</strong> 선택</span>
+            </div>
+            <div className="flex items-start gap-3">
+              <span className="flex h-6 w-6 shrink-0 items-center justify-center rounded-full bg-blue-100 text-xs font-bold text-blue-600">4</span>
+              <div>
+                <span>아래 MCP 서버 URL을 입력:</span>
+              </div>
+            </div>
+          </div>
+          <CopyBlock
+            label="MCP Server URL"
+            text="https://kbsi-crystal-bank.vercel.app/api/mcp"
+          />
+          <div className="space-y-2 text-sm text-gray-700 dark:text-gray-300">
+            <div className="flex items-start gap-3">
+              <span className="flex h-6 w-6 shrink-0 items-center justify-center rounded-full bg-green-100 text-xs font-bold text-green-600">5</span>
+              <span>Integration name: <strong>KBSI ProteinDB</strong> &rarr; <strong>Save</strong></span>
+            </div>
+            <div className="flex items-start gap-3">
+              <span className="flex h-6 w-6 shrink-0 items-center justify-center rounded-full bg-green-100 text-xs font-bold text-green-600">6</span>
+              <span>새 대화에서 &quot;KBSI DB에서 KRAS 검색해줘&quot; 입력 &rarr; 도구 승인 팝업에서 허용 &rarr; 결과 확인!</span>
+            </div>
+          </div>
+          <div className="rounded-lg bg-green-50 dark:bg-green-900/20 border border-green-200 dark:border-green-800 p-3 mt-2">
+            <p className="text-sm text-green-800 dark:text-green-200">
+              <strong>제공되는 MCP 도구 7종:</strong> search_proteins, search_constructs, get_experiments, get_statistics, recommend_crystallization, predict_success, search_crystallization_conditions
+            </p>
+          </div>
+        </CollapsibleStep>
+
+        <CollapsibleStep title="7-3. Claude Desktop / Claude Code 연동">
+          <p className="text-sm text-gray-600 dark:text-gray-400">
+            로컬 환경의 Claude Desktop 또는 Claude Code에서도 MCP를 연결할 수 있습니다.
           </p>
           <CopyBlock
             label="claude_desktop_config.json (Claude Desktop)"
             text={`{
   "mcpServers": {
     "kbsi-protein": {
-      "command": "npx",
-      "args": ["-y", "@anthropic-ai/mcp-openapi", "--spec",
-        "https://kbsi-crystal-bank.vercel.app/api/openapi"]
+      "url": "https://kbsi-crystal-bank.vercel.app/api/mcp"
     }
   }
 }`}
@@ -507,10 +550,7 @@ Crystallization was performed by hanging-drop vapor diffusion at 18°C. Diffract
             text={`{
   "mcpServers": {
     "kbsi-protein": {
-      "command": "npx",
-      "args": ["-y", "@anthropic-ai/mcp-openapi",
-        "--spec", "https://kbsi-crystal-bank.vercel.app/api/openapi",
-        "--server-name", "kbsi-protein"]
+      "url": "https://kbsi-crystal-bank.vercel.app/api/mcp"
     }
   }
 }`}
@@ -527,7 +567,7 @@ Crystallization was performed by hanging-drop vapor diffusion at 18°C. Diffract
           </div>
         </CollapsibleStep>
 
-        <CollapsibleStep title="7-3. 프로그래밍 방식 API 호출">
+        <CollapsibleStep title="7-4. 프로그래밍 방식 API 호출">
           <CopyBlock
             label="JavaScript (fetch)"
             text={`// 단백질 검색
