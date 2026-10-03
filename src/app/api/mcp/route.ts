@@ -19,7 +19,7 @@ function createMcpServer() {
       const supabase = createServiceClient();
       const { data, error } = await supabase
         .from('kbsi_protein')
-        .select('id, full_name, abbreviation, gene_name, organism, source_type')
+        .select('id, full_name, abbreviation, gene_name, organism')
         .or(`full_name.ilike.%${query}%,abbreviation.ilike.%${query}%,gene_name.ilike.%${query}%`)
         .limit(limit);
       if (error) return { content: [{ type: 'text' as const, text: `Error: ${error.message}` }] };
