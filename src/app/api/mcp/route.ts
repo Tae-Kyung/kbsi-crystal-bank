@@ -1,7 +1,7 @@
 import { McpServer } from '@modelcontextprotocol/sdk/server/mcp.js';
 import { WebStandardStreamableHTTPServerTransport } from '@modelcontextprotocol/sdk/server/webStandardStreamableHttp.js';
 import { z } from 'zod';
-import { createClient } from '@/lib/supabase/server';
+import { createServiceClient } from '@/lib/supabase/service';
 import { extractFeatures, findKNearest, estimateSuccessProbability } from '@/lib/ml/features';
 
 function createMcpServer() {
@@ -16,7 +16,7 @@ function createMcpServer() {
     '단백질을 이름, 약어, 유전자명으로 검색합니다',
     { query: z.string().describe('검색어'), limit: z.number().optional().default(10) },
     async ({ query, limit }) => {
-      const supabase = await createClient();
+      const supabase = createServiceClient();
       const { data, error } = await supabase
         .from('kbsi_protein')
         .select('id, full_name, abbreviation, gene_name, organism, source_type')
@@ -33,7 +33,7 @@ function createMcpServer() {
     'Construct를 단백질 ID 또는 이름으로 검색합니다',
     { protein_id: z.number().optional(), query: z.string().optional(), limit: z.number().optional().default(10) },
     async ({ protein_id, query, limit }) => {
-      const supabase = await createClient();
+      const supabase = createServiceClient();
       let q = supabase
         .from('kbsi_construct')
         .select('id, name, construct_type, expression_system, tag_name, status, protein_id, kbsi_protein(full_name, abbreviation)')
@@ -56,7 +56,7 @@ function createMcpServer() {
       limit: z.number().optional().default(20),
     },
     async ({ construct_id, experiment_type, limit }) => {
-      const supabase = await createClient();
+      const supabase = createServiceClient();
       const tableMap: Record<string, string> = {
         expression: 'kbsi_expression', purification: 'kbsi_purification',
         crystallization: 'kbsi_crystallization', characterization: 'kbsi_characterization',
@@ -79,7 +79,7 @@ function createMcpServer() {
     '데이터베이스 통계를 조회합니다 (단백질, construct, 실험 건수)',
     {},
     async () => {
-      const supabase = await createClient();
+      const supabase = createServiceClient();
       const tables = ['kbsi_protein', 'kbsi_construct', 'kbsi_expression', 'kbsi_purification', 'kbsi_crystallization', 'kbsi_structure'];
       const results: Record<string, number> = {};
       for (const table of tables) {
@@ -100,7 +100,7 @@ function createMcpServer() {
       protein_concentration: z.number().optional(), k: z.number().optional().default(5),
     },
     async ({ ph, temperature, precipitant_type, precipitant_conc, protein_concentration, k }) => {
-      const supabase = await createClient();
+      const supabase = createServiceClient();
       const { data, error } = await supabase
         .from('kbsi_crystallization')
         .select('protein_concentration, precipitant_type, precipitant_conc, ph, temperature, additive, outcome')
@@ -145,7 +145,7 @@ function createMcpServer() {
       protein_concentration: z.number().optional(),
     },
     async ({ ph, temperature, precipitant_type, precipitant_conc, protein_concentration }) => {
-      const supabase = await createClient();
+      const supabase = createServiceClient();
       const { data, error } = await supabase
         .from('kbsi_crystallization')
         .select('protein_concentration, precipitant_type, precipitant_conc, ph, temperature, additive, outcome')
@@ -196,7 +196,7 @@ function createMcpServer() {
       limit: z.number().optional().default(20),
     },
     async ({ outcome, precipitant_type, ph_min, ph_max, temperature_min, temperature_max, limit }) => {
-      const supabase = await createClient();
+      const supabase = createServiceClient();
       let q = supabase
         .from('kbsi_crystallization')
         .select('*, kbsi_construct(name, kbsi_protein(full_name))')
