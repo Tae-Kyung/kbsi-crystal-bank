@@ -398,15 +398,15 @@ Crystallization was performed by hanging-drop vapor diffusion at 18°C. Diffract
         badge="NEW"
         link={{ href: '/dashboard', label: '대시보드에서 시작' }}
       >
-        <CollapsibleStep title="5-1. 질문 예시" defaultOpen>
+        <CollapsibleStep title="5-1. 데이터 탐색" defaultOpen>
           <div className="grid gap-2 md:grid-cols-2">
             {[
-              { q: '"DB에 등록된 단백질 수는?"', a: 'get_statistics 도구로 전체 통계 조회' },
-              { q: '"KRAS 검색해줘"', a: 'search_proteins → KRAS 관련 단백질 목록 반환' },
-              { q: '"pH 7.0, 18도에서 결정화 추천해줘"', a: 'recommend_crystallization → 유사 성공 조건 추천' },
-              { q: '"PEG 4000 25%로 결정화하면 성공 확률은?"', a: 'predict_success → 성공 확률 % + confidence' },
-              { q: '"single_crystal 결과만 보여줘"', a: 'search_crystallization_conditions → outcome 필터' },
-              { q: '"Construct ID 5의 발현 실험 보여줘"', a: 'get_experiments → 해당 construct 실험 데이터' },
+              { q: 'KBSI 데이터베이스에 현재 몇 개의 단백질과 실험 데이터가 있어?', a: 'get_statistics → 테이블별 건수 조회' },
+              { q: 'KRAS 단백질 정보를 검색해줘.', a: 'search_proteins → KRAS 관련 단백질 반환' },
+              { q: 'KRAS의 Construct 목록을 보여줘.', a: 'search_constructs → protein_id 기반 검색' },
+              { q: 'Lysozyme 관련 단백질이 DB에 있어?', a: 'search_proteins → Lysozyme 검색' },
+              { q: 'Construct ID 1의 결정화 실험 결과를 보여줘.', a: 'get_experiments → 결정화 데이터 조회' },
+              { q: 'single_crystal 결과가 나온 결정화 실험들을 검색해줘.', a: 'search_crystallization_conditions → outcome 필터' },
             ].map(({ q, a }) => (
               <div key={q} className="rounded-lg border p-3 bg-gray-50 dark:bg-gray-900">
                 <p className="text-sm font-medium text-gray-900 dark:text-white">{q}</p>
@@ -416,7 +416,55 @@ Crystallization was performed by hanging-drop vapor diffusion at 18°C. Diffract
           </div>
         </CollapsibleStep>
 
-        <CollapsibleStep title="5-2. 사용 가능한 도구 (Function Calling)">
+        <CollapsibleStep title="5-2. AI 추천 & 예측">
+          <div className="grid gap-2 md:grid-cols-2">
+            {[
+              { q: 'pH 7.0, 온도 18도, PEG 3350 조건에서 결정화 조건을 추천해줘.', a: 'recommend_crystallization → k-NN 유사 성공 조건' },
+              { q: 'PEG 4000 25%, pH 7.0, 20도에서 결정화하면 성공 확률은 얼마야?', a: 'predict_success → 성공 확률 % + confidence' },
+              { q: 'PEG를 침전제로 사용한 결정화 조건을 찾아줘.', a: 'search_crystallization_conditions → 침전제 필터' },
+              { q: 'pH 6~7 범위에서 성공한 결정화 조건이 있어?', a: 'search_crystallization_conditions → pH 범위 검색' },
+            ].map(({ q, a }) => (
+              <div key={q} className="rounded-lg border p-3 bg-gray-50 dark:bg-gray-900">
+                <p className="text-sm font-medium text-gray-900 dark:text-white">{q}</p>
+                <p className="text-xs text-gray-500 mt-1">&rarr; {a}</p>
+              </div>
+            ))}
+          </div>
+        </CollapsibleStep>
+
+        <CollapsibleStep title="5-3. 복합 분석 & 실험 계획 (여러 도구 조합)">
+          <div className="space-y-3">
+            {[
+              {
+                q: 'KRAS 단백질의 Construct를 찾고, 해당 Construct의 결정화 실험 결과를 보여줘. 그리고 그 조건과 비슷한 다른 성공 사례를 추천해줘.',
+                tools: 'search_proteins → search_constructs → get_experiments → recommend_crystallization',
+              },
+              {
+                q: 'DB에서 diffraction_quality 결과가 나온 실험을 찾아서, 그 조건들의 공통점(pH, 온도, 침전제)을 분석해줘.',
+                tools: 'search_crystallization_conditions → AI 분석',
+              },
+              {
+                q: 'KRAS G12D의 결정화를 최적화하고 싶어. 기존에 PEG 3350 20%/pH 6.5/18도에서 single_crystal이 나왔는데, 해상도를 높이려면 어떤 조건을 시도해봐야 할까?',
+                tools: 'recommend_crystallization → predict_success → search_crystallization_conditions',
+              },
+              {
+                q: '지금까지 precipitate만 나오고 있어. pH 7.5, Ammonium Sulfate 2M, 18도 조건이었는데 DB에서 비슷하지만 성공한 사례가 있는지 찾아보고, 어떤 파라미터를 바꿔야 할지 제안해줘.',
+                tools: 'search_crystallization_conditions → recommend_crystallization → predict_success',
+              },
+              {
+                q: '처음으로 결정화를 시도하는 단백질이야. MW 25kDa, E. coli 발현, 농도 15mg/mL인데 DB에 있는 비슷한 크기 단백질의 결정화 성공 조건을 추천해줘.',
+                tools: 'recommend_crystallization → search_crystallization_conditions',
+              },
+            ].map(({ q, tools }) => (
+              <div key={q} className="rounded-lg border p-3 bg-gray-50 dark:bg-gray-900">
+                <p className="text-sm font-medium text-gray-900 dark:text-white">{q}</p>
+                <p className="text-xs text-blue-600 dark:text-blue-400 mt-1.5 font-mono">{tools}</p>
+              </div>
+            ))}
+          </div>
+        </CollapsibleStep>
+
+        <CollapsibleStep title="5-4. 사용 가능한 도구 (Function Calling)">
           <FieldTable fields={[
             { label: 'search_proteins', value: '이름/약어/유전자명으로 단백질 검색' },
             { label: 'search_constructs', value: 'Construct 검색 (protein_id 또는 이름)' },
@@ -560,10 +608,68 @@ Crystallization was performed by hanging-drop vapor diffusion at 18°C. Diffract
               <strong>MCP 연동 후 사용 예시:</strong>
             </p>
             <ul className="mt-2 space-y-1 text-sm text-purple-700 dark:text-purple-300">
-              <li>&bull; &quot;KBSI DB에서 EGFR 단백질 검색해줘&quot; → <code className="text-xs bg-purple-100 dark:bg-purple-800 px-1 rounded">GET /api/proteins?search=EGFR</code></li>
-              <li>&bull; &quot;결정화 성공률 높은 조건 추천해줘&quot; → <code className="text-xs bg-purple-100 dark:bg-purple-800 px-1 rounded">GET /api/recommend</code></li>
-              <li>&bull; &quot;전체 결정화 데이터 CSV로 내보내줘&quot; → <code className="text-xs bg-purple-100 dark:bg-purple-800 px-1 rounded">GET /api/export?table=kbsi_crystallization&format=csv</code></li>
+              <li>&bull; &quot;KBSI DB에서 EGFR 단백질 검색해줘&quot;</li>
+              <li>&bull; &quot;결정화 성공률 높은 조건 추천해줘&quot;</li>
+              <li>&bull; &quot;전체 결정화 데이터 CSV로 내보내줘&quot;</li>
             </ul>
+          </div>
+        </CollapsibleStep>
+
+        <CollapsibleStep title="7-3-1. claude.ai에서 실험 계획 코파일럿 예시">
+          <p className="text-sm text-gray-600 dark:text-gray-400 mb-3">
+            MCP를 연결한 claude.ai에서 AI가 여러 도구를 조합하여 실험 계획을 세우는 시나리오입니다.
+          </p>
+          <div className="space-y-3">
+            <div className="rounded-lg border-2 border-blue-200 dark:border-blue-800 p-4">
+              <p className="text-xs font-bold text-blue-600 uppercase tracking-wider mb-2">시나리오 A — 다음 결정화 실험 계획</p>
+              <div className="rounded-lg bg-gray-50 dark:bg-gray-900 p-3 mb-2">
+                <p className="text-sm text-gray-900 dark:text-white font-medium">
+                  &quot;KRAS G12D의 결정화를 최적화하고 싶어. PEG 3350 20%/pH 6.5/18도에서 single_crystal 성공했는데, 해상도를 높이려면 어떤 조건을 시도해봐야 할까?&quot;
+                </p>
+              </div>
+              <div className="space-y-1.5 text-xs text-gray-600 dark:text-gray-400">
+                <p>&rarr; Claude가 자동으로 수행하는 단계:</p>
+                <p className="font-mono text-blue-600">1. search_proteins(&quot;KRAS&quot;) → 단백질 정보 확인</p>
+                <p className="font-mono text-blue-600">2. search_constructs(protein_id: 1) → Construct 확인</p>
+                <p className="font-mono text-blue-600">3. recommend_crystallization(ph: 6.5, temp: 18, PEG 3350) → 유사 성공 조건 5건</p>
+                <p className="font-mono text-blue-600">4. predict_success(ph: 7.0, temp: 20, PEG 4000, 25%) → 대안 조건 확률 예측</p>
+                <p className="font-mono text-blue-600">5. search_crystallization_conditions(outcome: diffraction_quality) → 고해상도 사례 분석</p>
+                <p className="mt-2 text-sm text-gray-700 dark:text-gray-300">&rarr; &quot;DB 580건 분석 결과, PEG 3350 농도를 18~22%로 미세 조절하고 additive로 glycerol 5%를 추가해보세요. 유사 조건에서 diffraction_quality 달성률이 20% 높아집니다.&quot;</p>
+              </div>
+            </div>
+
+            <div className="rounded-lg border-2 border-amber-200 dark:border-amber-800 p-4">
+              <p className="text-xs font-bold text-amber-600 uppercase tracking-wider mb-2">시나리오 B — 실패 원인 분석 & 대안 제시</p>
+              <div className="rounded-lg bg-gray-50 dark:bg-gray-900 p-3 mb-2">
+                <p className="text-sm text-gray-900 dark:text-white font-medium">
+                  &quot;계속 precipitate만 나와. pH 7.5, Ammonium Sulfate 2M, 18도였는데 DB에서 비슷하지만 성공한 사례 찾아보고, 뭘 바꿔야 하는지 알려줘.&quot;
+                </p>
+              </div>
+              <div className="space-y-1.5 text-xs text-gray-600 dark:text-gray-400">
+                <p>&rarr; Claude가 자동으로 수행하는 단계:</p>
+                <p className="font-mono text-amber-600">1. predict_success(pH 7.5, AmSO4 2M, 18°C) → 현재 조건 성공률 확인 (예: 10%)</p>
+                <p className="font-mono text-amber-600">2. search_crystallization_conditions(ph_min: 6.5, ph_max: 8.0) → pH 범위 성공 사례</p>
+                <p className="font-mono text-amber-600">3. recommend_crystallization(ph: 7.0, temp: 18) → 대안 조건 추천</p>
+                <p className="mt-2 text-sm text-gray-700 dark:text-gray-300">&rarr; &quot;Ammonium Sulfate 2M은 DB에서 침전 비율 80%입니다. 농도를 1.2M으로 낮추거나, PEG 3350 20%로 전환하면 성공 확률이 45%로 올라갑니다.&quot;</p>
+              </div>
+            </div>
+
+            <div className="rounded-lg border-2 border-green-200 dark:border-green-800 p-4">
+              <p className="text-xs font-bold text-green-600 uppercase tracking-wider mb-2">시나리오 C — 신규 단백질 결정화 전략</p>
+              <div className="rounded-lg bg-gray-50 dark:bg-gray-900 p-3 mb-2">
+                <p className="text-sm text-gray-900 dark:text-white font-medium">
+                  &quot;새 단백질을 결정화하려고 해. E. coli 발현, 농도 15mg/mL인데 DB에서 성공 확률 높은 초기 스크리닝 조건 5개를 추천해줘.&quot;
+                </p>
+              </div>
+              <div className="space-y-1.5 text-xs text-gray-600 dark:text-gray-400">
+                <p>&rarr; Claude가 자동으로 수행하는 단계:</p>
+                <p className="font-mono text-green-600">1. get_statistics() → 전체 데이터 규모 확인</p>
+                <p className="font-mono text-green-600">2. search_crystallization_conditions(outcome: single_crystal) → 성공 사례 패턴 분석</p>
+                <p className="font-mono text-green-600">3. recommend_crystallization(protein_conc: 15, k: 10) → 유사 농도 성공 조건</p>
+                <p className="font-mono text-green-600">4. predict_success(각 후보 조건) → 각 조건별 성공 확률 비교</p>
+                <p className="mt-2 text-sm text-gray-700 dark:text-gray-300">&rarr; Top 5 초기 스크리닝 조건과 각각의 예상 성공 확률을 표로 정리</p>
+              </div>
+            </div>
           </div>
         </CollapsibleStep>
 
