@@ -136,6 +136,57 @@ PDB 공개 데이터를 활용하여 결정화 조건 데이터를 체계적으�
 - NDA 기반 데이터 격리
 - 감사 로그(audit log) 대시보드
 
+## 5-2. Phase 4 Features — AI 기능 고도화 & 외부 연동
+
+### F14. AI 챗봇 사이드패널
+- Vercel AI SDK `useChat` + OpenAI GPT-4o-mini 스트리밍
+- 7개 function calling 도구: search_proteins, search_constructs, get_experiments, get_statistics, recommend_crystallization, predict_success, search_crystallization_conditions
+- 대시보드 우측 하단 플로팅 버튼 → 접이식 사이드패널
+- 제안 질문 3개 + tool 호출 상태 실시간 표시
+
+### F15. MCP 서버 (Model Context Protocol)
+- `/api/mcp` — WebStandard Streamable HTTP MCP 서버 (Stateless)
+- claude.ai, Claude Desktop, Claude Code에서 직접 연결 가능
+- Service Role 클라이언트로 RLS 바이패스 (읽기 전용)
+- 7개 MCP 도구 = 챗봇과 동일 도구셋
+- 연결: claude.ai → Settings → Integrations → `https://kbsi-crystal-bank.vercel.app/api/mcp`
+
+### F16. OpenAPI / Swagger
+- `/api/openapi` — OpenAPI 3.0 JSON 스펙 (28개 엔드포인트)
+- `/api-docs` — Swagger UI 인터랙티브 문서
+- 다크모드 지원, 사이드바 네비게이션 포함
+
+### F17. 공개 DB 대규모 데이터 수집 파이프라인
+- **PDB Bulk Harvest** (`scripts/bulk-pdb-harvest.ts`)
+  - RCSB Search API 기반 22개 카테고리별 자동 수집
+  - 해상도/pH 필터, 중복 방지, dry-run 지원
+  - Protein → Construct → Expression → Crystallization → Structure 자동 생성
+  - `npm run harvest:pdb -- --total 500 --min-ph --resolution 3.0`
+- **TargetTrack 전량 Import** (`scripts/bulk-targettrack.ts`)
+  - LLM 배치 병렬 처리, 중복 방지 (TT-{id} construct name 체크)
+  - `npm run harvest:targettrack -- --batch 20`
+- **Condition Enrichment 일괄 파싱** (`scripts/bulk-enrich-conditions.ts`)
+  - condition_detail free-text → precipitant/pH/temperature 구조화
+  - 기존 값 보존, null 필드만 업데이트
+  - `npm run harvest:enrich -- --limit 300`
+
+## 5-3. 데이터 수집 현황 (2026-10-03 기준)
+
+| 데이터 소스 | 수집 건수 | 방법 | 비고 |
+|-------------|-----------|------|------|
+| KBSI 자체 실험 | 시드 3건 | 수동 입력 | KRAS, EGFR, GFP |
+| RCSB PDB Import | 331건 | `harvest:pdb` | 22개 카테고리, 해상도 ≤ 3.0A, pH 필수 |
+| TargetTrack/PepcDB | 80건 | `harvest:targettrack` | LLM 프로토콜 파싱 |
+| Condition Enrichment | 239건 | `harvest:enrich` | free-text → 구조화 필드 추출 |
+| Negative Control | 합성 | `/api/pdb-import/negative-controls` | 7가지 변형 전략 |
+
+### 현재 DB 규모
+- 단백질: ~350+개
+- Construct: ~450+개
+- 결정화 데이터: ~900+건 (pH 정보 포함)
+- 구조: ~370+건
+- 결정화 조건 구조화율: ~80% (precipitant_type 추출 완료)
+
 ## 6. Technical Constraints
 
 | 항목 | 결정 |
