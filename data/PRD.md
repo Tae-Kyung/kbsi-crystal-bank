@@ -175,16 +175,17 @@ PDB 공개 데이터를 활용하여 결정화 조건 데이터를 체계적으�
 | 데이터 소스 | 수집 건수 | 방법 | 비고 |
 |-------------|-----------|------|------|
 | KBSI 자체 실험 | 시드 3건 | 수동 입력 | KRAS, EGFR, GFP |
-| RCSB PDB Import | 331건 | `harvest:pdb` | 22개 카테고리, 해상도 ≤ 3.0A, pH 필수 |
+| RCSB PDB Import 1차 | 331건 | `harvest:pdb` | 22개 카테고리, 해상도 ≤ 3.0A, pH 필수 |
+| RCSB PDB Import 2차 | 566건 | `harvest:pdb` 병렬 | 22개 카테고리, 해상도 ≤ 3.5A, pH 필수, 카테고리당 100건 |
 | TargetTrack/PepcDB | 80건 | `harvest:targettrack` | LLM 프로토콜 파싱 |
-| Condition Enrichment | 239건 | `harvest:enrich` | free-text → 구조화 필드 추출 |
+| Condition Enrichment | 763건 | `harvest:enrich` | free-text → 구조화 필드 추출 (1차 239 + 2차 524) |
 | Negative Control | 합성 | `/api/pdb-import/negative-controls` | 7가지 변형 전략 |
 
 ### 현재 DB 규모
-- 단백질: ~350+개
-- Construct: ~450+개
-- 결정화 데이터: ~900+건 (pH 정보 포함)
-- 구조: ~370+건
+- 단백질: **541개**
+- Construct: **1,275개**
+- 결정화 데이터: **1,738건** (pH 정보 포함)
+- 구조: **1,194건**
 - 결정화 조건 구조화율: ~80% (precipitant_type 추출 완료)
 
 ## 6. Technical Constraints
