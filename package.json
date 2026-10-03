@@ -18,7 +18,10 @@
     "task:verify": "npx tsx scripts/verify.ts",
     "task:run": "npx tsx scripts/run-task.ts",
     "task:next": "npx tsx scripts/run-task.ts --next",
-    "preflight": "npm run typecheck && npm run lint && npm run test:run && npm run build"
+    "preflight": "npm run typecheck && npm run lint && npm run test:run && npm run build",
+    "harvest:pdb": "npx tsx scripts/bulk-pdb-harvest.ts",
+    "harvest:targettrack": "npx tsx scripts/bulk-targettrack.ts",
+    "harvest:enrich": "npx tsx scripts/bulk-enrich-conditions.ts"
   },
   "dependencies": {
     "@ai-sdk/openai": "^1.1.0",
