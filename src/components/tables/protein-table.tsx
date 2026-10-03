@@ -5,6 +5,7 @@ import { useRouter, useSearchParams } from 'next/navigation';
 import { type ColumnDef } from '@tanstack/react-table';
 import { DataTable } from './data-table';
 import { Badge } from '@/components/ui/badge';
+import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { useState } from 'react';
 
@@ -77,10 +78,19 @@ export function ProteinTable({ proteins, total, page, limit, search }: ProteinTa
   const router = useRouter();
   const [searchValue, setSearchValue] = useState(search || '');
 
+  const totalPages = Math.ceil(total / limit);
+
   const handleSearch = (e: React.FormEvent) => {
     e.preventDefault();
     const params = new URLSearchParams();
     if (searchValue) params.set('search', searchValue);
+    router.push(`/proteins?${params.toString()}`);
+  };
+
+  const navigatePage = (newPage: number) => {
+    const params = new URLSearchParams();
+    if (search) params.set('search', search);
+    if (newPage > 1) params.set('page', String(newPage));
     router.push(`/proteins?${params.toString()}`);
   };
 
@@ -95,6 +105,31 @@ export function ProteinTable({ proteins, total, page, limit, search }: ProteinTa
         />
       </form>
       <DataTable columns={columns} data={proteins} pageSize={limit} />
+      {totalPages > 1 && (
+        <div className="flex items-center justify-between">
+          <p className="text-sm text-muted-foreground">
+            총 {total}건 (페이지 {page} / {totalPages})
+          </p>
+          <div className="flex items-center gap-2">
+            <Button
+              variant="outline"
+              size="sm"
+              onClick={() => navigatePage(page - 1)}
+              disabled={page <= 1}
+            >
+              이전
+            </Button>
+            <Button
+              variant="outline"
+              size="sm"
+              onClick={() => navigatePage(page + 1)}
+              disabled={page >= totalPages}
+            >
+              다음
+            </Button>
+          </div>
+        </div>
+      )}
     </div>
   );
 }
