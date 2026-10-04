@@ -30,9 +30,17 @@ export default async function DashboardPage() {
   ];
 
   // Fetch crystallization data for charts (source_type 포함)
-  const { data: crystData } = await supabase
-    .from('kbsi_crystallization')
-    .select('ph, temperature, outcome, precipitant_type, source_type');
+  // Supabase 기본 limit=1000이므로 전체 데이터를 가져오려면 pagination 필요
+  const crystTotal = crystallizations.count ?? 0;
+  let crystData: any[] = [];
+  const PAGE_SIZE = 1000;
+  for (let offset = 0; offset < crystTotal; offset += PAGE_SIZE) {
+    const { data: page } = await supabase
+      .from('kbsi_crystallization')
+      .select('ph, temperature, outcome, precipitant_type, source_type')
+      .range(offset, offset + PAGE_SIZE - 1);
+    if (page) crystData = crystData.concat(page);
+  }
 
   // Fetch pipeline data
   const pipelineData = {
