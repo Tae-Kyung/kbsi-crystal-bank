@@ -49,25 +49,33 @@ async function main() {
     process.exit(1);
   }
 
-  // condition_detail이 있지만 precipitant_type이 없는 레코드 조회
-  let query = supabase
-    .from('kbsi_crystallization')
-    .select('id, condition_detail, precipitant_type, ph, temperature')
-    .not('condition_detail', 'is', null)
-    .order('id');
+  // condition_detail이 있지만 precipitant_type이 없는 레코드 조회 (pagination)
+  let records: any[] = [];
+  let offset = 0;
+  const PAGE = 1000;
+  while (records.length < limit) {
+    let query = supabase
+      .from('kbsi_crystallization')
+      .select('id, condition_detail, precipitant_type, ph, temperature')
+      .not('condition_detail', 'is', null)
+      .order('id')
+      .range(offset, offset + PAGE - 1);
 
-  if (!force) {
-    query = query.is('precipitant_type', null);
+    if (!force) {
+      query = query.is('precipitant_type', null);
+    }
+
+    const { data: page, error } = await query;
+    if (error) { console.error('DB 조회 실패:', error.message); process.exit(1); }
+    if (!page || page.length === 0) break;
+    records = records.concat(page);
+    if (page.length < PAGE) break;
+    offset += PAGE;
   }
+  records = records.slice(0, limit);
 
-  const { data: records, error } = await query.limit(limit);
-  if (error) {
-    console.error('DB 조회 실패:', error.message);
-    process.exit(1);
-  }
-
-  console.log(`대상 레코드: ${records?.length || 0}건 (limit: ${limit}${force ? ', force' : ''})\n`);
-  if (!records || records.length === 0) {
+  console.log(`대상 레코드: ${records.length}건 (limit: ${limit}${force ? ', force' : ''})\n`);
+  if (records.length === 0) {
     console.log('파싱할 레코드가 없습니다.');
     return;
   }
