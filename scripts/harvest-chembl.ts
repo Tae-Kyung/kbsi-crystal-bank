@@ -152,7 +152,7 @@ async function main() {
         } else {
           const { data: newL, error } = await supabase
             .from('kbsi_ligand')
-            .insert({ name: ligandName, smiles, source: `ChEMBL ${activity.molecule_chembl_id}` })
+            .insert({ name: ligandName, smiles, source: `ChEMBL ${activity.molecule_chembl_id}`, source_db: 'ChEMBL', source_id: activity.molecule_chembl_id })
             .select('id')
             .single();
           if (error) continue;
@@ -164,6 +164,8 @@ async function main() {
         const bindingData: any = {
           construct_id: constructId,
           ligand_id: ligandId,
+          source_db: 'ChEMBL',
+          source_id: String(activity.activity_id),
           notes: `${activity.standard_type}: ${activity.standard_value} ${activity.standard_units || ''} (pChEMBL: ${activity.pchembl_value}) [${activity.molecule_chembl_id}]`,
         };
         if (activity.standard_type === 'Kd') bindingData.binding_kd = activity.standard_value;

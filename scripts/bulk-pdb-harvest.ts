@@ -207,6 +207,7 @@ async function importEntry(pdb: NonNullable<Awaited<ReturnType<typeof fetchPDBFo
       host: pdb.expression.host,
       strain: pdb.expression.strain,
       source_type: 'database',
+      source_db: 'PDB', source_id: pdb.pdbId,
     });
   }
 
@@ -221,6 +222,7 @@ async function importEntry(pdb: NonNullable<Awaited<ReturnType<typeof fetchPDBFo
       condition_detail: c.details?.slice(0, 500) || null,
       outcome,
       source_type: 'database',
+      source_db: 'PDB', source_id: pdb.pdbId,
       notes: `PDB ${pdb.pdbId}`,
     });
   }
@@ -237,6 +239,7 @@ async function importEntry(pdb: NonNullable<Awaited<ReturnType<typeof fetchPDBFo
     resolution: pdb.resolution,
     pdb_id: pdb.pdbId,
     source_type: 'database',
+    source_db: 'PDB', source_id: pdb.pdbId,
   });
 
   // 6. Database ID (UniProt)

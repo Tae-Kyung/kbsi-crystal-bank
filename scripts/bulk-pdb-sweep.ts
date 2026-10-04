@@ -145,6 +145,7 @@ async function importEntry(pdb: NonNullable<Awaited<ReturnType<typeof fetchPDB>>
     await supabase.from('kbsi_expression').insert({
       construct_id: constructId, host: pdb.expression.host,
       strain: pdb.expression.strain, source_type: 'database',
+      source_db: 'PDB', source_id: pdb.pdbId,
     });
   }
 
@@ -155,7 +156,8 @@ async function importEntry(pdb: NonNullable<Awaited<ReturnType<typeof fetchPDB>>
       ph: pdb.crystallization.ph, temperature: pdb.crystallization.temperature,
       condition_detail: pdb.crystallization.details?.slice(0, 500) || null,
       outcome: pdb.crystallization.ph != null ? 'diffraction_quality' : null,
-      source_type: 'database', notes: `PDB ${pdb.pdbId}`,
+      source_type: 'database', source_db: 'PDB', source_id: pdb.pdbId,
+      notes: `PDB ${pdb.pdbId}`,
     });
   }
 
@@ -167,6 +169,7 @@ async function importEntry(pdb: NonNullable<Awaited<ReturnType<typeof fetchPDB>>
   await supabase.from('kbsi_structure').insert({
     construct_id: constructId, method: normalizedMethod,
     resolution: pdb.resolution, pdb_id: pdb.pdbId, source_type: 'database',
+    source_db: 'PDB', source_id: pdb.pdbId,
   });
 
   // UniProt ID
