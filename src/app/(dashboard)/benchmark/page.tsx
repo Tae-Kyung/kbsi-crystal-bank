@@ -1,7 +1,7 @@
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { BenchmarkResults } from '@/components/charts/benchmark-results';
 import { PredictionResult } from '@/components/charts/prediction-result';
-import { FullScatterChart } from '@/components/charts/full-scatter-chart';
+import { ServerScatterChart } from '@/components/charts/server-scatter-chart';
 
 export default function BenchmarkPage() {
   return (
@@ -27,7 +27,7 @@ export default function BenchmarkPage() {
           </CardTitle>
         </CardHeader>
         <CardContent>
-          <FullScatterChart />
+          <ServerScatterChart />
         </CardContent>
       </Card>
 
