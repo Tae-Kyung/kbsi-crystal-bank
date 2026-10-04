@@ -116,7 +116,7 @@ export default async function DashboardPage() {
               <div className="flex items-center gap-3">
                 <Icon className="h-5 w-5 text-muted-foreground" />
                 <div>
-                  <div className="text-2xl font-bold">{value}</div>
+                  <div className="text-2xl font-bold">{value.toLocaleString()}</div>
                   <div className="text-xs text-muted-foreground">{label}</div>
                 </div>
               </div>
@@ -148,19 +148,19 @@ export default async function DashboardPage() {
         <CardContent>
           <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
             <div className="text-center p-3 rounded-lg bg-blue-50 dark:bg-blue-950">
-              <div className="text-2xl font-bold">{crystallizations.count ?? 0}</div>
+              <div className="text-2xl font-bold">{(crystallizations.count ?? 0).toLocaleString()}</div>
               <div className="text-xs text-muted-foreground">전체 데이터</div>
             </div>
             <div className="text-center p-3 rounded-lg bg-green-50 dark:bg-green-950">
-              <div className="text-2xl font-bold text-green-700 dark:text-green-300">{successTotal}</div>
+              <div className="text-2xl font-bold text-green-700 dark:text-green-300">{successTotal.toLocaleString()}</div>
               <div className="text-xs text-muted-foreground">성공 (결정)</div>
             </div>
             <div className="text-center p-3 rounded-lg bg-red-50 dark:bg-red-950">
-              <div className="text-2xl font-bold text-red-700 dark:text-red-300">{failureTotal}</div>
+              <div className="text-2xl font-bold text-red-700 dark:text-red-300">{failureTotal.toLocaleString()}</div>
               <div className="text-xs text-muted-foreground">실패 (투명/침전)</div>
             </div>
             <div className="text-center p-3 rounded-lg bg-purple-50 dark:bg-purple-950">
-              <div className="text-2xl font-bold text-purple-700 dark:text-purple-300">{syntheticTotal}</div>
+              <div className="text-2xl font-bold text-purple-700 dark:text-purple-300">{syntheticTotal.toLocaleString()}</div>
               <div className="text-xs text-muted-foreground">합성 데이터</div>
             </div>
           </div>

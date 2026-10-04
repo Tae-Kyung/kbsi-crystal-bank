@@ -129,7 +129,7 @@ async function importEntry(pdb: NonNullable<Awaited<ReturnType<typeof fetchPDB>>
   });
 
   if (pdb.uniprotId) {
-    await supabase.from('kbsi_database_id').insert({ protein_id: proteinId, db_name: 'UniProt', db_id: pdb.uniprotId }).catch(() => {});
+    await supabase.from('kbsi_database_id').insert({ protein_id: proteinId, db_name: 'UniProt', db_id: pdb.uniprotId }).then(() => {});
   }
   return { proteinId, constructId };
 }
