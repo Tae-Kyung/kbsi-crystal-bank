@@ -175,29 +175,29 @@ PDB 공개 데이터를 활용하여 결정화 조건 데이터를 체계적으�
 | 데이터 소스 | 수집 건수 | 방법 | 비고 |
 |-------------|-----------|------|------|
 | KBSI 자체 실험 | 시드 3건 | 수동 입력 | KRAS, EGFR, GFP |
-| RCSB PDB X-ray (pH 포함) | ~80,000건 | `bulk-pdb-sweep.ts` + `harvest:pdb` | 해상도 순 전량 수집 |
-| RCSB PDB X-ray (pH 없음) | ~1,013건 | `pdb-sweep-method.ts --no-ph` | 구조/발현 정보만 |
-| RCSB PDB Cryo-EM | 수집 중 | `pdb-sweep-method.ts --method "ELECTRON MICROSCOPY"` | ~37K 대상 |
+| RCSB PDB X-ray (pH 포함) | ~155,000건 | `bulk-pdb-sweep.ts` + `harvest:pdb` | 해상도 순 전량 수집 완료 |
+| RCSB PDB X-ray (pH 없음) | ~1,013건 | `pdb-sweep-method.ts --no-ph` | 구조/발현 정보 |
+| RCSB PDB Cryo-EM | ~4,430건 | `pdb-sweep-method.ts --method "ELECTRON MICROSCOPY"` | 전자현미경 구조 |
 | RCSB PDB NMR | ~2,700건 | `pdb-sweep-method.ts --method "SOLUTION NMR"` | 용액 구조 |
 | TargetTrack/PepcDB | 80건 | `harvest:targettrack` | LLM 프로토콜 파싱 (전량 완료) |
-| ChEMBL 바인딩 | 1,186건 | `harvest-chembl.ts` | 20개 신약 타겟 IC50/Kd/Ki |
+| ChEMBL 바인딩 | 7,942건 | `harvest-chembl.ts` | 20개 신약 타겟 IC50/Kd/Ki |
 | Condition Enrichment | 2,577건 | `harvest:enrich` | free-text → 구조화 필드 추출 |
 | Negative Control | 합성 | `/api/pdb-import/negative-controls` | 7가지 변형 전략 |
 
 ### 현재 DB 규모
-- 단백질: **50,594개**
-- Construct: **164,939개**
-- 결정화 데이터: **131,630건**
-- 구조: **164,820건**
-- 리간드: **1,181개** (ChEMBL)
-- 바인딩 데이터: **1,186건** (IC50/Kd/Ki)
+- 단백질: **60,706개**
+- Construct: **218,376개**
+- 결정화 데이터: **165,933건**
+- 구조: **218,260건** (X-ray + Cryo-EM + NMR)
+- 리간드: **6,313개** (ChEMBL)
+- 바인딩 데이터: **7,942건** (IC50/Kd/Ki)
 - 결정화 조건 구조화: **2,577건** (precipitant_type 추출 완료)
 
 ### Success Metrics 달성률
 | 지표 | 목표 (1년차) | 현재 | 달성률 |
 |------|-------------|------|--------|
-| 등록된 단백질 수 | 250+ | **50,594** | **20,238%** |
-| 실험 데이터 레코드 | 5,000+ | **131,630** | **2,633%** |
+| 등록된 단백질 수 | 250+ | **60,706** | **24,282%** |
+| 실험 데이터 레코드 | 5,000+ | **165,933** | **3,319%** |
 | 결정화 예측 정확도 | 70%+ | **93.1%** (k=3) | **133%** |
 
 ## 5-4. 활용 방향 — 기존 DB(PDB 등)와의 차별화
