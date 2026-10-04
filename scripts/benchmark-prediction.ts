@@ -138,16 +138,25 @@ async function main() {
   const kValues = getArg('k', '3,5,7,10,15,20').split(',').map(Number);
   const seed = parseInt(getArg('seed', '42'));
 
-  console.log('결정화 데이터 로드 중...');
-  const { data, error } = await supabase
-    .from('kbsi_crystallization')
-    .select('ph, temperature, precipitant_type, precipitant_conc, protein_concentration, additive, outcome')
-    .not('outcome', 'is', null);
-
-  if (error) { console.error('DB 오류:', error.message); process.exit(1); }
-
-  const allData = (data || []) as Record_[];
-  console.log(`전체 데이터: ${allData.length}건 (outcome 있는 것만)\n`);
+  console.log('결정화 데이터 로드 중 (pagination)...');
+  let allData: Record_[] = [];
+  let offset = 0;
+  const PAGE = 1000;
+  const maxLoad = parseInt(getArg('maxload', '100000'));
+  while (allData.length < maxLoad) {
+    const { data, error } = await supabase
+      .from('kbsi_crystallization')
+      .select('ph, temperature, precipitant_type, precipitant_conc, protein_concentration, additive, outcome')
+      .not('outcome', 'is', null)
+      .range(offset, offset + PAGE - 1);
+    if (error) { console.error('DB 오류:', error.message); process.exit(1); }
+    if (!data || data.length === 0) break;
+    allData = allData.concat(data as Record_[]);
+    if (data.length < PAGE) break;
+    offset += PAGE;
+    if (allData.length % 10000 === 0) process.stdout.write(`  ${allData.length.toLocaleString()}건 로드...\r`);
+  }
+  console.log(`전체 데이터: ${allData.length.toLocaleString()}건 (outcome 있는 것만)\n`);
 
   // outcome 분포
   const outcomeDist: Record<string, number> = {};

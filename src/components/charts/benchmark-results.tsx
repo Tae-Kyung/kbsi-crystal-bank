@@ -6,34 +6,30 @@ import {
   Cell,
 } from 'recharts';
 
-// ─── Benchmark data (2026-10-05, 22K dataset) ───
+// ─── Benchmark data (2026-10-05, 50K balanced dataset: 51.5% success / 48.5% fail) ───
 const BINARY_DATA = [
-  { k: 3, accuracy: 93.1, precision: 97.2, recall: 86.2, f1: 91.4 },
-  { k: 5, accuracy: 90.0, precision: 92.0, recall: 83.7, f1: 87.7 },
-  { k: 7, accuracy: 89.7, precision: 91.9, recall: 82.9, f1: 87.2 },
-  { k: 10, accuracy: 89.3, precision: 90.4, recall: 83.7, f1: 86.9 },
-  { k: 15, accuracy: 90.3, precision: 94.4, recall: 82.1, f1: 87.8 },
-  { k: 20, accuracy: 88.3, precision: 91.6, recall: 79.7, f1: 85.2 },
-  { k: 30, accuracy: 86.2, precision: 88.1, recall: 78.0, f1: 82.8 },
+  { k: 3, accuracy: 98.1, precision: 99.4, recall: 97.7, f1: 98.5 },
+  { k: 5, accuracy: 98.2, precision: 99.5, recall: 97.8, f1: 98.6 },
+  { k: 10, accuracy: 98.3, precision: 99.9, recall: 97.3, f1: 98.6 },
+  { k: 15, accuracy: 98.3, precision: 100.0, recall: 97.3, f1: 98.6 },
+  { k: 20, accuracy: 98.2, precision: 100.0, recall: 97.3, f1: 98.6 },
 ];
 
 const MULTICLASS_DATA = [
-  { k: 3, exact: 89.7, within1: 93.1, mae: 0.35 },
-  { k: 5, exact: 85.2, within1: 90.0, mae: 0.51 },
-  { k: 7, exact: 84.5, within1: 89.7, mae: 0.52 },
-  { k: 10, exact: 82.1, within1: 89.3, mae: 0.57 },
-  { k: 15, exact: 79.7, within1: 90.0, mae: 0.58 },
-  { k: 20, exact: 80.7, within1: 89.7, mae: 0.57 },
-  { k: 30, exact: 79.3, within1: 89.0, mae: 0.60 },
+  { k: 3, exact: 98.1, within1: 98.1, mae: 0.08 },
+  { k: 5, exact: 98.2, within1: 98.2, mae: 0.07 },
+  { k: 10, exact: 98.3, within1: 98.3, mae: 0.07 },
+  { k: 15, exact: 98.3, within1: 98.3, mae: 0.07 },
+  { k: 20, exact: 98.2, within1: 98.2, mae: 0.07 },
 ];
 
 const FEATURE_IMPORTANCE = [
-  { feature: 'Precipitant Type', drop: 5.9, fullMark: 8 },
-  { feature: 'pH', drop: 4.8, fullMark: 8 },
-  { feature: 'Temperature', drop: 2.8, fullMark: 8 },
-  { feature: 'Additive', drop: 1.4, fullMark: 8 },
-  { feature: 'Protein Conc.', drop: 0, fullMark: 8 },
-  { feature: 'Precipitant Conc.', drop: 0, fullMark: 8 },
+  { feature: 'pH', drop: 50.0, fullMark: 55 },
+  { feature: 'Temperature', drop: 4.0, fullMark: 55 },
+  { feature: 'Precipitant Type', drop: 0, fullMark: 55 },
+  { feature: 'Precipitant Conc.', drop: 0, fullMark: 55 },
+  { feature: 'Protein Conc.', drop: 0, fullMark: 55 },
+  { feature: 'Additive', drop: 0, fullMark: 55 },
 ];
 
 const METRICS_COLORS = {
@@ -49,20 +45,20 @@ export function BenchmarkResults() {
       {/* KPI Cards */}
       <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
         <div className="text-center p-4 rounded-xl bg-blue-50 dark:bg-blue-950 border border-blue-200 dark:border-blue-800">
-          <div className="text-3xl font-bold text-blue-600">93.1%</div>
-          <div className="text-xs text-muted-foreground mt-1">Binary Accuracy (k=3)</div>
+          <div className="text-3xl font-bold text-blue-600">98.3%</div>
+          <div className="text-xs text-muted-foreground mt-1">Binary Accuracy (k=10)</div>
         </div>
         <div className="text-center p-4 rounded-xl bg-green-50 dark:bg-green-950 border border-green-200 dark:border-green-800">
-          <div className="text-3xl font-bold text-green-600">97.2%</div>
-          <div className="text-xs text-muted-foreground mt-1">Precision (k=3)</div>
+          <div className="text-3xl font-bold text-green-600">99.9%</div>
+          <div className="text-xs text-muted-foreground mt-1">Precision (k=10)</div>
         </div>
         <div className="text-center p-4 rounded-xl bg-amber-50 dark:bg-amber-950 border border-amber-200 dark:border-amber-800">
-          <div className="text-3xl font-bold text-amber-600">89.7%</div>
+          <div className="text-3xl font-bold text-amber-600">98.3%</div>
           <div className="text-xs text-muted-foreground mt-1">6-Class Exact Match</div>
         </div>
         <div className="text-center p-4 rounded-xl bg-purple-50 dark:bg-purple-950 border border-purple-200 dark:border-purple-800">
-          <div className="text-3xl font-bold text-purple-600">0.35</div>
-          <div className="text-xs text-muted-foreground mt-1">MAE (k=3)</div>
+          <div className="text-3xl font-bold text-purple-600">0.07</div>
+          <div className="text-xs text-muted-foreground mt-1">MAE (k=10)</div>
         </div>
       </div>
 
@@ -119,11 +115,12 @@ export function BenchmarkResults() {
 
       {/* Metadata */}
       <div className="flex flex-wrap gap-4 text-xs text-muted-foreground">
-        <span>Dataset: 1,000 records (outcome present)</span>
-        <span>Split: Train 678 / Test 290</span>
+        <span>Dataset: 50,000 records (balanced: 51.5% success / 48.5% fail)</span>
+        <span>Split: Train 45,000 / Test 5,000</span>
         <span>Model: k-NN (weighted inverse distance)</span>
         <span>Features: 6 (normalized min-max)</span>
-        <span>Target: 70% → <strong className="text-green-600">93.1% achieved</strong></span>
+        <span>Key feature: <strong className="text-red-600">pH (-50%)</strong></span>
+        <span>Target: 70% → <strong className="text-green-600">98.3% achieved</strong></span>
       </div>
     </div>
   );
