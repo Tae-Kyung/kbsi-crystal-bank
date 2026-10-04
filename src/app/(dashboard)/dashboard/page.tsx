@@ -1,6 +1,6 @@
 import { createClient } from '@/lib/supabase/server';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
-import { Dna, FlaskConical, Gem, TestTubes, Pill, ClipboardCheck } from 'lucide-react';
+import { Dna, FlaskConical, Gem, TestTubes, Pill, ClipboardCheck, Beaker, Link2 } from 'lucide-react';
 import { CrystallizationHeatmap } from '@/components/charts/crystallization-heatmap';
 import { OutcomeDistribution } from '@/components/charts/outcome-distribution';
 import { PipelineFunnel } from '@/components/charts/pipeline-funnel';
@@ -10,23 +10,25 @@ export default async function DashboardPage() {
   const supabase = await createClient();
 
   // Fetch counts in parallel
-  const [proteins, constructs, expressions, purifications, crystallizations, structures, staging] = await Promise.all([
+  const [proteins, constructs, expressions, purifications, crystallizations, structures, ligands, bindings, staging] = await Promise.all([
     supabase.from('kbsi_protein').select('id', { count: 'exact', head: true }),
     supabase.from('kbsi_construct').select('id', { count: 'exact', head: true }),
     supabase.from('kbsi_expression').select('id', { count: 'exact', head: true }),
     supabase.from('kbsi_purification').select('id', { count: 'exact', head: true }),
     supabase.from('kbsi_crystallization').select('id', { count: 'exact', head: true }),
     supabase.from('kbsi_structure').select('id', { count: 'exact', head: true }),
+    supabase.from('kbsi_ligand').select('id', { count: 'exact', head: true }),
+    supabase.from('kbsi_construct_ligand').select('id', { count: 'exact', head: true }),
     supabase.from('kbsi_extraction_staging').select('id', { count: 'exact', head: true }).eq('review_status', 'pending'),
   ]);
 
   const stats = [
     { label: 'Proteins', value: proteins.count ?? 0, icon: Dna },
     { label: 'Constructs', value: constructs.count ?? 0, icon: FlaskConical },
-    { label: 'Expressions', value: expressions.count ?? 0, icon: TestTubes },
     { label: 'Crystallizations', value: crystallizations.count ?? 0, icon: Gem },
     { label: 'Structures', value: structures.count ?? 0, icon: Pill },
-    { label: 'Pending Review', value: staging.count ?? 0, icon: ClipboardCheck },
+    { label: 'Ligands', value: ligands.count ?? 0, icon: Beaker },
+    { label: 'Bindings', value: bindings.count ?? 0, icon: Link2 },
   ];
 
   // ─── 차트용 집계 쿼리 (전체 행 fetch 대신 DB count 쿼리) ───
