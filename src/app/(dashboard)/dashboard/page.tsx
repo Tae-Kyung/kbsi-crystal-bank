@@ -4,6 +4,7 @@ import { Dna, FlaskConical, Gem, TestTubes, Pill, ClipboardCheck } from 'lucide-
 import { CrystallizationHeatmap } from '@/components/charts/crystallization-heatmap';
 import { OutcomeDistribution } from '@/components/charts/outcome-distribution';
 import { PipelineFunnel } from '@/components/charts/pipeline-funnel';
+import { BenchmarkResults } from '@/components/charts/benchmark-results';
 
 export default async function DashboardPage() {
   const supabase = await createClient();
@@ -117,6 +118,14 @@ export default async function DashboardPage() {
         <CardHeader><CardTitle className="text-base">Crystallization Conditions (pH vs Temperature)</CardTitle></CardHeader>
         <CardContent>
           <CrystallizationHeatmap data={crystData ?? []} />
+        </CardContent>
+      </Card>
+
+      {/* ML Benchmark Results */}
+      <Card>
+        <CardHeader><CardTitle className="text-base">ML Prediction Benchmark (k-NN)</CardTitle></CardHeader>
+        <CardContent>
+          <BenchmarkResults />
         </CardContent>
       </Card>
     </div>
