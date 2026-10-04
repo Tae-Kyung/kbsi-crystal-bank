@@ -1,6 +1,6 @@
 'use client';
 
-import { PieChart, Pie, Cell, Tooltip, ResponsiveContainer, Legend } from 'recharts';
+import { PieChart, Pie, Cell, Tooltip, ResponsiveContainer } from 'recharts';
 
 const OUTCOME_COLORS: Record<string, string> = {
   clear: '#94a3b8',
@@ -12,26 +12,43 @@ const OUTCOME_COLORS: Record<string, string> = {
 };
 
 interface OutcomeDistributionProps {
-  data: { outcome: string | null; source_type?: string | null }[];
+  data: any[];
 }
 
 export function OutcomeDistribution({ data }: OutcomeDistributionProps) {
-  const counts = data.reduce<Record<string, { real: number; synthetic: number }>>((acc, d) => {
-    const outcome = d.outcome;
-    if (!outcome) return acc;
-    if (!acc[outcome]) acc[outcome] = { real: 0, synthetic: 0 };
-    if (d.source_type === 'synthetic') acc[outcome].synthetic++;
-    else acc[outcome].real++;
-    return acc;
-  }, {});
+  // 두 가지 형태 지원:
+  // 1. 집계 데이터: { outcome, real, synthetic, count }
+  // 2. 원시 데이터: { outcome, source_type }
+  let chartData: { name: string; value: number; real: number; synthetic: number; fill: string }[];
 
-  const chartData = Object.entries(counts).map(([name, { real, synthetic }]) => ({
-    name: name.replace(/_/g, ' '),
-    value: real + synthetic,
-    real,
-    synthetic,
-    fill: OUTCOME_COLORS[name] || '#94a3b8',
-  }));
+  if (data.length > 0 && 'real' in data[0]) {
+    // 이미 집계된 데이터
+    chartData = data.map((d: any) => ({
+      name: (d.outcome || '').replace(/_/g, ' '),
+      value: (d.real || 0) + (d.synthetic || 0),
+      real: d.real || 0,
+      synthetic: d.synthetic || 0,
+      fill: OUTCOME_COLORS[d.outcome] || '#94a3b8',
+    }));
+  } else {
+    // 원시 데이터 — 클라이언트에서 집계
+    const counts = data.reduce<Record<string, { real: number; synthetic: number }>>((acc, d: any) => {
+      const outcome = d.outcome;
+      if (!outcome) return acc;
+      if (!acc[outcome]) acc[outcome] = { real: 0, synthetic: 0 };
+      if (d.source_type === 'synthetic') acc[outcome].synthetic++;
+      else acc[outcome].real++;
+      return acc;
+    }, {});
+
+    chartData = Object.entries(counts).map(([name, { real, synthetic }]) => ({
+      name: name.replace(/_/g, ' '),
+      value: real + synthetic,
+      real,
+      synthetic,
+      fill: OUTCOME_COLORS[name] || '#94a3b8',
+    }));
+  }
 
   if (chartData.length === 0) {
     return <p className="text-center text-muted-foreground py-8">No crystallization data yet.</p>;
