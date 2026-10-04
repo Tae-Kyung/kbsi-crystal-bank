@@ -6,6 +6,7 @@ import { Button } from '@/components/ui/button';
 import { LandingNav } from '@/components/layout/landing-nav';
 import { type Locale, t, getLocaleFromStorage } from '@/lib/i18n';
 import { UseCaseScenarios } from '@/components/landing/use-case-scenarios';
+import { DataStory } from '@/components/landing/data-story';
 
 const FEATURE_KEYS = [
   { titleKey: 'feature.protein.title' as const, descKey: 'feature.protein.desc' as const, icon: '🧬' },
@@ -94,8 +95,23 @@ export default function HomePage() {
         </div>
       </section>
 
-      {/* Features Grid */}
+      {/* Data Story Section */}
       <section className="py-16 bg-gray-50 dark:bg-gray-900">
+        <div className="mx-auto max-w-5xl px-6">
+          <h2 className="text-center text-2xl font-bold text-gray-900 dark:text-white md:text-3xl">
+            데이터의 여정 — 단백질에서 신약까지
+          </h2>
+          <p className="mx-auto mt-3 max-w-2xl text-center text-gray-500 dark:text-gray-400">
+            단백질 구조 연구의 전 과정이 하나의 데이터베이스에서 어떻게 연결되는지 알아보세요
+          </p>
+          <div className="mt-10">
+            <DataStory />
+          </div>
+        </div>
+      </section>
+
+      {/* Features Grid */}
+      <section className="py-16 bg-white dark:bg-gray-950">
         <div className="mx-auto max-w-5xl px-6">
           <h2 className="text-center text-2xl font-bold text-gray-900 dark:text-white md:text-3xl">
             {t('features.title', locale)}
