@@ -165,9 +165,16 @@ export function CrystallizationTab({ data, constructId }: CrystallizationTabProp
                       {c.source_type === 'synthetic' && (
                         <Badge variant="secondary" className="text-xs">합성</Badge>
                       )}
-                      {c.source_type === 'database' && (
-                        <Badge variant="outline" className="text-xs">PDB</Badge>
-                      )}
+                      {c.source_type === 'database' && c.notes?.match(/PDB\s+([A-Z0-9]{4})/i) ? (
+                        <a href={`https://www.rcsb.org/structure/${c.notes.match(/PDB\s+([A-Z0-9]{4})/i)![1]}`} target="_blank" rel="noopener noreferrer">
+                          <Badge variant="outline" className="text-xs cursor-pointer hover:bg-blue-50 dark:hover:bg-blue-950">
+                            PDB: {c.notes.match(/PDB\s+([A-Z0-9]{4})/i)![1]}
+                            <svg className="inline-block ml-1 h-2.5 w-2.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M10 6H6a2 2 0 00-2 2v10a2 2 0 002 2h10a2 2 0 002-2v-4M14 4h6m0 0v6m0-6L10 14" /></svg>
+                          </Badge>
+                        </a>
+                      ) : c.source_type === 'database' ? (
+                        <Badge variant="outline" className="text-xs">DB</Badge>
+                      ) : null}
                     </div>
                     <div className="text-sm text-muted-foreground">
                       {[

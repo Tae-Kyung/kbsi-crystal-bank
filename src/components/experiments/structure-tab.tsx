@@ -98,9 +98,24 @@ export function StructureTab({ data, constructId }: { data: any[]; constructId: 
                 <div className="flex items-center gap-3">
                   <Badge>{s.method}</Badge>
                   {s.resolution && <span className="text-sm">{s.resolution} A</span>}
-                  {s.pdb_id && <Badge variant="outline" className="font-mono">{s.pdb_id}</Badge>}
-                  {s.emdb_id && <Badge variant="outline" className="font-mono">{s.emdb_id}</Badge>}
-                  {s.bmrb_id && <Badge variant="outline" className="font-mono">{s.bmrb_id}</Badge>}
+                  {s.pdb_id && (
+                    <a href={`https://www.rcsb.org/structure/${s.pdb_id}`} target="_blank" rel="noopener noreferrer" className="hover:opacity-80">
+                      <Badge variant="outline" className="font-mono cursor-pointer hover:bg-blue-50 dark:hover:bg-blue-950">
+                        PDB: {s.pdb_id}
+                        <svg className="inline-block ml-1 h-3 w-3" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M10 6H6a2 2 0 00-2 2v10a2 2 0 002 2h10a2 2 0 002-2v-4M14 4h6m0 0v6m0-6L10 14" /></svg>
+                      </Badge>
+                    </a>
+                  )}
+                  {s.emdb_id && (
+                    <a href={`https://www.ebi.ac.uk/emdb/EMD-${s.emdb_id.replace('EMD-', '')}`} target="_blank" rel="noopener noreferrer">
+                      <Badge variant="outline" className="font-mono cursor-pointer hover:bg-blue-50 dark:hover:bg-blue-950">{s.emdb_id}</Badge>
+                    </a>
+                  )}
+                  {s.bmrb_id && (
+                    <a href={`https://bmrb.io/data_library/summary/?bmrbId=${s.bmrb_id}`} target="_blank" rel="noopener noreferrer">
+                      <Badge variant="outline" className="font-mono cursor-pointer hover:bg-blue-50 dark:hover:bg-blue-950">{s.bmrb_id}</Badge>
+                    </a>
+                  )}
                 </div>
               </CardContent>
             </Card>
