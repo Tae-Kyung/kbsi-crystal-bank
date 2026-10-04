@@ -29,44 +29,56 @@ export default async function DashboardPage() {
     { label: 'Pending Review', value: staging.count ?? 0, icon: ClipboardCheck },
   ];
 
-  // ─── 차트용 집계 쿼리 (전체 행 fetch 대신 DB에서 집계) ───
+  // ─── 차트용 집계 쿼리 (전체 행 fetch 대신 DB count 쿼리) ───
 
-  // Outcome 분포 — 소량 쿼리로 집계 (outcome + source_type만 가져와서 서버에서 집계)
-  const { data: rawOutcome } = await supabase
-    .from('kbsi_crystallization')
-    .select('outcome, source_type')
-    .not('outcome', 'is', null)
-    .limit(5000);
-  const outcomeMap = new Map<string, { real: number; synthetic: number }>();
-  for (const r of (rawOutcome || []) as any[]) {
-    const key = r.outcome;
-    if (!outcomeMap.has(key)) outcomeMap.set(key, { real: 0, synthetic: 0 });
-    const entry = outcomeMap.get(key)!;
-    if (r.source_type === 'synthetic') entry.synthetic++;
-    else entry.real++;
-  }
-  const outcomeDistData = Array.from(outcomeMap.entries()).map(([outcome, counts]) => ({
-    outcome, real: counts.real, synthetic: counts.synthetic,
-  }));
+  const OUTCOMES = ['clear', 'precipitate', 'phase_separation', 'microcrystal', 'single_crystal', 'diffraction_quality'] as const;
 
-  // Scatter chart — 샘플링 (최대 2000포인트)
-  const { data: heatmapData } = await supabase
-    .from('kbsi_crystallization')
-    .select('ph, temperature, outcome, precipitant_type, source_type')
-    .not('ph', 'is', null)
-    .not('temperature', 'is', null)
-    .not('outcome', 'is', null)
-    .limit(2000);
+  // Outcome 분포 — outcome별 정확한 count (100% 정확, 행 데이터 없음)
+  const [outcomeResults, syntheticResults] = await Promise.all([
+    // 전체 outcome별 count
+    Promise.all(OUTCOMES.map(async (outcome) => {
+      const { count } = await supabase.from('kbsi_crystallization')
+        .select('id', { count: 'exact', head: true }).eq('outcome', outcome);
+      return { outcome, total: count ?? 0 };
+    })),
+    // synthetic outcome별 count
+    Promise.all(OUTCOMES.map(async (outcome) => {
+      const { count } = await supabase.from('kbsi_crystallization')
+        .select('id', { count: 'exact', head: true }).eq('outcome', outcome).eq('source_type', 'synthetic');
+      return { outcome, synthetic: count ?? 0 };
+    })),
+  ]);
+
+  const outcomeDistData = OUTCOMES.map((outcome) => {
+    const total = outcomeResults.find(r => r.outcome === outcome)?.total ?? 0;
+    const synthetic = syntheticResults.find(r => r.outcome === outcome)?.synthetic ?? 0;
+    return { outcome, real: total - synthetic, synthetic };
+  }).filter(d => d.real + d.synthetic > 0);
+
+  // Scatter chart — outcome별 균등 샘플링 (각 outcome에서 최대 400건씩, 대표성 확보)
+  const SAMPLE_PER_OUTCOME = 400;
+  const heatmapPages = await Promise.all(
+    OUTCOMES.map(async (outcome) => {
+      const { data } = await supabase
+        .from('kbsi_crystallization')
+        .select('ph, temperature, outcome, precipitant_type, source_type')
+        .eq('outcome', outcome)
+        .not('ph', 'is', null)
+        .not('temperature', 'is', null)
+        .limit(SAMPLE_PER_OUTCOME);
+      return data || [];
+    })
+  );
+  const heatmapData = heatmapPages.flat();
 
   // Data Overview — count 쿼리 (전체 행 fetch 불필요)
-  const [successCount, failureCount, syntheticCount] = await Promise.all([
-    supabase.from('kbsi_crystallization').select('id', { count: 'exact', head: true })
-      .or('outcome.eq.diffraction_quality,outcome.eq.single_crystal'),
-    supabase.from('kbsi_crystallization').select('id', { count: 'exact', head: true })
-      .or('outcome.eq.clear,outcome.eq.precipitate'),
-    supabase.from('kbsi_crystallization').select('id', { count: 'exact', head: true })
-      .eq('source_type', 'synthetic'),
-  ]);
+  const successTotal = outcomeResults
+    .filter(r => r.outcome === 'single_crystal' || r.outcome === 'diffraction_quality')
+    .reduce((sum, r) => sum + r.total, 0);
+  const failureTotal = outcomeResults
+    .filter(r => r.outcome === 'clear' || r.outcome === 'precipitate')
+    .reduce((sum, r) => sum + r.total, 0);
+  const syntheticTotal = syntheticResults.reduce((sum, r) => sum + r.synthetic, 0);
 
   // Fetch pipeline data
   const pipelineData = {
@@ -124,15 +136,15 @@ export default async function DashboardPage() {
               <div className="text-xs text-muted-foreground">전체 데이터</div>
             </div>
             <div className="text-center p-3 rounded-lg bg-green-50 dark:bg-green-950">
-              <div className="text-2xl font-bold text-green-700 dark:text-green-300">{successCount.count ?? 0}</div>
+              <div className="text-2xl font-bold text-green-700 dark:text-green-300">{successTotal}</div>
               <div className="text-xs text-muted-foreground">성공 (결정)</div>
             </div>
             <div className="text-center p-3 rounded-lg bg-red-50 dark:bg-red-950">
-              <div className="text-2xl font-bold text-red-700 dark:text-red-300">{failureCount.count ?? 0}</div>
+              <div className="text-2xl font-bold text-red-700 dark:text-red-300">{failureTotal}</div>
               <div className="text-xs text-muted-foreground">실패 (투명/침전)</div>
             </div>
             <div className="text-center p-3 rounded-lg bg-purple-50 dark:bg-purple-950">
-              <div className="text-2xl font-bold text-purple-700 dark:text-purple-300">{syntheticCount.count ?? 0}</div>
+              <div className="text-2xl font-bold text-purple-700 dark:text-purple-300">{syntheticTotal}</div>
               <div className="text-xs text-muted-foreground">합성 데이터</div>
             </div>
           </div>
@@ -144,7 +156,7 @@ export default async function DashboardPage() {
           <CardTitle className="text-base">
             Crystallization Conditions (pH vs Temperature)
             <span className="text-xs font-normal text-muted-foreground ml-2">
-              (최근 2,000건 샘플)
+              (outcome별 균등 샘플 {heatmapData.length.toLocaleString()}건)
             </span>
           </CardTitle>
         </CardHeader>
