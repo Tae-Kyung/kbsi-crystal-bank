@@ -170,32 +170,33 @@ PDB 공개 데이터를 활용하여 결정화 조건 데이터를 체계적으�
   - 기존 값 보존, null 필드만 업데이트
   - `npm run harvest:enrich -- --limit 300`
 
-## 5-3. 데이터 수집 현황 (2026-10-05 기준)
+## 5-3. 데이터 수집 현황 (2026-10-05 최종)
 
 | 데이터 소스 | 수집 건수 | 방법 | 비고 |
 |-------------|-----------|------|------|
 | KBSI 자체 실험 | 시드 3건 | 수동 입력 | KRAS, EGFR, GFP |
-| RCSB PDB Import 1차 | 331건 | `harvest:pdb` | 22개 카테고리, 해상도 ≤ 3.0A, pH 필수 |
-| RCSB PDB Import 2차 | 566건 | `harvest:pdb` 병렬 | 22개 카테고리 × 100, 해상도 ≤ 3.5A, pH 필수 |
-| RCSB PDB Import 3차 | 7,579건 | `harvest:pdb` 병렬 | 22개 카테고리 × 500, 해상도 ≤ 3.5A, pH 필터 해제 |
-| RCSB PDB Import 4차 | 8,940건 | `harvest:pdb` 병렬 | 22개 카테고리 × 500, 해상도 ≤ 4.0A |
-| RCSB PDB Import 5차 | 4,627건 | `harvest:pdb` 병렬 | 22개 카테고리 × 300, 해상도 ≤ 5.0A |
-| TargetTrack/PepcDB | 80건 | `harvest:targettrack` | LLM 프로토콜 파싱 |
-| Condition Enrichment | 2,577건 | `harvest:enrich` | free-text → 구조화 필드 추출 (4회 실행) |
+| RCSB PDB (카테고리별) | 22,043건 | `harvest:pdb` 병렬 5회 | 22개 카테고리, ≤3.0~5.0A |
+| RCSB PDB (전체 sweep) | ~49,000건 | `bulk-pdb-sweep.ts` | 키워드 없이 해상도 순 전량 수집 |
+| TargetTrack/PepcDB | 80건 | `harvest:targettrack` | LLM 프로토콜 파싱 (전량 완료) |
+| ChEMBL 바인딩 | 1,186건 | `harvest-chembl.ts` | 20개 신약 타겟 IC50/Kd/Ki |
+| Condition Enrichment | 2,577건 | `harvest:enrich` | free-text → 구조화 필드 추출 |
 | Negative Control | 합성 | `/api/pdb-import/negative-controls` | 7가지 변형 전략 |
 
 ### 현재 DB 규모
-- 단백질: **1,931개**
-- Construct: **22,021개**
-- 결정화 데이터: **22,216건**
-- 구조: **21,938건**
+- 단백질: **18,162개**
+- Construct: **71,157개**
+- 결정화 데이터: **71,352건**
+- 구조: **71,066건**
+- 리간드: **1,181개** (ChEMBL)
+- 바인딩 데이터: **1,186건** (IC50/Kd/Ki)
 - 결정화 조건 구조화: **2,577건** (precipitant_type 추출 완료)
+- PDB 수집률: **47%** (71K / 151K pH 포함 X-ray 구조)
 
 ### Success Metrics 달성률
 | 지표 | 목표 (1년차) | 현재 | 달성률 |
 |------|-------------|------|--------|
-| 등록된 단백질 수 | 250+ | **1,931** | **772%** |
-| 실험 데이터 레코드 | 5,000+ | **22,216** | **444%** |
+| 등록된 단백질 수 | 250+ | **18,162** | **7,265%** |
+| 실험 데이터 레코드 | 5,000+ | **71,352** | **1,427%** |
 | 결정화 예측 정확도 | 70%+ | **93.1%** (k=3) | **133%** |
 
 ### 벤치마크 결과 (2026-10-05)
