@@ -11,6 +11,7 @@ import {
   Pill,
   Database,
   FileCode,
+  BarChart3,
 } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { useLocale } from '@/lib/locale-context';
@@ -24,6 +25,7 @@ const NAV_ITEMS = [
   { href: '/ligands', labelKey: 'nav.ligands' as TranslationKey, icon: Pill },
   { href: '/staging', labelKey: 'nav.staging' as TranslationKey, icon: ClipboardCheck },
   { href: '/pdb-import', labelKey: 'nav.pdb-import' as TranslationKey, icon: Database },
+  { href: '/benchmark', labelKey: 'nav.benchmark' as TranslationKey, icon: BarChart3 },
   { href: '/api-docs', labelKey: 'nav.api-docs' as TranslationKey, icon: FileCode },
 ] as const;
 

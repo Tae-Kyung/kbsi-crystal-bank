@@ -4,7 +4,7 @@ import { Dna, FlaskConical, Gem, TestTubes, Pill, ClipboardCheck } from 'lucide-
 import { CrystallizationHeatmap } from '@/components/charts/crystallization-heatmap';
 import { OutcomeDistribution } from '@/components/charts/outcome-distribution';
 import { PipelineFunnel } from '@/components/charts/pipeline-funnel';
-import { BenchmarkResults } from '@/components/charts/benchmark-results';
+import { SourceDistribution } from '@/components/charts/source-distribution';
 
 export default async function DashboardPage() {
   const supabase = await createClient();
@@ -79,6 +79,22 @@ export default async function DashboardPage() {
     .filter(r => r.outcome === 'clear' || r.outcome === 'precipitate')
     .reduce((sum, r) => sum + r.total, 0);
   const syntheticTotal = syntheticResults.reduce((sum, r) => sum + r.synthetic, 0);
+
+  // source_db별 데이터 현황 (결정화 기준)
+  const SOURCE_DBS = ['PDB', 'TargetTrack', 'ChEMBL', 'KBSI', 'synthetic'] as const;
+  const sourceDbCounts = await Promise.all(
+    SOURCE_DBS.map(async (db) => {
+      const { count } = await supabase.from('kbsi_crystallization')
+        .select('id', { count: 'exact', head: true }).eq('source_db', db);
+      return { source_db: db, count: count ?? 0 };
+    })
+  );
+  // 미분류 (source_db가 null인 것)
+  const { count: unclassifiedCount } = await supabase.from('kbsi_crystallization')
+    .select('id', { count: 'exact', head: true }).is('source_db', null);
+  if ((unclassifiedCount ?? 0) > 0) {
+    sourceDbCounts.push({ source_db: 'unknown' as any, count: unclassifiedCount ?? 0 });
+  }
 
   // Fetch pipeline data
   const pipelineData = {
@@ -165,11 +181,11 @@ export default async function DashboardPage() {
         </CardContent>
       </Card>
 
-      {/* ML Benchmark Results */}
+      {/* Data Source Distribution */}
       <Card>
-        <CardHeader><CardTitle className="text-base">ML Prediction Benchmark (k-NN)</CardTitle></CardHeader>
+        <CardHeader><CardTitle className="text-base">Data Source Distribution (Crystallization)</CardTitle></CardHeader>
         <CardContent>
-          <BenchmarkResults />
+          <SourceDistribution data={sourceDbCounts} />
         </CardContent>
       </Card>
     </div>
