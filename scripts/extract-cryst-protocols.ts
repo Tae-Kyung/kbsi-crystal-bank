@@ -84,9 +84,9 @@ async function main() {
           text: textBuffer.trim().slice(0, 2000), // 최대 2000자
         });
 
-        // 최대 500개
-        if (protocols.length >= 500) {
-          console.log('  500개 도달, 중단');
+        // 최대 50000개
+        if (protocols.length >= 50000) {
+          console.log('  50000개 도달, 중단');
           break;
         }
       }
