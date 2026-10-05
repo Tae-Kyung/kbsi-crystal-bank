@@ -49,18 +49,20 @@ KBSI 단백질 결정화은행(Crystallization Bank)은 **단백질의 발현 �
 
 ### 1.3 현재 규모
 
-| 항목 | 건수 |
-|------|------|
-| 단백질 | 70,023 |
-| Construct | 286,580 |
-| 결정화 데이터 | 1,161,043 (실험 234K + Negative Control 927K) |
-| 구조 | 286,454 (X-ray + Cryo-EM + NMR) |
-| Expression | 1,620 (논문 LLM 추출) |
-| Purification | 613 (논문 LLM 추출) |
-| 리간드 | 6,313 (ChEMBL) |
-| 바인딩 데이터 | 7,942 (IC50/Kd/Ki) |
-| UniProt 연결 | 13,574 |
-| AlphaFold 연결 | 12,748 |
+| 항목 | 건수 | 소스 |
+|------|------|------|
+| 단백질 | 70,023 | PDB, TargetTrack |
+| Construct | 286,580 | PDB, TargetTrack |
+| 결정화 데이터 | 1,161,043 (실험 234K + NC 927K) | PDB, TargetTrack, 합성 |
+| 구조 | 286,454 | PDB (X-ray + Cryo-EM + NMR) |
+| Expression | 2,260+ | 논문 LLM 추출 (수집 중) |
+| Purification | 900+ | 논문 LLM 추출 (수집 중) |
+| Characterization | 412+ | 논문 LLM 추출 (수집 중) |
+| Diffraction | 11,334+ | PDB API + 논문 LLM (수집 중) |
+| 리간드 | 7,300+ | PDB HET + ChEMBL (수집 중) |
+| 바인딩 데이터 | 8,600+ | ChEMBL IC50/Kd/Ki + PDB co-crystal |
+| UniProt 연결 | 13,574 | PDB polymer entity |
+| AlphaFold 연결 | 12,748 | UniProt → AlphaFold API |
 
 ---
 
@@ -305,63 +307,375 @@ sdk/python/                     — Python SDK
 
 ## 5. 데이터 수집 파이프라인
 
-### 5.1 수집 소스 및 규모
+본 시스템의 데이터는 **8개 엔티티**(Protein, Construct, Crystallization, Diffraction, Structure, Characterization, Ligand, Binding)로 구성되며, 각각 고유한 수집 전략을 갖습니다.
 
-| 소스 | 수집 건수 | 스크립트 | 방법 |
-|------|-----------|----------|------|
-| RCSB PDB X-ray | ~226,000 | `bulk-pdb-sweep.ts` | RCSB Search API, 해상도순, pH 필터 |
-| RCSB PDB Cryo-EM | ~4,430 | `pdb-sweep-method.ts` | ELECTRON MICROSCOPY 필터 |
-| RCSB PDB NMR | ~2,700 | `pdb-sweep-method.ts` | SOLUTION NMR 필터 |
-| TargetTrack | 80 | `bulk-targettrack.ts` | XML 파싱 + LLM 프로토콜 파싱 |
-| ChEMBL | 7,942 | `harvest-chembl.ts` | 20개 신약 타겟 IC50/Kd/Ki |
-| UniProt | 13,574 | `backfill-uniprot-ids.ts` | PDB polymer entity → UniProt accession |
-| AlphaFold | 12,748 | `harvest-alphafold.ts` | UniProt → AlphaFold pLDDT (93.7% 발견율) |
-| 논문 추출 (Expression) | 1,620 | `harvest-papers.ts` | PDB DOI → Europe PMC → LLM 파싱 |
-| 논문 추출 (Purification) | 613 | `harvest-papers.ts` | 동일 파이프라인 |
-| Condition Enrichment | 64,048 | `bulk-enrich-conditions.ts` | condition_detail → 구조화 필드 |
-| Negative Control (극단) | 602,072 | `bulk-negative-controls.ts` | 7 전략 (pH 극단, 침전제 없음 등) |
-| Negative Control (현실적) | 324,836 | `realistic-negative-controls.ts` | 7 전략 (pH±1~2, temp±8~15 등) |
+### 5.1 수집 소스 총괄
 
-### 5.2 논문 추출 파이프라인 (세계 최초)
+| 소스 | 수집 대상 | 건수 | 스크립트 | 방법 |
+|------|-----------|------|----------|------|
+| RCSB PDB (X-ray) | Protein, Construct, Crystallization, Structure | ~226K | `bulk-pdb-sweep.ts` | RCSB Search API |
+| RCSB PDB (Cryo-EM) | Protein, Construct, Structure | ~4,430 | `pdb-sweep-method.ts` | Method 필터 |
+| RCSB PDB (NMR) | Protein, Construct, Structure | ~2,700 | `pdb-sweep-method.ts` | Method 필터 |
+| RCSB PDB (Diffraction) | Diffraction | 11K+ | `harvest-diffraction-from-pdb.ts` | Entry API |
+| RCSB PDB (Ligands) | Ligand, Binding | 7K+ | `harvest-pdb-ligands.ts` | Nonpolymer Entity API |
+| TargetTrack | Protein, Construct, Crystallization | 80 | `bulk-targettrack.ts` | XML + LLM |
+| ChEMBL (기본) | Ligand, Binding | 6,313 | `harvest-chembl.ts` | 20 타겟 고정 |
+| ChEMBL (확장) | Ligand, Binding | +512 | `harvest-chembl-expanded.ts` | 전체 gene_name 자동 검색 |
+| UniProt | Database ID | 13,574 | `backfill-uniprot-ids.ts` | PDB polymer entity |
+| AlphaFold | Database ID | 12,748 | `harvest-alphafold.ts` | UniProt → AlphaFold |
+| 논문 LLM (기본) | Expression, Purification | 1,620+613 | `harvest-papers.ts` | DOI → PMC → GPT-4o-mini |
+| 논문 LLM (확장) | Expr, Purif, Char, Diffr | 확장 중 | `harvest-papers-extended.ts` | 4종 동시 추출 |
+| Condition Enrichment | Crystallization (UPDATE) | 64K | `bulk-enrich-conditions.ts` | Free-text → 구조화 |
+| NC (극단) | Crystallization (합성) | 602K | `bulk-negative-controls.ts` | 7 전략 |
+| NC (현실적) | Crystallization (합성) | 325K | `realistic-negative-controls.ts` | 7 전략 |
+| KBSI Quick Entry | Crystallization | (대기) | 웹 UI | 연구자 직접 입력 |
+
+### 5.2 Protein & Construct 수집
+
+#### 5.2.1 PDB 기반 수집 (70,023 단백질, 286,580 Constructs)
+
+**전략**: RCSB PDB의 모든 엔트리를 해상도 순으로 스윕하며, 단백질→Construct→실험 데이터를 계층적으로 저장합니다.
+
+```
+RCSB Search API (keyword-free, resolution 순)
+  → /rest/v1/core/entry/{pdb_id}
+    → polymer_entity: 단백질 정보 (이름, 유기체, 서열)
+      → kbsi_protein (full_name, organism, gene_name)
+      → kbsi_construct (residues, expression_system, seq_expression)
+    → exptl_crystal_grow: 결정화 조건
+      → kbsi_crystallization (pH, temperature, precipitant, outcome)
+    → refine: 구조 해상도
+      → kbsi_structure (method, resolution, pdb_id)
+```
+
+**스크립트**: `bulk-pdb-sweep.ts`
+- offset 기반 이어하기 지원 (`--offset 50000`)
+- 1000건 단위 페이지네이션 (Supabase 제한 우회)
+- 200ms API 딜레이 (RCSB 부하 방지)
+- 중복 방지: PDB ID 기준 upsert
+- source_db='PDB', source_id=PDB ID
+
+**주의사항**:
+- Supabase 기본 제한 1000건 → 반드시 페이지네이션 사용
+- AlphaFold API는 User-Agent 헤더 필수 (403 방지)
+- `db_value` 컬럼 사용 (`db_id` 아님)
+
+#### 5.2.2 TargetTrack 수집 (80건)
+
+NESG/PSI TargetTrack XML에서 구조생물학 타겟 정보를 추출합니다. 실험 프로토콜은 LLM으로 파싱합니다.
+
+### 5.3 Crystallization 데이터 수집
+
+#### 5.3.1 PDB 결정화 조건 (234,000건 실험 데이터)
+
+PDB entry의 `exptl_crystal_grow` 섹션에서 결정화 조건을 추출합니다:
+
+| PDB 필드 | KBSI 컬럼 | 예시 |
+|----------|-----------|------|
+| `pdbx_details` | condition_detail | "20% PEG 3350, 0.1 M Bis-Tris pH 6.5" |
+| `pH` | ph | 6.5 |
+| `temp` | temperature | 18 |
+| method | stage | hanging drop → screening |
+
+**PDB의 한계**: `pdbx_details`는 자유 텍스트로, precipitant_type, buffer_type 등이 구조화되지 않음. 이를 해결하는 것이 Condition Enrichment (5.3.3).
+
+#### 5.3.2 Negative Control 합성 (927,000건)
+
+ML 학습 시 양성(성공) 데이터만으로는 편향 모델이 생성됩니다. 이를 방지하기 위해 14가지 전략으로 음성(실패) 데이터를 합성합니다:
+
+| 유형 | 전략 | 건수 | 예상 결과 | 근거 |
+|------|------|------|-----------|------|
+| **극단 7종** | pH 3~4 | ~86K | precipitate | 단백질 변성 pH |
+| | pH 10~11 | ~86K | precipitate | 알칼리 변성 |
+| | 침전제 없음 | ~86K | clear | 과포화 불가 |
+| | 침전제 2.5배 | ~86K | precipitate | 과침전 |
+| | 침전제 0.2배 | ~86K | clear | 불충분 |
+| | 37°C | ~86K | precipitate | 열 변성 |
+| | 염 5배 | ~86K | precipitate | 이온 강도 과다 |
+| **현실적 7종** | pH ±1~2 | ~46K | precipitate/clear | 경계 이탈 |
+| | temp ±8~15°C | ~46K | clear/precipitate | 동역학 변화 |
+| | pH+temp 복합 | ~46K | precipitate | 이중 이탈 |
+| | microcrystal zone | ~46K | microcrystal | 경계 성공 |
+| | phase separation | ~46K | phase_separation | 상분리 영역 |
+| | 성공 조건 변형 | ~46K | precipitate | 약간의 변형 |
+| | 랜덤 조합 | ~46K | clear/precipitate | 무작위 실패 |
+
+**source_type='synthetic'** 으로 표기하여 실험 데이터와 명확히 구분합니다.
+
+#### 5.3.3 Condition Enrichment (64,048건 구조화)
+
+PDB의 `condition_detail` 자유 텍스트를 LLM(GPT-4o-mini)으로 파싱하여 구조화 필드로 변환합니다:
+
+```
+입력: "20% PEG 3350, 0.1 M Bis-Tris pH 6.5, 0.2 M ammonium acetate"
+
+출력 (기존 행 UPDATE):
+  precipitant_type: PEG 3350
+  precipitant_conc: 20
+  precipitant_unit: %
+  buffer_type: Bis-Tris
+  salt_type: ammonium acetate
+  salt_conc: 200 (mM)
+```
+
+**핵심**: 새 행을 INSERT하는 것이 아니라 기존 행을 UPDATE합니다. 현재 1,161,043건 중 64,048건(5.5%) 구조화 완료.
+
+**PDB에서는 "PEG 3350" 텍스트 검색 불가 → KBSI에서는 `precipitant_type='PEG 3350'` 구조화 검색 가능.**
+
+#### 5.3.4 KBSI Quick Entry (연구자 직접 입력)
+
+웹 UI에서 연구자가 30초 만에 결정화 결과를 입력하는 간소화 폼:
+
+1. 단백질 검색 (이름/유전자명)
+2. 결과 선택 (기본값: precipitate — 실패가 대부분)
+3. 12개 주요 침전제 프리셋 버튼 클릭
+4. pH/온도/농도 슬라이더
+5. 저장 → source_type='experimental', source_db='KBSI'
+
+**세계 유일**: PDB는 성공 데이터만 저장하지만, KBSI는 실패 데이터를 체계적으로 수집합니다.
+
+### 5.4 Diffraction 데이터 수집
+
+#### 5.4.1 PDB API 직접 추출 (11,000건+, 수집 중)
+
+PDB entry에서 X-ray 회절 데이터를 추출합니다:
+
+```
+/rest/v1/core/entry/{pdb_id}
+  → rcsb_entry_info.experimental_method: "X-RAY DIFFRACTION" 필터
+  → rcsb_entry_info.resolution_combined[0] → resolution
+  → cell.space_group_name_H_M → space_group
+  → cell.length_a/b/c, angle_alpha/beta/gamma → unit_cell ("45.2×67.3×89.1 90.0 90.0 90.0")
+  → diffrn_source.pdbx_synchrotron_site + beamline → beamline ("ESRF ID29")
+  → refine[0].pdbx_method_to_determine_struct → phasing ("molecular replacement")
+  → pdbx_vrpt_summary.PDB_resolution → data_quality
+```
+
+**스크립트**: `harvest-diffraction-from-pdb.ts`
+- X-ray 엔트리만 필터 (NMR, Cryo-EM 제외)
+- 50건 단위 배치 삽입
+- construct_id + source_id 중복 방지
+- source_db='PDB', source_id=PDB ID
+
+#### 5.4.2 논문 LLM 추출 (수집 중)
+
+`harvest-papers-extended.ts`에서 논문 Methods 섹션의 "Data collection" 부분을 추출합니다:
+
+| 추출 필드 | 예시 |
+|-----------|------|
+| beamline | "ESRF ID29", "APS 19-ID" |
+| resolution | 2.1 (Å) |
+| space_group | "P212121" |
+| unit_cell | "45.2 67.3 89.1 90 90 90" |
+| phasing | "molecular replacement" |
+| wavelength | 0.9793 (Å) → notes에 기록 |
+| cryoprotectant | "20% glycerol" → notes에 기록 |
+| completeness | 99.5 (%) → notes에 기록 |
+
+source_db='PubMed', source_id=DOI
+
+### 5.5 Structure 데이터 수집
+
+구조 데이터는 Protein/Construct 수집 시 함께 저장됩니다 (5.2.1). PDB entry 하나가 하나의 Structure 레코드에 대응합니다.
+
+| 필드 | PDB 소스 |
+|------|----------|
+| method | rcsb_entry_info.experimental_method → 'X-ray', 'NMR', 'Cryo-EM' |
+| resolution | rcsb_entry_info.resolution_combined[0] |
+| pdb_id | entry_id |
+| emdb_id | pdbx_database_related (Cryo-EM일 때) |
+
+현재 286,454건으로 PDB 전체 엔트리를 커버합니다.
+
+### 5.6 Characterization 데이터 수집
+
+#### 5.6.1 논문 LLM 추출 (412건+, 수집 중)
+
+`harvest-papers-extended.ts`에서 논문의 biophysical characterization 데이터를 추출합니다:
+
+```json
+"characterization": [
+  { "method": "DLS", "value_num": 3.2, "value_text": "monodisperse", "unit": "nm" },
+  { "method": "SEC-MALS", "value_num": 45.2, "value_text": "monomer", "unit": "kDa" },
+  { "method": "SDS-PAGE", "value_num": 95, "value_text": null, "unit": "%" },
+  { "method": "thermal_stability", "value_num": 60, "value_text": null, "unit": "°C" }
+]
+```
+
+**롱포맷 저장**: 하나의 논문에서 여러 측정값이 나오면 각각 별도의 행으로 `kbsi_characterization`에 저장합니다.
+
+| 추출 대상 | method 값 | value_num 예시 | unit |
+|-----------|-----------|---------------|------|
+| DLS 유체역학 반경 | DLS | 3.2 | nm |
+| DLS polydispersity | DLS | 15 | % |
+| SEC/SEC-MALS 분자량 | SEC-MALS | 45.2 | kDa |
+| SEC 올리고머 상태 | SEC | null (value_text: "monomer") | - |
+| SDS-PAGE 순도 | SDS-PAGE | 95 | % |
+| 열안정성 Tm | thermal_stability | 60 | °C |
+| CD 이차구조 | CD | null (value_text: notes) | - |
+| 질량분석 MW | Mass Spec | 45123 | Da |
+
+source_db='PubMed', source_id=DOI
+
+#### 5.6.2 KBSI 연구자 직접 입력 (향후)
+
+Quick Entry 확장으로 DLS, SEC, purity 등 주요 특성분석 결과를 간소화 입력 폼으로 수집할 예정입니다.
+
+### 5.7 Ligand 데이터 수집
+
+#### 5.7.1 PDB 결합 리간드 추출 (7,000건+, 수집 중)
+
+PDB 구조에 포함된 소분자(HET group)를 추출합니다:
+
+```
+/rest/v1/core/entry/{pdb_id}
+  → rcsb_entry_info.nonpolymer_entity_count: N개 리간드 확인
+    → /rest/v1/core/nonpolymer_entity/{pdb_id}/{entity_id}
+      → pdbx_entity_nonpoly.comp_id: HET 코드 (예: "ATP", "HEM")
+      → pdbx_entity_nonpoly.name: 전체 이름
+    → /rest/v1/core/chemcomp/{comp_id}
+      → rcsb_chem_comp_descriptor.smilesCanonical → SMILES
+      → rcsb_chem_comp_descriptor.InChI → InChI
+      → chem_comp.formula_weight → MW
+```
+
+**스크립트**: `harvest-pdb-ligands.ts`
+- **38개 공통 용매/버퍼/이온 제외**: HOH, GOL, EDO, PEG, SO4, PO4, CL, NA, MG, ZN, CA, K, MN, FE, CO, NI, CU, CD, IOD, BR, ACT, FMT, DMS, BME, TRS, MPD, EPE, MES, CIT 등
+- **chemcomp 캐시**: 같은 HET 코드(예: ATP)는 한 번만 API 호출 후 메모리 캐시 → 성능 대폭 향상
+- **ligand ID 캐시**: DB에 이미 있는 리간드 ID도 메모리 캐시
+- source_db='PDB', source_id=comp_id (HET 코드)
+
+#### 5.7.2 ChEMBL 약물-타겟 바인딩 (6,825건)
+
+**기본 수집** (`harvest-chembl.ts`): 20개 주요 신약 타겟을 하드코딩하여 수집
+```
+EGFR (CHEMBL203), KRAS (CHEMBL6175), BRAF (CHEMBL5145),
+ABL1 (CHEMBL1862), ALK (CHEMBL4247), JAK2 (CHEMBL2971),
+CDK2 (CHEMBL301), CDK4 (CHEMBL3769), HER2 (CHEMBL1824), ...
+```
+
+**확장 수집** (`harvest-chembl-expanded.ts`): DB의 모든 gene_name을 자동 검색
+```
+kbsi_protein에서 고유 gene_name 추출 (23개)
+  → ChEMBL Target Search API (gene_name 검색)
+    → SINGLE PROTEIN + Homo sapiens 필터
+      → /data/activity?target_chembl_id={id}&standard_type__in=IC50,Kd,Ki
+        → 타겟당 최대 100 활성 데이터
+          → SMILES 기준 중복 제거
+            → kbsi_ligand (upsert by smiles)
+            → kbsi_construct_ligand (binding_kd, binding_ic50)
+```
+
+- 기존 ChEMBL 바인딩이 있는 construct 자동 스킵
+- ChEMBL API는 rate limit이 공격적 → 500ms 딜레이
+
+### 5.8 Binding 데이터 수집
+
+Binding 데이터는 `kbsi_construct_ligand` 테이블에 저장되며, Ligand 수집 과정에서 함께 생성됩니다:
+
+| 소스 | binding_kd | binding_ic50 | notes | source_db |
+|------|-----------|-------------|-------|-----------|
+| ChEMBL | IC50/Kd 값 직접 | IC50 값 직접 | standard_type + pChEMBL | ChEMBL |
+| PDB | - | - | co-crystallization | PDB |
+
+**Unique constraint**: `(construct_id, ligand_id)` — 같은 Construct-Ligand 조합은 한 행으로 유지 (upsert).
+
+### 5.9 논문 LLM 확장 추출 파이프라인
+
+`harvest-papers-extended.ts`는 기존 `harvest-papers.ts`의 완전한 상위 호환으로, 한 번의 논문 처리에서 4종류의 데이터를 동시에 추출합니다:
 
 ```
 PDB 구조 (286K)
-  → primary citation DOI (PDB API에서 추출)
-    → Europe PMC API (Open Access ~10%)
-      → XML에서 Methods 섹션 자동 탐지
-        → GPT-4o-mini JSON 파싱
-          → kbsi_expression (host, strain, temp, yield, IPTG)
-          → kbsi_purification (method, purity, yield)
-          → source_db='PubMed', source_id=DOI
+  → PDB API: primary citation DOI
+    → NCBI ID Converter: DOI → PMC ID
+      → Europe PMC: full text XML (~10% Open Access)
+        → Methods 섹션 자동 탐지 (확장 키워드: crystallization, data collection,
+          diffraction, characterization, biophysical, structure determination, refinement)
+          → GPT-4o-mini JSON 파싱 (temperature=0, json_object mode)
+            → kbsi_expression (host, strain, induction_temp, yield, result_level)
+            → kbsi_purification (method_summary, final_purity, final_yield, result_level)
+            → kbsi_characterization (method별 개별 행: DLS, SEC-MALS, SDS-PAGE, Tm 등)
+            → kbsi_diffraction (beamline, resolution, space_group, phasing)
 ```
 
-**PDB에서는 "E. coli"만 알 수 있지만, KBSI에서는 "BL21(DE3), 0.5mM IPTG, 18°C, 16h, 15mg/L"까지 구조화**됩니다.
+**주요 개선점 (기존 harvest-papers.ts 대비)**:
+- Methods 섹션 탐지 키워드 확장 (6→12개)
+- LLM 입력 텍스트 4000→6000자 확장
+- fallback 키워드에 beamline, synchrotron, DLS, SEC-MALS 추가
+- Characterization 배열 지원 (1 논문 → N개 측정값)
+- Diffraction wavelength/cryoprotectant/completeness → notes 통합
 
-### 5.3 Condition Enrichment
-
-PDB의 `exptl_crystal_grow.pdbx_details`는 자유 텍스트입니다:
-```
-"20% PEG 3350, 0.1 M Bis-Tris pH 6.5, 0.2 M ammonium acetate"
-```
-
-Enrichment는 이 텍스트를 LLM(GPT-4o-mini)으로 파싱하여 구조화 필드로 변환합니다:
-```
-precipitant_type: PEG 3350
-precipitant_conc: 20
-precipitant_unit: %
-buffer_type: Bis-Tris
-salt_type: ammonium acetate
-salt_conc: 200 (mM)
+**운영 방법**: 5개 병렬 배치로 286K 구조를 분할 처리
+```bash
+npx tsx scripts/harvest-papers-extended.ts --limit 50000 --offset 0      # 배치 1
+npx tsx scripts/harvest-papers-extended.ts --limit 50000 --offset 50000  # 배치 2
+npx tsx scripts/harvest-papers-extended.ts --limit 50000 --offset 100000 # 배치 3
+npx tsx scripts/harvest-papers-extended.ts --limit 50000 --offset 150000 # 배치 4
+npx tsx scripts/harvest-papers-extended.ts --limit 86000 --offset 200000 # 배치 5
 ```
 
-**PDB에서는 텍스트 검색 불가, KBSI에서는 "PEG 3350 조건 검색" 가능.**
+### 5.10 UniProt / AlphaFold 외부 ID 연결
 
-### 5.4 Negative Control 합성 (14 전략)
+#### UniProt ID Backfill (13,574건)
 
-| 유형 | 전략 | 예상 결과 |
-|------|------|-----------|
-| **극단 (7종)** | pH 3~4, pH 10~11, 침전제 0/2.5x/0.2x, 37°C, 염 5x | precipitate/clear |
-| **현실적 (7종)** | pH±1~2, temp±8~15, pH+temp 복합, microcrystal zone, phase separation | 경계 영역 실패 |
+```
+PDB polymer entity API → UniProt accession
+  → kbsi_database_id (db_name='UniProt', db_value=accession)
+```
+
+**스크립트**: `backfill-uniprot-ids.ts`
+
+#### AlphaFold 연결 (12,748건)
+
+```
+UniProt accession → AlphaFold API
+  → kbsi_database_id (db_name='AlphaFold', db_value=accession)
+```
+
+**스크립트**: `harvest-alphafold.ts`
+- **User-Agent 헤더 필수**: AlphaFold API는 Node.js 기본 User-Agent를 403으로 거부
+- `db_value` 컬럼 사용 (`db_id` 아님 — 초기 스키마 혼선 주의)
+- 발견율: 93.7% (UniProt 13,574건 중 12,748건)
+
+### 5.11 데이터 출처 추적 (Data Provenance)
+
+모든 수집 데이터에는 출처가 기록됩니다:
+
+| 필드 | 설명 | 예시 |
+|------|------|------|
+| `source_type` | 데이터 유형 | experimental, literature, database, synthetic |
+| `source_db` | 출처 데이터베이스 | PDB, PubMed, ChEMBL, TargetTrack, KBSI, synthetic |
+| `source_id` | 원본 식별자 | PDB ID (`1LYZ`), DOI (`10.1073/pnas...`), ChEMBL ID (`CHEMBL12345`) |
+
+**UI에서의 출처 링크**:
+- PDB → `rcsb.org/structure/{id}` 또는 `rcsb.org/ligand/{id}`
+- PubMed/DOI → `doi.org/{doi}`
+- ChEMBL → `ebi.ac.uk/chembl/compound_report_card/{id}/`
+
+### 5.12 수집 스크립트 일람 (18개)
+
+| # | 스크립트 | 대상 테이블 | API 소스 | 딜레이 |
+|---|---------|------------|---------|--------|
+| 1 | `bulk-pdb-sweep.ts` | protein, construct, crystallization, structure | RCSB PDB | 200ms |
+| 2 | `pdb-sweep-method.ts` | 위와 동일 (Cryo-EM, NMR) | RCSB PDB | 200ms |
+| 3 | `bulk-targettrack.ts` | protein, construct, crystallization | TargetTrack | 300ms |
+| 4 | `harvest-chembl.ts` | ligand, construct_ligand | ChEMBL | 300ms |
+| 5 | `harvest-chembl-expanded.ts` | ligand, construct_ligand | ChEMBL | 500ms |
+| 6 | `harvest-pdb-ligands.ts` | ligand, construct_ligand | RCSB PDB | 200ms |
+| 7 | `harvest-diffraction-from-pdb.ts` | diffraction | RCSB PDB | 200ms |
+| 8 | `harvest-papers.ts` | expression, purification | Europe PMC + GPT-4o-mini | 300ms |
+| 9 | `harvest-papers-extended.ts` | expr, purif, char, diffr | Europe PMC + GPT-4o-mini | 300ms |
+| 10 | `backfill-uniprot-ids.ts` | database_id (UniProt) | RCSB PDB | 200ms |
+| 11 | `harvest-alphafold.ts` | database_id (AlphaFold) | AlphaFold API | 200ms |
+| 12 | `bulk-enrich-conditions.ts` | crystallization (UPDATE) | GPT-4o-mini | 300ms |
+| 13 | `bulk-negative-controls.ts` | crystallization (합성) | 내부 생성 | - |
+| 14 | `realistic-negative-controls.ts` | crystallization (합성) | 내부 생성 | - |
+| 15 | `ops-harness.ts` | - (운영 도구) | - | - |
+| 16 | `verify.ts` | - (검증 도구) | - | - |
+| 17 | `benchmark.ts` | - (ML 벤치마크) | - | - |
+| 18 | `seed-lookup.ts` | lookup tables | - | - |
+
+모든 스크립트는 `--limit`, `--offset`, `--dry-run` 옵션을 지원하며, 중복 방지 로직(upsert 또는 existing check)이 내장되어 있습니다.
 
 ---
 
