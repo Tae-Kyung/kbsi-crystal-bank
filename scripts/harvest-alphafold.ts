@@ -50,12 +50,12 @@ async function main() {
   console.log('AlphaFold DB 예측 구조 수집');
 
   // UniProt ID가 있는 단백질 조회
-  let uniprotIds: { protein_id: number; db_id: string }[] = [];
+  let uniprotIds: { protein_id: number; db_value: string }[] = [];
   let offset = 0;
   while (uniprotIds.length < limit) {
     const { data } = await supabase
       .from('kbsi_database_id')
-      .select('protein_id, db_id')
+      .select('protein_id, db_value')
       .eq('db_name', 'UniProt')
       .range(offset, offset + 999);
     if (!data || data.length === 0) break;
@@ -80,7 +80,7 @@ async function main() {
   const startTime = Date.now();
 
   for (let i = 0; i < targets.length; i++) {
-    const { protein_id, db_id } = targets[i];
+    const { protein_id, db_value: db_id } = targets[i];
 
     const af = await fetchAlphaFold(db_id);
     if (!af) { notFound++; continue; }
@@ -95,7 +95,7 @@ async function main() {
     await supabase.from('kbsi_database_id').insert({
       protein_id,
       db_name: 'AlphaFold',
-      db_id: af.uniprotAccession,
+      db_value: af.uniprotAccession,
     }).then(() => {});
 
     success++;

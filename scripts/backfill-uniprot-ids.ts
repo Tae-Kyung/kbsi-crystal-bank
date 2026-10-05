@@ -117,7 +117,7 @@ async function main() {
 
       const { error } = await supabase
         .from('kbsi_database_id')
-        .insert({ protein_id: r.protein_id, db_name: 'UniProt', db_id: r.uniprotId })
+        .insert({ protein_id: r.protein_id, db_name: 'UniProt', db_value: r.uniprotId })
         .then(res => res);
 
       if (!error) { success++; }
