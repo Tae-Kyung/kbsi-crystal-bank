@@ -219,6 +219,77 @@ P1.9.1 (Phase 1 통합 검증) ← 모든 P1.* 완료 후
 
 ---
 
+## Phase 4: AI 고도화 + 외부 연동 + 데이터 확산
+
+### 4.1 AI 챗봇 + MCP
+
+| ID | 태스크 | 상태 |
+|----|--------|------|
+| P4.1.1 | AI 챗봇 사이드패널 (Vercel AI SDK, 12 tools) | ✅ 완료 |
+| P4.1.2 | MCP 서버 (`/api/mcp`, WebStandard Streamable HTTP) | ✅ 완료 |
+| P4.1.3 | OpenAPI 3.0 + Swagger UI (`/api-docs`) | ✅ 완료 |
+| P4.1.4 | 서열 유사도 검색 API (`/api/sequence-search`) | ✅ 완료 |
+| P4.1.5 | API Key 발급 시스템 (`/api/api-keys`) | ✅ 완료 |
+
+### 4.2 대규모 데이터 수집
+
+| ID | 태스크 | 상태 |
+|----|--------|------|
+| P4.2.1 | PDB X-ray 전량 수집 (226K) | ✅ 완료 |
+| P4.2.2 | PDB Cryo-EM (4.4K) + NMR (2.7K) | ✅ 완료 |
+| P4.2.3 | ChEMBL 바인딩 (7,942건, 20개 타겟) | ✅ 완료 |
+| P4.2.4 | UniProt ID backfill (13,574건) | ✅ 완료 |
+| P4.2.5 | AlphaFold DB 수집 | 🔄 진행 중 |
+| P4.2.6 | 논문 LLM 추출 (Expression/Purification) | 🔄 진행 중 (75/23건) |
+| P4.2.7 | Condition Enrichment (precipitant_type) | 🔄 진행 중 |
+
+### 4.3 Negative Control + 벤치마크
+
+| ID | 태스크 | 상태 |
+|----|--------|------|
+| P4.3.1 | 극단 Negative Control (602K, 7전략) | ✅ 완료 |
+| P4.3.2 | 현실적 Negative Control (325K, 7전략) | ✅ 완료 |
+| P4.3.3 | 벤치마크 v3 (91.9%, 100K 현실적 데이터) | ✅ 완료 |
+| P4.3.4 | 벤치마크 데이터셋 Export API + DOI 메타데이터 | ✅ 완료 |
+
+### 4.4 데이터 품질 + 운영
+
+| ID | 태스크 | 상태 |
+|----|--------|------|
+| P4.4.1 | 출처 추적 (source_db + source_id) | ✅ 완료 |
+| P4.4.2 | Audit Log 자동 트리거 (8테이블) | ✅ 완료 |
+| P4.4.3 | Precipitant 정규화 룩업 (60+ 매핑) | ✅ 완료 |
+| P4.4.4 | 운영 하네스 (status/health/quality/report/maintenance) | ✅ 완료 |
+| P4.4.5 | 공통 쿼리 모듈 리팩토링 (485→376줄) | ✅ 완료 |
+
+### 4.5 기획보고서 반영
+
+| ID | 태스크 | 상태 |
+|----|--------|------|
+| P4.5.1 | Crystal Morphology (결정 형태 enum + 크기) | ✅ 완료 |
+| P4.5.2 | 스크리닝 키트 룩업 (20개 키트) | ✅ 완료 |
+| P4.5.3 | K-BDS 표준 메타데이터 매핑 (20개 필드) | ✅ 완료 |
+| P4.5.4 | 연구워크플로우 도식화 UI | 📋 미착수 |
+| P4.5.5 | 온라인 AI 모델 개발 환경 | 📋 미착수 |
+| P4.5.6 | Bio-SAXS 데이터 스키마 | 📋 미착수 |
+| P4.5.7 | 분자동력학 시뮬레이션 데이터 | 📋 미착수 |
+
+### 4.6 플랫폼 확산
+
+| ID | 태스크 | 상태 |
+|----|--------|------|
+| P4.6.1 | Python SDK (kbsi_protein) | ✅ 완료 |
+| P4.6.2 | 메인 페이지 스토리텔링 + 8가지 시나리오 | ✅ 완료 |
+| P4.6.3 | PDB/EMDB/BMRB 외부 링크 | ✅ 완료 |
+| P4.6.4 | 대시보드 (6카드 + Source 3개 + 서버 SVG) | ✅ 완료 |
+| P4.6.5 | Benchmark 별도 페이지 | ✅ 완료 |
+| P4.6.6 | Nature Scientific Data 논문 초안 | ✅ 완료 |
+| P4.6.7 | Zenodo DOI 발급 | 📋 미착수 |
+| P4.6.8 | Python SDK PyPI 배포 | 📋 미착수 |
+| P4.6.9 | GNN/Transformer 모델 | 📋 미착수 |
+
+---
+
 ## Phase 2/3 의존성 그래프
 
 ```

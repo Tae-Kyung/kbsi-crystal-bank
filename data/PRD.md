@@ -181,16 +181,24 @@ PDB 공개 데이터를 활용하여 결정화 조건 데이터를 체계적으�
 | RCSB PDB NMR | ~2,700건 | `pdb-sweep-method.ts` | 용액 구조 |
 | TargetTrack/PepcDB | 80건 | `harvest:targettrack` | LLM 프로토콜 파싱 (전량 완료) |
 | ChEMBL 바인딩 | 7,942건 | `harvest-chembl.ts` | 20개 신약 타겟 IC50/Kd/Ki |
-| Condition Enrichment | 진행 중 (50K) | `harvest:enrich` | free-text → 구조화 필드 추출 |
-| Negative Control | 합성 | `/api/pdb-import/negative-controls` | 7가지 변형 전략 |
+| UniProt ID | 13,574건 | `backfill-uniprot-ids.ts` | PDB→UniProt accession 연결 |
+| AlphaFold | 수집 중 | `harvest-alphafold.ts` | UniProt→AlphaFold 예측 구조 |
+| 논문 추출 (Expression) | 75건 (증가 중) | `harvest-papers.ts` | PDB DOI→PMC full text→LLM |
+| 논문 추출 (Purification) | 23건 (증가 중) | `harvest-papers.ts` | 50K 병렬 추출 진행 중 |
+| Condition Enrichment | 진행 중 | `harvest:enrich` | free-text → 구조화 필드 추출 |
+| Negative Control (극단) | 602,072건 | `bulk-negative-controls.ts` | 7가지 전략 |
+| Negative Control (현실적) | 324,836건 | `realistic-negative-controls.ts` | 7가지 경계 영역 전략 |
 
 ### 현재 DB 규모
-- 단백질: **69,972개**
-- Construct: **285,048개**
-- 결정화 데이터: **232,605건**
-- 구조: **284,925건** (X-ray + Cryo-EM + NMR)
+- 단백질: **70,023개**
+- Construct: **286,580개**
+- 결정화 데이터: **1,161,043건** (실험 234K + NC 927K)
+- 구조: **286,454건** (X-ray + Cryo-EM + NMR)
+- Expression: **75건** (논문 추출 증가 중)
+- Purification: **23건** (논문 추출 증가 중)
 - 리간드: **6,313개** (ChEMBL)
 - 바인딩 데이터: **7,942건** (IC50/Kd/Ki)
+- UniProt 연결: **13,574건**
 
 ### Success Metrics 달성률
 | 지표 | 목표 (1년차) | 현재 | 달성률 |
@@ -202,7 +210,10 @@ PDB 공개 데이터를 활용하여 결정화 조건 데이터를 체계적으�
 ### 데이터 품질 개선 이력
 | 이슈 | 이전 | 현재 | 상태 |
 |------|------|------|------|
-| Outcome 편향 | ~95% 성공 (PDB만) | **28% 성공 / 72% 실패** (NC 602K 합성) | 해결 |
+| Outcome 편향 | ~95% 성공 (PDB만) | **28% 성공 / 72% 실패** (NC 927K 합성) | 해결 |
+| UniProt ID 부재 | 26건 | **13,574건** (backfill 완료) | 해결 |
+| AlphaFold 403 | User-Agent 차단 | 헤더 추가로 해결 | 해결 |
+| Expression/Purification | 1건 | **75/23건** (논문 추출 진행 중) | 진행 중 |
 | precipitant 미구조화 | 98%+ NULL | Enrichment 진행 중 | 진행 중 |
 | pH/temp 이상치 | 각 3건 이하 | 무시 가능 | — |
 
