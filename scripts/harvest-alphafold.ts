@@ -26,12 +26,19 @@ interface AlphaFoldEntry {
   globalMetricValue: number; // pLDDT
 }
 
-async function fetchAlphaFold(uniprotId: string): Promise<AlphaFoldEntry | null> {
+async function fetchAlphaFold(uniprotId: string, debug = false): Promise<AlphaFoldEntry | null> {
   try {
-    const res = await fetch(`${AF_API}/prediction/${uniprotId}`);
+    const url = `${AF_API}/prediction/${uniprotId}`;
+    const res = await fetch(url, {
+      redirect: 'follow',
+      headers: { 'User-Agent': 'KBSI-CrystalBank/1.0 (https://kbsi-crystal-bank.vercel.app)' },
+    });
+    if (debug) console.log(`  AF fetch ${uniprotId}: status=${res.status} type=${res.headers.get('content-type')}`);
     if (!res.ok) return null;
-    const data = await res.json();
-    if (!data || data.length === 0) return null;
+    const text = await res.text();
+    if (debug) console.log(`  AF body: ${text.slice(0, 100)}`);
+    const data = JSON.parse(text);
+    if (!Array.isArray(data) || data.length === 0) return null;
     const entry = data[0];
     return {
       uniprotAccession: entry.uniprotAccession,
@@ -39,7 +46,10 @@ async function fetchAlphaFold(uniprotId: string): Promise<AlphaFoldEntry | null>
       paeImageUrl: entry.paeImageUrl || null,
       globalMetricValue: entry.globalMetricValue || null,
     };
-  } catch { return null; }
+  } catch (e: any) {
+    if (debug) console.log(`  AF error: ${e.message}`);
+    return null;
+  }
 }
 
 async function main() {
@@ -82,7 +92,7 @@ async function main() {
   for (let i = 0; i < targets.length; i++) {
     const { protein_id, db_value: db_id } = targets[i];
 
-    const af = await fetchAlphaFold(db_id);
+    const af = await fetchAlphaFold(db_id, i < 3);
     if (!af) { notFound++; continue; }
 
     if (dryRun) {
