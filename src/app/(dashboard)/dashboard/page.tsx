@@ -8,11 +8,23 @@ import { PipelineFunnel } from '@/components/charts/pipeline-funnel';
 import { SourceDistribution } from '@/components/charts/source-distribution';
 import Link from 'next/link';
 
+// ISR: 60초마다 재생성 (매 요청마다 39개 쿼리 방지)
+export const revalidate = 60;
+
 export default async function DashboardPage() {
   const supabase = await createClient();
 
-  // Fetch counts in parallel
-  const [proteins, constructs, expressions, purifications, crystallizations, structures, ligands, bindings, staging] = await Promise.all([
+  const OUTCOMES = ['clear', 'precipitate', 'phase_separation', 'microcrystal', 'single_crystal', 'diffraction_quality'] as const;
+  const SOURCE_DBS = ['PDB', 'TargetTrack', 'ChEMBL', 'KBSI', 'synthetic'] as const;
+  const SAMPLE_PER_OUTCOME = 400;
+
+  // ─── 모든 쿼리를 하나의 Promise.all로 통합 (4 왕복 → 1 왕복) ───
+  const [
+    // Stats (9개)
+    proteins, constructs, expressions, purifications, crystallizations, structures, ligands, bindings, staging,
+    // Outcome 분포 (12개)
+    ...outcomeAndSynthetic
+  ] = await Promise.all([
     supabase.from('kbsi_protein').select('id', { count: 'exact', head: true }),
     supabase.from('kbsi_construct').select('id', { count: 'exact', head: true }),
     supabase.from('kbsi_expression').select('id', { count: 'exact', head: true }),
@@ -22,6 +34,10 @@ export default async function DashboardPage() {
     supabase.from('kbsi_ligand').select('id', { count: 'exact', head: true }),
     supabase.from('kbsi_construct_ligand').select('id', { count: 'exact', head: true }),
     supabase.from('kbsi_extraction_staging').select('id', { count: 'exact', head: true }).eq('review_status', 'pending'),
+    // Outcome total (6개)
+    ...OUTCOMES.map(outcome => supabase.from('kbsi_crystallization').select('id', { count: 'exact', head: true }).eq('outcome', outcome)),
+    // Outcome synthetic (6개)
+    ...OUTCOMES.map(outcome => supabase.from('kbsi_crystallization').select('id', { count: 'exact', head: true }).eq('outcome', outcome).eq('source_type', 'synthetic')),
   ]);
 
   const stats = [
@@ -33,25 +49,9 @@ export default async function DashboardPage() {
     { label: 'Bindings', value: bindings.count ?? 0, icon: Link2 },
   ];
 
-  // ─── 차트용 집계 쿼리 (전체 행 fetch 대신 DB count 쿼리) ───
-
-  const OUTCOMES = ['clear', 'precipitate', 'phase_separation', 'microcrystal', 'single_crystal', 'diffraction_quality'] as const;
-
-  // Outcome 분포 — outcome별 정확한 count (100% 정확, 행 데이터 없음)
-  const [outcomeResults, syntheticResults] = await Promise.all([
-    // 전체 outcome별 count
-    Promise.all(OUTCOMES.map(async (outcome) => {
-      const { count } = await supabase.from('kbsi_crystallization')
-        .select('id', { count: 'exact', head: true }).eq('outcome', outcome);
-      return { outcome, total: count ?? 0 };
-    })),
-    // synthetic outcome별 count
-    Promise.all(OUTCOMES.map(async (outcome) => {
-      const { count } = await supabase.from('kbsi_crystallization')
-        .select('id', { count: 'exact', head: true }).eq('outcome', outcome).eq('source_type', 'synthetic');
-      return { outcome, synthetic: count ?? 0 };
-    })),
-  ]);
+  // Outcome 분포 파싱
+  const outcomeResults = OUTCOMES.map((outcome, i) => ({ outcome, total: outcomeAndSynthetic[i]?.count ?? 0 }));
+  const syntheticResults = OUTCOMES.map((outcome, i) => ({ outcome, synthetic: outcomeAndSynthetic[i + 6]?.count ?? 0 }));
 
   const outcomeDistData = OUTCOMES.map((outcome) => {
     const total = outcomeResults.find(r => r.outcome === outcome)?.total ?? 0;
@@ -59,62 +59,48 @@ export default async function DashboardPage() {
     return { outcome, real: total - synthetic, synthetic };
   }).filter(d => d.real + d.synthetic > 0);
 
-  // Scatter chart — outcome별 균등 샘플링 (각 outcome에서 최대 400건씩, 대표성 확보)
-  const SAMPLE_PER_OUTCOME = 400;
-  const heatmapPages = await Promise.all(
-    OUTCOMES.map(async (outcome) => {
+  // 나머지 쿼리 (scatter + source + recent) — 2번째 병렬 배치
+  const [heatmapPages, sourceDbCryst, sourceDbStruct, sourceDbLigand, unclassified, recentProteinsRes] = await Promise.all([
+    // Scatter 샘플 (6개)
+    Promise.all(OUTCOMES.map(async (outcome) => {
       const { data } = await supabase
         .from('kbsi_crystallization')
         .select('ph, temperature, outcome, precipitant_type, source_type')
-        .eq('outcome', outcome)
-        .not('ph', 'is', null)
-        .not('temperature', 'is', null)
+        .eq('outcome', outcome).not('ph', 'is', null).not('temperature', 'is', null)
         .limit(SAMPLE_PER_OUTCOME);
       return data || [];
-    })
-  );
-  const heatmapData = heatmapPages.flat();
-
-  // Data Overview — count 쿼리 (전체 행 fetch 불필요)
-  const successTotal = outcomeResults
-    .filter(r => r.outcome === 'single_crystal' || r.outcome === 'diffraction_quality')
-    .reduce((sum, r) => sum + r.total, 0);
-  const failureTotal = outcomeResults
-    .filter(r => r.outcome === 'clear' || r.outcome === 'precipitate')
-    .reduce((sum, r) => sum + r.total, 0);
-  const syntheticTotal = syntheticResults.reduce((sum, r) => sum + r.synthetic, 0);
-
-  // source_db별 데이터 현황 (결정화 + 구조 + 리간드)
-  const SOURCE_DBS = ['PDB', 'TargetTrack', 'ChEMBL', 'KBSI', 'synthetic'] as const;
-  const [sourceDbCryst, sourceDbStruct, sourceDbLigand] = await Promise.all([
+    })),
+    // Source 분포 crystallization (5개)
     Promise.all(SOURCE_DBS.map(async (db) => {
       const { count } = await supabase.from('kbsi_crystallization').select('id', { count: 'exact', head: true }).eq('source_db', db);
       return { source_db: db, count: count ?? 0 };
     })),
+    // Source 분포 structure (4개)
     Promise.all(SOURCE_DBS.filter(db => db !== 'synthetic').map(async (db) => {
       const { count } = await supabase.from('kbsi_structure').select('id', { count: 'exact', head: true }).eq('source_db', db);
       return { source_db: db, count: count ?? 0 };
     })),
+    // Source 분포 ligand (1개)
     Promise.all(['ChEMBL'].map(async (db) => {
       const { count } = await supabase.from('kbsi_ligand').select('id', { count: 'exact', head: true }).eq('source_db', db);
       return { source_db: db, count: count ?? 0 };
     })),
+    // 미분류 (1개)
+    supabase.from('kbsi_crystallization').select('id', { count: 'exact', head: true }).is('source_db', null),
+    // Recent proteins (1개)
+    supabase.from('kbsi_protein').select('id, full_name, abbreviation, organism, updated_at, kbsi_construct(count)').order('updated_at', { ascending: false }).limit(5),
   ]);
-  // 미분류
-  const { count: unclassifiedCount } = await supabase.from('kbsi_crystallization')
-    .select('id', { count: 'exact', head: true }).is('source_db', null);
-  if ((unclassifiedCount ?? 0) > 0) {
-    sourceDbCryst.push({ source_db: 'unknown' as any, count: unclassifiedCount ?? 0 });
+
+  const heatmapData = heatmapPages.flat();
+  if ((unclassified.count ?? 0) > 0) {
+    sourceDbCryst.push({ source_db: 'unknown' as any, count: unclassified.count ?? 0 });
   }
+  const recentProteins = recentProteinsRes.data;
 
-  // Recent proteins
-  const { data: recentProteins } = await supabase
-    .from('kbsi_protein')
-    .select('id, full_name, abbreviation, organism, updated_at, kbsi_construct(count)')
-    .order('updated_at', { ascending: false })
-    .limit(5);
+  const successTotal = outcomeResults.filter(r => r.outcome === 'single_crystal' || r.outcome === 'diffraction_quality').reduce((sum, r) => sum + r.total, 0);
+  const failureTotal = outcomeResults.filter(r => r.outcome === 'clear' || r.outcome === 'precipitate').reduce((sum, r) => sum + r.total, 0);
+  const syntheticTotal = syntheticResults.reduce((sum, r) => sum + r.synthetic, 0);
 
-  // Fetch pipeline data
   const pipelineData = {
     expressions: expressions.count ?? 0,
     purifications: purifications.count ?? 0,
