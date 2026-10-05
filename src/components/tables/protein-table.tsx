@@ -108,24 +108,21 @@ export function ProteinTable({ proteins, total, page, limit, search }: ProteinTa
       {totalPages > 1 && (
         <div className="flex items-center justify-between">
           <p className="text-sm text-muted-foreground">
-            총 {total}건 (페이지 {page} / {totalPages})
+            총 {total.toLocaleString()}건 (페이지 {page.toLocaleString()} / {totalPages.toLocaleString()})
           </p>
           <div className="flex items-center gap-2">
-            <Button
-              variant="outline"
-              size="sm"
-              onClick={() => navigatePage(page - 1)}
-              disabled={page <= 1}
-            >
+            <Button variant="outline" size="sm" onClick={() => navigatePage(1)} disabled={page <= 1}>
+              처음
+            </Button>
+            <Button variant="outline" size="sm" onClick={() => navigatePage(page - 1)} disabled={page <= 1}>
               이전
             </Button>
-            <Button
-              variant="outline"
-              size="sm"
-              onClick={() => navigatePage(page + 1)}
-              disabled={page >= totalPages}
-            >
+            <span className="text-sm px-2">{page} / {totalPages}</span>
+            <Button variant="outline" size="sm" onClick={() => navigatePage(page + 1)} disabled={page >= totalPages}>
               다음
+            </Button>
+            <Button variant="outline" size="sm" onClick={() => navigatePage(totalPages)} disabled={page >= totalPages}>
+              마지막
             </Button>
           </div>
         </div>
