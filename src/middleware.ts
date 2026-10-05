@@ -50,7 +50,7 @@ export async function middleware(request: NextRequest) {
   // Redirect authenticated users away from login
   if (user && isAuthPage) {
     const url = request.nextUrl.clone();
-    url.pathname = '/proteins';
+    url.pathname = '/dashboard';
     return NextResponse.redirect(url);
   }
 
