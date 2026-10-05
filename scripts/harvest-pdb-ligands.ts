@@ -224,7 +224,7 @@ async function main() {
             .maybeSingle();
 
           if (existing) {
-            ligandId = existing.id;
+            ligandId = existing.id as number;
             ligandIdCache.set(compId, ligandId);
           } else {
             const { data: newL, error } = await supabase
@@ -245,7 +245,7 @@ async function main() {
               totalErrors++;
               continue;
             }
-            ligandId = newL.id;
+            ligandId = newL.id as number;
             ligandIdCache.set(compId, ligandId);
             totalNewLigands++;
           }
