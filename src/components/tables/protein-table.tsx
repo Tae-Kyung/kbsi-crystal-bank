@@ -60,6 +60,23 @@ const columns: ColumnDef<ProteinRow>[] = [
     },
   },
   {
+    id: 'links',
+    header: 'Links',
+    cell: ({ row }) => {
+      const name = row.original.abbreviation || row.original.gene_name || row.original.full_name;
+      return (
+        <div className="flex gap-1">
+          <a href={`https://www.uniprot.org/uniprot/?query=${encodeURIComponent(name)}&sort=score`} target="_blank" rel="noopener noreferrer" title="UniProt">
+            <Badge variant="outline" className="text-[9px] cursor-pointer hover:bg-blue-50 dark:hover:bg-blue-950 px-1.5">U</Badge>
+          </a>
+          <a href={`https://www.rcsb.org/search?request=%7B%22query%22%3A%7B%22type%22%3A%22terminal%22%2C%22service%22%3A%22full_text%22%2C%22parameters%22%3A%7B%22value%22%3A%22${encodeURIComponent(name)}%22%7D%7D%2C%22return_type%22%3A%22entry%22%7D`} target="_blank" rel="noopener noreferrer" title="PDB">
+            <Badge variant="outline" className="text-[9px] cursor-pointer hover:bg-green-50 dark:hover:bg-green-950 px-1.5">P</Badge>
+          </a>
+        </div>
+      );
+    },
+  },
+  {
     accessorKey: 'updated_at',
     header: 'Updated',
     cell: ({ row }) => new Date(row.original.updated_at).toLocaleDateString('ko-KR'),

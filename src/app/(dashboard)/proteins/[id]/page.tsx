@@ -157,12 +157,39 @@ export default async function ProteinDetailPage({
           )}
 
           <div className="flex gap-3">
-            <Link href="/experiments/crystallization">
+            <Link href={`/experiments/crystallization?protein=${encodeURIComponent(protein.abbreviation || protein.full_name)}`}>
               <Button variant="outline" size="sm">View All Conditions</Button>
             </Link>
             <Link href="/benchmark">
               <Button variant="outline" size="sm">Predict New Condition</Button>
             </Link>
+          </div>
+        </CardContent>
+      </Card>
+
+      {/* Quick Experiment Links */}
+      <Card>
+        <CardHeader><CardTitle className="text-base">Explore Data</CardTitle></CardHeader>
+        <CardContent>
+          <div className="flex flex-wrap gap-2">
+            {[
+              { label: 'Expression', slug: 'expression', icon: '🧪' },
+              { label: 'Purification', slug: 'purification', icon: '🔬' },
+              { label: 'Crystallization', slug: 'crystallization', icon: '💎' },
+              { label: 'Structure', slug: 'structure', icon: '🔬' },
+            ].map(exp => (
+              <Link key={exp.slug} href={`/experiments/${exp.slug}?protein=${encodeURIComponent(protein.abbreviation || protein.full_name)}`}>
+                <Button variant="outline" size="sm" className="gap-1.5">
+                  <span>{exp.icon}</span> {exp.label}
+                </Button>
+              </Link>
+            ))}
+            <a href={`https://www.rcsb.org/search?request=%7B%22query%22%3A%7B%22type%22%3A%22terminal%22%2C%22service%22%3A%22full_text%22%2C%22parameters%22%3A%7B%22value%22%3A%22${encodeURIComponent(protein.abbreviation || protein.full_name)}%22%7D%7D%2C%22return_type%22%3A%22entry%22%7D`} target="_blank" rel="noopener noreferrer">
+              <Button variant="outline" size="sm" className="gap-1.5">
+                🏛️ RCSB PDB Search
+                <svg className="h-3 w-3" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M10 6H6a2 2 0 00-2 2v10a2 2 0 002 2h10a2 2 0 002-2v-4M14 4h6m0 0v6m0-6L10 14" /></svg>
+              </Button>
+            </a>
           </div>
         </CardContent>
       </Card>
