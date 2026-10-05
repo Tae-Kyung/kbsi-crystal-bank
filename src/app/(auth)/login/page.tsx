@@ -32,8 +32,7 @@ export default function LoginPage() {
         setLoading(false);
         return;
       }
-      router.push('/dashboard');
-      router.refresh();
+      window.location.href = '/dashboard';
     } else {
       const { error } = await supabase.auth.signUp({ email, password });
       if (error) {
