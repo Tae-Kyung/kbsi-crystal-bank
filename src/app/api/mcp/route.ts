@@ -78,6 +78,41 @@ function createMcpServer() {
     async (params) => toMcpResult(await queries.searchCrystallizationConditions(createServiceClient(), params)),
   );
 
+  server.tool(
+    'sequence_search',
+    '서열 유사도 기반으로 단백질을 검색합니다',
+    { sequence: z.string().describe('아미노산 서열 (최소 10잔기)'), limit: z.number().optional().default(10) },
+    async ({ sequence, limit }) => toMcpResult(await queries.sequenceSearch(createServiceClient(), sequence, limit)),
+  );
+
+  server.tool(
+    'search_ligands',
+    '리간드(약물 후보)를 이름 또는 SMILES로 검색합니다',
+    { query: z.string().describe('리간드 이름 또는 SMILES'), limit: z.number().optional().default(20) },
+    async ({ query, limit }) => toMcpResult(await queries.searchLigands(createServiceClient(), query, limit)),
+  );
+
+  server.tool(
+    'get_bindings',
+    '약물-타겟 바인딩 데이터(IC50, Kd, Ki)를 조회합니다',
+    { construct_id: z.number().optional(), ligand_id: z.number().optional(), limit: z.number().optional().default(20) },
+    async ({ construct_id, ligand_id, limit }) => toMcpResult(await queries.getBindings(createServiceClient(), construct_id, ligand_id, limit)),
+  );
+
+  server.tool(
+    'search_structures',
+    'PDB ID 또는 실험 방법으로 3D 구조를 검색합니다',
+    { pdb_id: z.string().optional(), method: z.enum(['X-ray', 'NMR', 'Cryo-EM']).optional(), limit: z.number().optional().default(20) },
+    async ({ pdb_id, method, limit }) => toMcpResult(await queries.searchStructures(createServiceClient(), pdb_id, method, limit)),
+  );
+
+  server.tool(
+    'get_data_quality',
+    '데이터 품질 요약 (필드 구조화율, outcome 분포, 합성/실험 비율)',
+    {},
+    async () => toMcpResult(await queries.getDataQualitySummary(createServiceClient())),
+  );
+
   return server;
 }
 

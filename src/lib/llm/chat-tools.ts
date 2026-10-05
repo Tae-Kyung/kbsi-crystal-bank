@@ -103,6 +103,64 @@ export const chatTools = {
       return queries.searchCrystallizationConditions(supabase, params);
     },
   }),
+  sequence_search: tool({
+    description: '서열 유사도 기반으로 단백질을 검색합니다. 유사한 단백질의 결정화 성공 조건도 추천합니다.',
+    parameters: z.object({
+      sequence: z.string().describe('아미노산 서열 (최소 10잔기)'),
+      limit: z.number().optional().default(10),
+    }),
+    execute: async ({ sequence, limit }) => {
+      const supabase = await createClient();
+      return queries.sequenceSearch(supabase, sequence, limit);
+    },
+  }),
+
+  search_ligands: tool({
+    description: '리간드(약물 후보)를 이름 또는 SMILES로 검색합니다.',
+    parameters: z.object({
+      query: z.string().describe('리간드 이름 또는 SMILES'),
+      limit: z.number().optional().default(20),
+    }),
+    execute: async ({ query, limit }) => {
+      const supabase = await createClient();
+      return queries.searchLigands(supabase, query, limit);
+    },
+  }),
+
+  get_bindings: tool({
+    description: '약물-타겟 바인딩 데이터(IC50, Kd, Ki)를 조회합니다.',
+    parameters: z.object({
+      construct_id: z.number().optional().describe('Construct ID'),
+      ligand_id: z.number().optional().describe('Ligand ID'),
+      limit: z.number().optional().default(20),
+    }),
+    execute: async ({ construct_id, ligand_id, limit }) => {
+      const supabase = await createClient();
+      return queries.getBindings(supabase, construct_id, ligand_id, limit);
+    },
+  }),
+
+  search_structures: tool({
+    description: 'PDB ID 또는 실험 방법으로 3D 구조를 검색합니다.',
+    parameters: z.object({
+      pdb_id: z.string().optional().describe('PDB ID (예: 6GOD)'),
+      method: z.enum(['X-ray', 'NMR', 'Cryo-EM']).optional().describe('구조 결정 방법'),
+      limit: z.number().optional().default(20),
+    }),
+    execute: async ({ pdb_id, method, limit }) => {
+      const supabase = await createClient();
+      return queries.searchStructures(supabase, pdb_id, method, limit);
+    },
+  }),
+
+  get_data_quality: tool({
+    description: '데이터 품질 요약을 조회합니다 (필드 구조화율, outcome 분포, 합성/실험 비율).',
+    parameters: z.object({}),
+    execute: async () => {
+      const supabase = await createClient();
+      return queries.getDataQualitySummary(supabase);
+    },
+  }),
 };
 
 export const SYSTEM_PROMPT = `You are an AI assistant for the KBSI Protein Crystallization Bank (단백질 결정화은행).
@@ -114,6 +172,11 @@ Your capabilities:
 - Predict crystallization success probability
 - Provide database statistics
 - Search crystallization conditions by parameters
+- Search by protein sequence similarity (k-mer Jaccard)
+- Search ligands (drug candidates) by name or SMILES
+- Query drug-target binding data (IC50, Kd, Ki)
+- Search 3D structures by PDB ID or method (X-ray, NMR, Cryo-EM)
+- Check data quality summary (field coverage, outcome distribution)
 
 When answering:
 - Be concise and scientific

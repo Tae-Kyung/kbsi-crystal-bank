@@ -143,3 +143,98 @@ export async function searchCrystallizationConditions(
   if (error) return { error: error.message };
   return { results: data, count: data?.length ?? 0 };
 }
+
+export async function sequenceSearch(supabase: SupabaseClient, sequence: string, limit: number = 10) {
+  const querySeq = sequence.toUpperCase().replace(/[^A-Z]/g, '');
+  if (querySeq.length < 10) return { error: 'Sequence must be at least 10 residues' };
+
+  const { data: constructs } = await supabase
+    .from('kbsi_construct')
+    .select('id, name, protein_id, seq_final, kbsi_protein(full_name, organism)')
+    .not('seq_final', 'is', null)
+    .limit(5000);
+
+  if (!constructs || (constructs as any[]).length === 0) return { results: [], message: 'No sequences in database' };
+
+  const K = 3;
+  const queryKmers = new Set<string>();
+  for (let i = 0; i <= querySeq.length - K; i++) queryKmers.add(querySeq.substring(i, i + K));
+
+  const similarities = (constructs as any[])
+    .map((c: any) => {
+      const seq = (c.seq_final || '').toUpperCase();
+      if (seq.length < 10) return null;
+      const targetKmers = new Set<string>();
+      for (let i = 0; i <= seq.length - K; i++) targetKmers.add(seq.substring(i, i + K));
+      let intersection = 0;
+      for (const kmer of queryKmers) { if (targetKmers.has(kmer)) intersection++; }
+      const union = queryKmers.size + targetKmers.size - intersection;
+      const similarity = union > 0 ? intersection / union : 0;
+      return {
+        construct_id: c.id, construct_name: c.name,
+        protein_name: c.kbsi_protein?.full_name || '', organism: c.kbsi_protein?.organism || '',
+        similarity: Math.round(similarity * 1000) / 10,
+      };
+    })
+    .filter((r: any) => r !== null && r.similarity > 5)
+    .sort((a: any, b: any) => b.similarity - a.similarity)
+    .slice(0, limit);
+
+  return { query_length: querySeq.length, total_compared: (constructs as any[]).length, results: similarities };
+}
+
+export async function searchLigands(supabase: SupabaseClient, query: string, limit: number = 20) {
+  const { data, error } = await supabase
+    .from('kbsi_ligand')
+    .select('id, name, smiles, mw, source, source_db, source_id')
+    .or(`name.ilike.%${query}%,smiles.ilike.%${query}%`)
+    .limit(limit);
+  if (error) return { error: error.message };
+  return { ligands: data, count: data?.length ?? 0 };
+}
+
+export async function getBindings(supabase: SupabaseClient, construct_id?: number, ligand_id?: number, limit: number = 20) {
+  let q = supabase
+    .from('kbsi_construct_ligand')
+    .select('*, kbsi_construct(name, kbsi_protein(full_name)), kbsi_ligand(name, smiles)')
+    .limit(limit);
+  if (construct_id) q = q.eq('construct_id', construct_id);
+  if (ligand_id) q = q.eq('ligand_id', ligand_id);
+  const { data, error } = await q;
+  if (error) return { error: error.message };
+  return { bindings: data, count: data?.length ?? 0 };
+}
+
+export async function searchStructures(supabase: SupabaseClient, pdb_id?: string, method?: string, limit: number = 20) {
+  let q = supabase
+    .from('kbsi_structure')
+    .select('id, construct_id, method, resolution, pdb_id, emdb_id, source_db, kbsi_construct(name, kbsi_protein(full_name, organism))')
+    .limit(limit);
+  if (pdb_id) q = q.ilike('pdb_id', `%${pdb_id}%`);
+  if (method) q = q.eq('method', method);
+  const { data, error } = await q.order('resolution', { ascending: true });
+  if (error) return { error: error.message };
+  return { structures: data, count: data?.length ?? 0 };
+}
+
+export async function getDataQualitySummary(supabase: SupabaseClient) {
+  const [crystTotal, hasPH, hasTemp, hasPrecip, nullOutcome, syntheticCount] = await Promise.all([
+    supabase.from('kbsi_crystallization').select('id', { count: 'exact', head: true }).then((r: any) => r.count ?? 0),
+    supabase.from('kbsi_crystallization').select('id', { count: 'exact', head: true }).not('ph', 'is', null).then((r: any) => r.count ?? 0),
+    supabase.from('kbsi_crystallization').select('id', { count: 'exact', head: true }).not('temperature', 'is', null).then((r: any) => r.count ?? 0),
+    supabase.from('kbsi_crystallization').select('id', { count: 'exact', head: true }).not('precipitant_type', 'is', null).then((r: any) => r.count ?? 0),
+    supabase.from('kbsi_crystallization').select('id', { count: 'exact', head: true }).is('outcome', null).then((r: any) => r.count ?? 0),
+    supabase.from('kbsi_crystallization').select('id', { count: 'exact', head: true }).eq('source_type', 'synthetic').then((r: any) => r.count ?? 0),
+  ]);
+  return {
+    total_crystallization: crystTotal,
+    field_coverage: {
+      ph: { count: hasPH, pct: Math.round(hasPH / crystTotal * 1000) / 10 },
+      temperature: { count: hasTemp, pct: Math.round(hasTemp / crystTotal * 1000) / 10 },
+      precipitant_type: { count: hasPrecip, pct: Math.round(hasPrecip / crystTotal * 1000) / 10 },
+    },
+    outcome_null: nullOutcome,
+    synthetic_count: syntheticCount,
+    experimental_count: crystTotal - syntheticCount,
+  };
+}
