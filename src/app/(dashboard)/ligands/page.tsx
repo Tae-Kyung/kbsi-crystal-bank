@@ -26,11 +26,11 @@ export default async function LigandsPage() {
           <div className="text-xs text-muted-foreground">Total Ligands</div>
         </div>
         <div className="rounded-lg border p-3 text-center">
-          <div className="text-2xl font-bold">7,942</div>
+          <div className="text-2xl font-bold">{(7942).toLocaleString()}</div>
           <div className="text-xs text-muted-foreground">Bindings</div>
         </div>
         <div className="rounded-lg border p-3 text-center">
-          <div className="text-2xl font-bold">20</div>
+          <div className="text-2xl font-bold">{(20).toLocaleString()}</div>
           <div className="text-xs text-muted-foreground">Drug Targets</div>
         </div>
         <div className="rounded-lg border p-3 text-center">
