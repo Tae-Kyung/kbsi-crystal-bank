@@ -28,13 +28,13 @@ const EXPERIMENT_CONFIG: Record<string, { table: string; title: string; desc: st
     table: 'kbsi_characterization',
     title: 'Characterization',
     desc: '특성분석',
-    fields: ['method', 'value_num', 'value_text', 'unit_normalized'],
+    fields: ['method', 'value_num', 'value_text', 'unit_normalized', 'source_db', 'source_id'],
   },
   diffraction: {
     table: 'kbsi_diffraction',
     title: 'Diffraction',
     desc: '회절 실험',
-    fields: ['resolution', 'space_group', 'beamline', 'data_quality'],
+    fields: ['resolution', 'space_group', 'beamline', 'phasing', 'source_db', 'source_id'],
   },
   structure: {
     table: 'kbsi_structure',

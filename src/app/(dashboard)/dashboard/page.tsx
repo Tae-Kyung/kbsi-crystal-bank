@@ -1,7 +1,7 @@
 import { createClient } from '@/lib/supabase/server';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
-import { Dna, FlaskConical, Gem, TestTubes, Pill, ClipboardCheck, Beaker, Link2 } from 'lucide-react';
+import { Dna, FlaskConical, Gem, TestTubes, Pill, ClipboardCheck, Beaker, Link2, Microscope, Radiation } from 'lucide-react';
 import { CrystallizationHeatmap } from '@/components/charts/crystallization-heatmap';
 import { OutcomeDistribution } from '@/components/charts/outcome-distribution';
 import { PipelineFunnel } from '@/components/charts/pipeline-funnel';
@@ -21,8 +21,8 @@ export default async function DashboardPage() {
 
   // ─── 모든 쿼리를 하나의 Promise.all로 통합 (4 왕복 → 1 왕복) ───
   const [
-    // Stats (9개)
-    proteins, constructs, expressions, purifications, crystallizations, structures, ligands, bindings, staging,
+    // Stats (11개)
+    proteins, constructs, expressions, purifications, characterizations_count, crystallizations, diffractions, structures, ligands, bindings, staging,
     // Outcome 분포 (12개)
     ...outcomeAndSynthetic
   ] = await Promise.all([
@@ -30,7 +30,9 @@ export default async function DashboardPage() {
     supabase.from('kbsi_construct').select('id', { count: 'exact', head: true }),
     supabase.from('kbsi_expression').select('id', { count: 'exact', head: true }),
     supabase.from('kbsi_purification').select('id', { count: 'exact', head: true }),
+    supabase.from('kbsi_characterization').select('id', { count: 'exact', head: true }),
     supabase.from('kbsi_crystallization').select('id', { count: 'exact', head: true }),
+    supabase.from('kbsi_diffraction').select('id', { count: 'exact', head: true }),
     supabase.from('kbsi_structure').select('id', { count: 'exact', head: true }),
     supabase.from('kbsi_ligand').select('id', { count: 'exact', head: true }),
     supabase.from('kbsi_construct_ligand').select('id', { count: 'exact', head: true }),
@@ -45,7 +47,9 @@ export default async function DashboardPage() {
     { label: 'Proteins', value: proteins.count ?? 0, icon: Dna },
     { label: 'Constructs', value: constructs.count ?? 0, icon: FlaskConical },
     { label: 'Crystallizations', value: crystallizations.count ?? 0, icon: Gem },
+    { label: 'Diffractions', value: diffractions.count ?? 0, icon: Radiation },
     { label: 'Structures', value: structures.count ?? 0, icon: Pill },
+    { label: 'Characterizations', value: characterizations_count.count ?? 0, icon: Microscope },
     { label: 'Ligands', value: ligands.count ?? 0, icon: Beaker },
     { label: 'Bindings', value: bindings.count ?? 0, icon: Link2 },
   ];
@@ -105,7 +109,9 @@ export default async function DashboardPage() {
   const pipelineData = {
     expressions: expressions.count ?? 0,
     purifications: purifications.count ?? 0,
+    characterizations: characterizations_count.count ?? 0,
     crystallizations: crystallizations.count ?? 0,
+    diffractions: diffractions.count ?? 0,
     structures: structures.count ?? 0,
   };
 
@@ -114,7 +120,7 @@ export default async function DashboardPage() {
       <h2 className="text-2xl font-bold">Dashboard</h2>
 
       {/* Stats Cards */}
-      <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-6 gap-4">
+      <div className="grid grid-cols-2 md:grid-cols-4 lg:grid-cols-8 gap-4">
         {stats.map(({ label, value, icon: Icon }) => (
           <Card key={label}>
             <CardContent className="p-4">
