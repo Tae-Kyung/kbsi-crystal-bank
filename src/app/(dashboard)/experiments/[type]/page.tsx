@@ -193,6 +193,11 @@ export default async function ExperimentTypePage({
                           {r[f].length > 25 ? r[f].slice(0, 25) + '...' : r[f]}
                           <svg className="inline-block ml-0.5 h-2.5 w-2.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M10 6H6a2 2 0 00-2 2v10a2 2 0 002 2h10a2 2 0 002-2v-4M14 4h6m0 0v6m0-6L10 14" /></svg>
                         </a>
+                      ) : r.source_db === 'PDB' ? (
+                        <a href={`https://www.rcsb.org/structure/${r[f]}`} target="_blank" rel="noopener noreferrer" className="text-primary hover:underline font-mono text-[10px]">
+                          {r[f]}
+                          <svg className="inline-block ml-0.5 h-2.5 w-2.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M10 6H6a2 2 0 00-2 2v10a2 2 0 002 2h10a2 2 0 002-2v-4M14 4h6m0 0v6m0-6L10 14" /></svg>
+                        </a>
                       ) : (
                         <span className="font-mono text-[10px]">{r[f]}</span>
                       )
