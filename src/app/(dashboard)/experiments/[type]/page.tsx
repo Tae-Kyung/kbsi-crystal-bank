@@ -49,7 +49,7 @@ export default async function ExperimentTypePage({
   searchParams,
 }: {
   params: Promise<{ type: string }>;
-  searchParams: Promise<{ page?: string }>;
+  searchParams: Promise<{ page?: string; protein?: string; construct_id?: string }>;
 }) {
   const { type } = await params;
   const config = EXPERIMENT_CONFIG[type];
@@ -57,18 +57,58 @@ export default async function ExperimentTypePage({
 
   const sp = await searchParams;
   const page = parseInt(sp.page || '1');
+  const proteinFilter = sp.protein || '';
+  const constructFilter = sp.construct_id || '';
   const limit = 50;
   const offset = (page - 1) * limit;
 
   const supabase = await createClient();
 
-  const [{ count }, { data }] = await Promise.all([
-    supabase.from(config.table).select('id', { count: 'exact', head: true }),
+  // construct_id 필터링을 위한 construct 조회
+  let filterConstructIds: number[] | null = null;
+  if (proteinFilter) {
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
-    (supabase.from(config.table) as any)
-      .select('*, kbsi_construct(name, protein_id, kbsi_protein(full_name, abbreviation))')
-      .order('created_at', { ascending: false })
-      .range(offset, offset + limit - 1),
+    const { data: matchedProteins } = await (supabase as any)
+      .from('kbsi_protein')
+      .select('id')
+      .or(`full_name.ilike.%${proteinFilter}%,abbreviation.ilike.%${proteinFilter}%,gene_name.ilike.%${proteinFilter}%`)
+      .limit(20);
+    if (matchedProteins && matchedProteins.length > 0) {
+      const proteinIds = matchedProteins.map((p: any) => p.id);
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      const { data: matchedConstructs } = await (supabase as any)
+        .from('kbsi_construct')
+        .select('id')
+        .in('protein_id', proteinIds)
+        .limit(500);
+      filterConstructIds = (matchedConstructs || []).map((c: any) => c.id);
+    } else {
+      filterConstructIds = [];
+    }
+  }
+
+  // count + data 쿼리
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  let countQuery = supabase.from(config.table).select('id', { count: 'exact', head: true }) as any;
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  let dataQuery = (supabase.from(config.table) as any)
+    .select('*, kbsi_construct(name, protein_id, kbsi_protein(full_name, abbreviation))');
+
+  if (constructFilter) {
+    countQuery = countQuery.eq('construct_id', parseInt(constructFilter));
+    dataQuery = dataQuery.eq('construct_id', parseInt(constructFilter));
+  } else if (filterConstructIds !== null) {
+    if (filterConstructIds.length === 0) {
+      // 매칭 없음 → 빈 결과
+      filterConstructIds = [-1];
+    }
+    countQuery = countQuery.in('construct_id', filterConstructIds.slice(0, 100));
+    dataQuery = dataQuery.in('construct_id', filterConstructIds.slice(0, 100));
+  }
+
+  const [{ count }, { data }] = await Promise.all([
+    countQuery,
+    dataQuery.order('created_at', { ascending: false }).range(offset, offset + limit - 1),
   ]);
 
   const totalPages = Math.ceil((count ?? 0) / limit);
@@ -84,6 +124,35 @@ export default async function ExperimentTypePage({
           <h2 className="text-2xl font-bold mt-1">{config.title}</h2>
           <p className="text-muted-foreground">{config.desc} — {(count ?? 0).toLocaleString()}건</p>
         </div>
+      </div>
+
+      {/* Filter */}
+      <div className="flex items-center gap-3">
+        <form className="flex gap-2 flex-1" action={`/experiments/${type}`}>
+          <input
+            name="protein"
+            defaultValue={proteinFilter}
+            placeholder="단백질명, 유전자명으로 필터..."
+            className="flex-1 max-w-sm rounded-lg border bg-muted/50 px-3 py-2 text-sm placeholder:text-muted-foreground focus:outline-none focus:ring-2 focus:ring-primary/30"
+          />
+          {constructFilter && <input type="hidden" name="construct_id" value={constructFilter} />}
+          <Button type="submit" variant="outline" size="sm">필터</Button>
+          {(proteinFilter || constructFilter) && (
+            <Link href={`/experiments/${type}`}>
+              <Button variant="ghost" size="sm">초기화</Button>
+            </Link>
+          )}
+        </form>
+        {proteinFilter && (
+          <span className="text-xs text-muted-foreground">
+            &quot;{proteinFilter}&quot; 필터 적용 중
+          </span>
+        )}
+        {constructFilter && (
+          <span className="text-xs text-muted-foreground">
+            Construct #{constructFilter} 필터 적용 중
+          </span>
+        )}
       </div>
 
       <div className="rounded-md border overflow-hidden">
@@ -151,17 +220,17 @@ export default async function ExperimentTypePage({
             총 {(count ?? 0).toLocaleString()}건 (페이지 {page} / {totalPages.toLocaleString()})
           </p>
           <div className="flex items-center gap-2">
-            <Link href={`/experiments/${type}?page=1`}>
+            <Link href={`/experiments/${type}?page=1${proteinFilter ? `&protein=${proteinFilter}` : ''}${constructFilter ? `&construct_id=${constructFilter}` : ''}`}>
               <Button variant="outline" size="sm" disabled={page <= 1}>처음</Button>
             </Link>
-            <Link href={`/experiments/${type}?page=${page - 1}`}>
+            <Link href={`/experiments/${type}?page=${page - 1}${proteinFilter ? `&protein=${proteinFilter}` : ''}${constructFilter ? `&construct_id=${constructFilter}` : ''}`}>
               <Button variant="outline" size="sm" disabled={page <= 1}>이전</Button>
             </Link>
             <span className="text-sm px-2">{page} / {totalPages}</span>
-            <Link href={`/experiments/${type}?page=${page + 1}`}>
+            <Link href={`/experiments/${type}?page=${page + 1}${proteinFilter ? `&protein=${proteinFilter}` : ''}${constructFilter ? `&construct_id=${constructFilter}` : ''}`}>
               <Button variant="outline" size="sm" disabled={page >= totalPages}>다음</Button>
             </Link>
-            <Link href={`/experiments/${type}?page=${totalPages}`}>
+            <Link href={`/experiments/${type}?page=${totalPages}${proteinFilter ? `&protein=${proteinFilter}` : ''}${constructFilter ? `&construct_id=${constructFilter}` : ''}`}>
               <Button variant="outline" size="sm" disabled={page >= totalPages}>마지막</Button>
             </Link>
           </div>
