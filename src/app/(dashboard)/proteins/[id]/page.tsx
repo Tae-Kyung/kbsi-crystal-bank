@@ -90,7 +90,7 @@ export default async function ProteinDetailPage({
               <p className="text-xs font-medium text-muted-foreground">External Resources</p>
               <div className="flex flex-wrap gap-2">
                 {protein.gene_name && (
-                  <a href={`https://www.ncbi.nlm.nih.gov/gene/?term=${encodeURIComponent(protein.gene_name)}+AND+${encodeURIComponent(protein.organism || 'human')}[Organism]`} target="_blank" rel="noopener noreferrer">
+                  <a href={`https://www.ncbi.nlm.nih.gov/gene/?term=${encodeURIComponent(protein.gene_name + ' AND ' + (protein.organism || 'human') + '[Organism]')}`} target="_blank" rel="noopener noreferrer">
                     <Badge variant="outline" className="text-xs cursor-pointer hover:bg-blue-50 dark:hover:bg-blue-950">NCBI Gene</Badge>
                   </a>
                 )}
