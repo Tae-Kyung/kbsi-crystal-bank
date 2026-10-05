@@ -10,13 +10,13 @@ const EXPERIMENT_CONFIG: Record<string, { table: string; title: string; desc: st
     table: 'kbsi_expression',
     title: 'Expression',
     desc: '발현 실험',
-    fields: ['host', 'strain', 'induction_temp', 'yield_mg_l', 'result_level', 'conditions'],
+    fields: ['host', 'strain', 'induction_temp', 'yield_mg_l', 'result_level', 'source_db', 'source_id'],
   },
   purification: {
     table: 'kbsi_purification',
     title: 'Purification',
     desc: '정제 실험',
-    fields: ['method_summary', 'final_purity', 'final_yield', 'result_level'],
+    fields: ['method_summary', 'final_purity', 'final_yield', 'result_level', 'source_db', 'source_id'],
   },
   crystallization: {
     table: 'kbsi_crystallization',
@@ -116,8 +116,17 @@ export default async function ExperimentTypePage({
                 </td>
                 {config.fields.map(f => (
                   <td key={f} className="px-3 py-2 text-xs">
-                    {f === 'outcome' || f === 'result_level' || f === 'method' || f === 'source_type' ? (
+                    {f === 'outcome' || f === 'result_level' || f === 'method' || f === 'source_type' || f === 'source_db' ? (
                       r[f] ? <Badge variant="outline" className="text-[10px]">{r[f]}</Badge> : '-'
+                    ) : f === 'source_id' && r[f] ? (
+                      r.source_db === 'PubMed' || r[f]?.startsWith('10.') ? (
+                        <a href={`https://doi.org/${r[f]}`} target="_blank" rel="noopener noreferrer" className="text-primary hover:underline font-mono text-[10px]">
+                          {r[f].length > 25 ? r[f].slice(0, 25) + '...' : r[f]}
+                          <svg className="inline-block ml-0.5 h-2.5 w-2.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M10 6H6a2 2 0 00-2 2v10a2 2 0 002 2h10a2 2 0 002-2v-4M14 4h6m0 0v6m0-6L10 14" /></svg>
+                        </a>
+                      ) : (
+                        <span className="font-mono text-[10px]">{r[f]}</span>
+                      )
                     ) : f === 'pdb_id' && r[f] ? (
                       <a href={`https://www.rcsb.org/structure/${r[f]}`} target="_blank" rel="noopener noreferrer" className="text-primary hover:underline font-mono">
                         {r[f]}
