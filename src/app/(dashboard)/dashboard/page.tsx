@@ -6,6 +6,7 @@ import { CrystallizationHeatmap } from '@/components/charts/crystallization-heat
 import { OutcomeDistribution } from '@/components/charts/outcome-distribution';
 import { PipelineFunnel } from '@/components/charts/pipeline-funnel';
 import { SourceDistribution } from '@/components/charts/source-distribution';
+import { DataInsights } from '@/components/charts/data-insights';
 import Link from 'next/link';
 
 // ISR: 60초마다 재생성 (매 요청마다 39개 쿼리 방지)
@@ -205,6 +206,9 @@ export default async function DashboardPage() {
           <CrystallizationHeatmap data={heatmapData ?? []} />
         </CardContent>
       </Card>
+
+      {/* Cross-Analysis Insights */}
+      <DataInsights />
 
       {/* Data Source Distribution */}
       <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
