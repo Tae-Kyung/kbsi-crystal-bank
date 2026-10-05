@@ -21,7 +21,13 @@
     "preflight": "npm run typecheck && npm run lint && npm run test:run && npm run build",
     "harvest:pdb": "npx tsx scripts/bulk-pdb-harvest.ts",
     "harvest:targettrack": "npx tsx scripts/bulk-targettrack.ts",
-    "harvest:enrich": "npx tsx scripts/bulk-enrich-conditions.ts"
+    "harvest:enrich": "npx tsx scripts/bulk-enrich-conditions.ts",
+    "ops": "npx tsx scripts/ops-harness.ts",
+    "ops:status": "npx tsx scripts/ops-harness.ts status",
+    "ops:health": "npx tsx scripts/ops-harness.ts health",
+    "ops:quality": "npx tsx scripts/ops-harness.ts quality",
+    "ops:report": "npx tsx scripts/ops-harness.ts report",
+    "ops:maintenance": "npx tsx scripts/ops-harness.ts maintenance"
   },
   "dependencies": {
     "@ai-sdk/openai": "^1.1.0",
