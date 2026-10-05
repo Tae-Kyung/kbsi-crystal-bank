@@ -30,18 +30,21 @@ export default async function ProteinDetailPage({
   const constructIds = constructs.map((c: any) => c.id);
   let crystSummary = { total: 0, success: 0, failure: 0 };
   let exprCount = 0, purifCount = 0, structCount = 0;
+  let ligandBindings: any[] = [];
   if (constructIds.length > 0) {
-    const [{ count: totalCryst }, { count: successCryst }, { count: ec }, { count: pc }, { count: sc }] = await Promise.all([
+    const [{ count: totalCryst }, { count: successCryst }, { count: ec }, { count: pc }, { count: sc }, { data: bindings }] = await Promise.all([
       supabase.from('kbsi_crystallization').select('id', { count: 'exact', head: true }).in('construct_id', constructIds),
       supabase.from('kbsi_crystallization').select('id', { count: 'exact', head: true }).in('construct_id', constructIds).or('outcome.eq.diffraction_quality,outcome.eq.single_crystal'),
       supabase.from('kbsi_expression').select('id', { count: 'exact', head: true }).in('construct_id', constructIds),
       supabase.from('kbsi_purification').select('id', { count: 'exact', head: true }).in('construct_id', constructIds),
       supabase.from('kbsi_structure').select('id', { count: 'exact', head: true }).in('construct_id', constructIds),
+      supabase.from('kbsi_construct_ligand').select('id, binding_kd, binding_ic50, source_db, source_id, kbsi_ligand(id, name, smiles, mw, source_db, source_id), kbsi_construct(id, name)').in('construct_id', constructIds).limit(50),
     ]);
     crystSummary = { total: totalCryst ?? 0, success: successCryst ?? 0, failure: (totalCryst ?? 0) - (successCryst ?? 0) };
     exprCount = ec ?? 0;
     purifCount = pc ?? 0;
     structCount = sc ?? 0;
+    ligandBindings = bindings ?? [];
   }
   const successRate = crystSummary.total > 0 ? Math.round((crystSummary.success / crystSummary.total) * 100) : 0;
 
@@ -207,6 +210,60 @@ export default async function ProteinDetailPage({
           </div>
         </CardContent>
       </Card>
+
+      {/* Ligand Bindings */}
+      {ligandBindings.length > 0 && (
+        <Card>
+          <CardHeader>
+            <CardTitle className="text-base">Ligand Bindings ({ligandBindings.length})</CardTitle>
+          </CardHeader>
+          <CardContent>
+            <div className="rounded-md border overflow-hidden">
+              <table className="w-full text-sm">
+                <thead className="bg-muted/50">
+                  <tr>
+                    <th className="px-3 py-2 text-left font-medium">Ligand</th>
+                    <th className="px-3 py-2 text-left font-medium">Construct</th>
+                    <th className="px-3 py-2 text-left font-medium">Kd</th>
+                    <th className="px-3 py-2 text-left font-medium">IC50</th>
+                    <th className="px-3 py-2 text-left font-medium">Source</th>
+                  </tr>
+                </thead>
+                <tbody className="divide-y">
+                  {ligandBindings.map((b: any) => {
+                    const ligand = b.kbsi_ligand;
+                    const lSource = ligand?.source_db;
+                    const lId = ligand?.source_id;
+                    const lUrl = lSource === 'ChEMBL' && lId ? `https://www.ebi.ac.uk/chembl/compound_report_card/${lId}/` : lSource === 'PDB' && lId ? `https://www.rcsb.org/ligand/${lId}` : null;
+                    return (
+                      <tr key={b.id} className="hover:bg-muted/30">
+                        <td className="px-3 py-2 text-xs">
+                          {lUrl ? (
+                            <a href={lUrl} target="_blank" rel="noopener noreferrer" className="text-primary hover:underline">{ligand?.name}</a>
+                          ) : (
+                            ligand?.name || '-'
+                          )}
+                          {ligand?.mw && <span className="text-muted-foreground ml-1">({ligand.mw.toFixed(0)} Da)</span>}
+                        </td>
+                        <td className="px-3 py-2 text-xs">
+                          <Link href={`/constructs/${b.kbsi_construct?.id}`} className="text-primary hover:underline">
+                            {b.kbsi_construct?.name?.slice(0, 20) || `#${b.construct_id}`}
+                          </Link>
+                        </td>
+                        <td className="px-3 py-2 text-xs font-mono">{b.binding_kd ? `${b.binding_kd.toLocaleString()} nM` : '-'}</td>
+                        <td className="px-3 py-2 text-xs font-mono">{b.binding_ic50 ? `${b.binding_ic50.toLocaleString()} nM` : '-'}</td>
+                        <td className="px-3 py-2 text-xs">
+                          {b.source_db && <Badge variant="outline" className="text-[10px]">{b.source_db}</Badge>}
+                        </td>
+                      </tr>
+                    );
+                  })}
+                </tbody>
+              </table>
+            </div>
+          </CardContent>
+        </Card>
+      )}
 
       <Card>
         <CardHeader className="flex flex-row items-center justify-between">

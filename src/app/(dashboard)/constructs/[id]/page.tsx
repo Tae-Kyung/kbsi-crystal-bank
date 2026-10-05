@@ -27,13 +27,14 @@ export default async function ConstructDetailPage({
   const protein = construct.kbsi_protein;
   const mutations = construct.kbsi_mutation ?? [];
 
-  // Fetch experiment counts
-  const [expr, puri, cryst, char, struct] = await Promise.all([
+  // Fetch experiment counts + ligand bindings
+  const [expr, puri, cryst, char, struct, { data: ligandBindings }] = await Promise.all([
     supabase.from('kbsi_expression').select('id', { count: 'exact', head: true }).eq('construct_id', parseInt(id)),
     supabase.from('kbsi_purification').select('id', { count: 'exact', head: true }).eq('construct_id', parseInt(id)),
     supabase.from('kbsi_crystallization').select('id', { count: 'exact', head: true }).eq('construct_id', parseInt(id)),
     supabase.from('kbsi_characterization').select('id', { count: 'exact', head: true }).eq('construct_id', parseInt(id)),
     supabase.from('kbsi_structure').select('id', { count: 'exact', head: true }).eq('construct_id', parseInt(id)),
+    supabase.from('kbsi_construct_ligand').select('id, binding_kd, binding_ic50, source_db, kbsi_ligand(id, name, mw, source_db, source_id)').eq('construct_id', parseInt(id)).limit(50),
   ]);
 
   const stats = [
@@ -122,6 +123,45 @@ export default async function ConstructDetailPage({
           </CardContent>
         </Card>
       </div>
+
+      {/* Ligand Bindings */}
+      {(ligandBindings ?? []).length > 0 && (
+        <Card>
+          <CardHeader><CardTitle className="text-base">Ligand Bindings ({(ligandBindings ?? []).length})</CardTitle></CardHeader>
+          <CardContent>
+            <div className="rounded-md border overflow-hidden">
+              <table className="w-full text-sm">
+                <thead className="bg-muted/50">
+                  <tr>
+                    <th className="px-3 py-2 text-left font-medium">Ligand</th>
+                    <th className="px-3 py-2 text-left font-medium">MW</th>
+                    <th className="px-3 py-2 text-left font-medium">Kd</th>
+                    <th className="px-3 py-2 text-left font-medium">IC50</th>
+                    <th className="px-3 py-2 text-left font-medium">Source</th>
+                  </tr>
+                </thead>
+                <tbody className="divide-y">
+                  {(ligandBindings ?? []).map((b: any) => {
+                    const lig = b.kbsi_ligand;
+                    const lUrl = lig?.source_db === 'ChEMBL' && lig?.source_id ? `https://www.ebi.ac.uk/chembl/compound_report_card/${lig.source_id}/` : lig?.source_db === 'PDB' && lig?.source_id ? `https://www.rcsb.org/ligand/${lig.source_id}` : null;
+                    return (
+                      <tr key={b.id} className="hover:bg-muted/30">
+                        <td className="px-3 py-2 text-xs">
+                          {lUrl ? <a href={lUrl} target="_blank" rel="noopener noreferrer" className="text-primary hover:underline">{lig?.name}</a> : (lig?.name || '-')}
+                        </td>
+                        <td className="px-3 py-2 text-xs">{lig?.mw ? `${lig.mw.toFixed(0)} Da` : '-'}</td>
+                        <td className="px-3 py-2 text-xs font-mono">{b.binding_kd ? `${b.binding_kd.toLocaleString()} nM` : '-'}</td>
+                        <td className="px-3 py-2 text-xs font-mono">{b.binding_ic50 ? `${b.binding_ic50.toLocaleString()} nM` : '-'}</td>
+                        <td className="px-3 py-2 text-xs">{b.source_db && <Badge variant="outline" className="text-[10px]">{b.source_db}</Badge>}</td>
+                      </tr>
+                    );
+                  })}
+                </tbody>
+              </table>
+            </div>
+          </CardContent>
+        </Card>
+      )}
 
       {/* Sequences */}
       {(construct.seq_expression || construct.seq_final || construct.dna_sequence) && (

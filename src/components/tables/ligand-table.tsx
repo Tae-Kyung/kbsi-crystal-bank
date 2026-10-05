@@ -1,5 +1,6 @@
 'use client';
 
+import Link from 'next/link';
 import { Badge } from '@/components/ui/badge';
 import { DataTable } from './data-table';
 import { type ColumnDef } from '@tanstack/react-table';
@@ -13,7 +14,7 @@ interface LigandRow {
   source_db: string | null;
   source_id: string | null;
   created_at: string;
-  kbsi_construct_ligand?: { count: number }[];
+  kbsi_construct_ligand?: any[];
 }
 
 function getExternalUrl(source_db: string | null, source_id: string | null, name: string): { url: string; label: string; badge: string } | null {
@@ -23,10 +24,27 @@ function getExternalUrl(source_db: string | null, source_id: string | null, name
   if (source_db === 'PDB' && source_id) {
     return { url: `https://www.rcsb.org/ligand/${source_id}`, label: source_id, badge: 'PDB' };
   }
-  // source 필드에서 ChEMBL ID 추출
   if (!source_id && name) {
     const match = name.match(/(CHEMBL\d+)/);
     if (match) return { url: `https://www.ebi.ac.uk/chembl/compound_report_card/${match[1]}/`, label: match[1], badge: 'ChEMBL' };
+  }
+  return null;
+}
+
+function getBindingTarget(row: LigandRow): { proteinName: string; proteinId: number; constructName: string; constructId: number } | null {
+  const bindings = row.kbsi_construct_ligand;
+  if (!bindings || bindings.length === 0) return null;
+  // Find first binding with construct/protein info
+  for (const b of bindings) {
+    const c = b.kbsi_construct;
+    if (c && c.kbsi_protein) {
+      return {
+        proteinName: c.kbsi_protein.abbreviation || c.kbsi_protein.full_name?.slice(0, 15) || '',
+        proteinId: c.kbsi_protein.id,
+        constructName: c.name?.slice(0, 15) || `#${c.id}`,
+        constructId: c.id,
+      };
+    }
   }
   return null;
 }
@@ -40,32 +58,31 @@ const columns: ColumnDef<LigandRow>[] = [
       const link = getExternalUrl(r.source_db, r.source_id, r.name);
       if (link) {
         return (
-          <a href={link.url} target="_blank" rel="noopener noreferrer" className="font-medium text-primary hover:underline">
-            {r.name}
-            <svg className="inline-block ml-1 h-3 w-3" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M10 6H6a2 2 0 00-2 2v10a2 2 0 002 2h10a2 2 0 002-2v-4M14 4h6m0 0v6m0-6L10 14" /></svg>
+          <a href={link.url} target="_blank" rel="noopener noreferrer" className="font-medium text-primary hover:underline text-xs">
+            {r.name.length > 25 ? r.name.slice(0, 25) + '...' : r.name}
           </a>
         );
       }
-      return <span className="font-medium">{r.name}</span>;
+      return <span className="font-medium text-xs">{r.name.length > 25 ? r.name.slice(0, 25) + '...' : r.name}</span>;
     },
   },
   {
-    accessorKey: 'smiles',
-    header: 'SMILES',
+    id: 'target',
+    header: 'Target Protein',
     cell: ({ row }) => {
-      const smiles = row.original.smiles;
-      if (!smiles) return '-';
+      const target = getBindingTarget(row.original);
+      if (!target) return <span className="text-xs text-muted-foreground">-</span>;
       return (
-        <span className="font-mono text-xs max-w-[250px] truncate block" title={smiles}>
-          {smiles.length > 40 ? smiles.slice(0, 40) + '...' : smiles}
-        </span>
+        <Link href={`/proteins/${target.proteinId}`} className="text-primary hover:underline text-xs">
+          {target.proteinName}
+        </Link>
       );
     },
   },
   {
     accessorKey: 'mw',
-    header: 'MW (Da)',
-    cell: ({ row }) => row.original.mw?.toFixed(1) ?? '-',
+    header: 'MW',
+    cell: ({ row }) => <span className="text-xs">{row.original.mw?.toFixed(0) ?? '-'}</span>,
   },
   {
     id: 'source',
@@ -77,7 +94,6 @@ const columns: ColumnDef<LigandRow>[] = [
         return (
           <a href={link.url} target="_blank" rel="noopener noreferrer" className="flex items-center gap-1">
             <Badge variant="outline" className="text-[10px]">{link.badge}</Badge>
-            <span className="text-[10px] text-primary hover:underline font-mono">{link.label}</span>
           </a>
         );
       }
@@ -88,8 +104,9 @@ const columns: ColumnDef<LigandRow>[] = [
     id: 'bindings',
     header: 'Bindings',
     cell: ({ row }) => {
-      const count = row.original.kbsi_construct_ligand?.[0]?.count ?? 0;
-      return count > 0 ? <Badge variant="secondary">{count}</Badge> : '-';
+      const bindings = row.original.kbsi_construct_ligand;
+      const count = bindings?.length ?? bindings?.[0]?.count ?? 0;
+      return count > 0 ? <Badge variant="secondary" className="text-[10px]">{count}</Badge> : '-';
     },
   },
   {
@@ -99,31 +116,21 @@ const columns: ColumnDef<LigandRow>[] = [
       const r = row.original;
       const link = getExternalUrl(r.source_db, r.source_id, r.name);
       const smiles = r.smiles;
-
       return (
         <div className="flex gap-1.5">
           {link && (
             <a href={link.url} target="_blank" rel="noopener noreferrer">
-              <Badge variant="outline" className="text-[10px] cursor-pointer hover:bg-blue-50 dark:hover:bg-blue-950">
-                {link.badge}
-              </Badge>
+              <Badge variant="outline" className="text-[10px] cursor-pointer hover:bg-blue-50 dark:hover:bg-blue-950">{link.badge}</Badge>
             </a>
           )}
           {smiles && (
             <a href={`https://pubchem.ncbi.nlm.nih.gov/#query=${encodeURIComponent(smiles)}&input_type=smiles`} target="_blank" rel="noopener noreferrer">
-              <Badge variant="outline" className="text-[10px] cursor-pointer hover:bg-green-50 dark:hover:bg-green-950">
-                PubChem
-              </Badge>
+              <Badge variant="outline" className="text-[10px] cursor-pointer hover:bg-green-50 dark:hover:bg-green-950">PubChem</Badge>
             </a>
           )}
         </div>
       );
     },
-  },
-  {
-    accessorKey: 'created_at',
-    header: 'Added',
-    cell: ({ row }) => new Date(row.original.created_at).toLocaleDateString('ko-KR'),
   },
 ];
 

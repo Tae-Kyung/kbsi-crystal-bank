@@ -8,7 +8,7 @@ export default async function LigandsPage() {
     supabase.from('kbsi_ligand').select('id', { count: 'exact', head: true }),
     supabase.from('kbsi_construct_ligand').select('id', { count: 'exact', head: true }),
     supabase.from('kbsi_ligand')
-      .select('*, kbsi_construct_ligand(count)')
+      .select('*, kbsi_construct_ligand(count, kbsi_construct(id, name, protein_id, kbsi_protein(id, abbreviation, full_name)))')
       .order('created_at', { ascending: false })
       .limit(500),
   ]);
