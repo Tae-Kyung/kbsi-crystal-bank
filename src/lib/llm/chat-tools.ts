@@ -1,11 +1,11 @@
 import { tool } from 'ai';
 import { z } from 'zod';
 import { createClient } from '@/lib/supabase/server';
-import { extractFeatures, findKNearest, estimateSuccessProbability } from '@/lib/ml/features';
+import * as queries from '@/lib/tools/crystallization-queries';
 
 /**
- * AI 챗봇이 사용할 function calling tools
- * 기존 API 로직을 LLM tool로 래핑
+ * AI 챗봇 function calling tools
+ * 공통 쿼리 모듈(crystallization-queries.ts)을 사용
  */
 
 export const chatTools = {
@@ -17,13 +17,7 @@ export const chatTools = {
     }),
     execute: async ({ query, limit }) => {
       const supabase = await createClient();
-      const { data, error } = await supabase
-        .from('kbsi_protein')
-        .select('id, full_name, abbreviation, gene_name, organism, source_type')
-        .or(`full_name.ilike.%${query}%,abbreviation.ilike.%${query}%,gene_name.ilike.%${query}%`)
-        .limit(limit);
-      if (error) return { error: error.message };
-      return { proteins: data, count: data?.length ?? 0 };
+      return queries.searchProteins(supabase, query, limit);
     },
   }),
 
@@ -36,15 +30,7 @@ export const chatTools = {
     }),
     execute: async ({ protein_id, query, limit }) => {
       const supabase = await createClient();
-      let q = supabase
-        .from('kbsi_construct')
-        .select('id, name, construct_type, expression_system, tag_name, status, protein_id, kbsi_protein(full_name, abbreviation)')
-        .limit(limit);
-      if (protein_id) q = q.eq('protein_id', protein_id);
-      if (query) q = q.ilike('name', `%${query}%`);
-      const { data, error } = await q;
-      if (error) return { error: error.message };
-      return { constructs: data, count: data?.length ?? 0 };
+      return queries.searchConstructs(supabase, protein_id, query, limit);
     },
   }),
 
@@ -52,31 +38,12 @@ export const chatTools = {
     description: '특정 Construct의 실험 데이터를 조회합니다. Get experiments for a construct by type.',
     parameters: z.object({
       construct_id: z.number().describe('Construct ID'),
-      experiment_type: z.enum([
-        'expression', 'purification', 'crystallization',
-        'characterization', 'diffraction', 'structure',
-      ]).describe('실험 유형'),
+      experiment_type: z.enum(['expression', 'purification', 'crystallization', 'characterization', 'diffraction', 'structure']),
       limit: z.number().optional().default(20),
     }),
     execute: async ({ construct_id, experiment_type, limit }) => {
       const supabase = await createClient();
-      const tableMap: Record<string, string> = {
-        expression: 'kbsi_expression',
-        purification: 'kbsi_purification',
-        crystallization: 'kbsi_crystallization',
-        characterization: 'kbsi_characterization',
-        diffraction: 'kbsi_diffraction',
-        structure: 'kbsi_structure',
-      };
-      const table = tableMap[experiment_type];
-      const { data, error, count } = await supabase
-        .from(table)
-        .select('*', { count: 'exact' })
-        .eq('construct_id', construct_id)
-        .order('created_at', { ascending: false })
-        .limit(limit);
-      if (error) return { error: error.message };
-      return { experiments: data, type: experiment_type, total: count };
+      return queries.getExperiments(supabase, construct_id, experiment_type, limit);
     },
   }),
 
@@ -85,16 +52,7 @@ export const chatTools = {
     parameters: z.object({}),
     execute: async () => {
       const supabase = await createClient();
-      const tables = [
-        'kbsi_protein', 'kbsi_construct', 'kbsi_expression',
-        'kbsi_purification', 'kbsi_crystallization', 'kbsi_structure',
-      ];
-      const results: Record<string, number> = {};
-      for (const table of tables) {
-        const { count } = await supabase.from(table).select('*', { count: 'exact', head: true });
-        results[table.replace('kbsi_', '')] = count ?? 0;
-      }
-      return { statistics: results };
+      return queries.getStatistics(supabase);
     },
   }),
 
@@ -108,39 +66,9 @@ export const chatTools = {
       protein_concentration: z.number().optional().describe('단백질 농도 (mg/mL)'),
       k: z.number().optional().default(5).describe('추천 개수'),
     }),
-    execute: async ({ ph, temperature, precipitant_type, precipitant_conc, protein_concentration, k }) => {
+    execute: async (params) => {
       const supabase = await createClient();
-      const { data, error } = await supabase
-        .from('kbsi_crystallization')
-        .select('protein_concentration, precipitant_type, precipitant_conc, ph, temperature, additive, outcome')
-        .not('outcome', 'is', null);
-      if (error) return { error: error.message };
-      const crystData = (data ?? []) as any[];
-      if (crystData.length === 0) return { message: 'Not enough data', recommendations: [] };
-
-      const queryCondition = {
-        protein_concentration: protein_concentration ?? null,
-        precipitant_type: precipitant_type ?? null,
-        precipitant_conc: precipitant_conc ?? null,
-        ph: ph ?? null,
-        temperature: temperature ?? null,
-        additive: null,
-        outcome: null,
-      };
-      const queryFeatures = extractFeatures(queryCondition);
-      const datasetFeatures = crystData.map((r) => extractFeatures(r));
-      const neighbors = findKNearest(queryFeatures, datasetFeatures, k);
-      const successNeighbors = neighbors.filter((n) => n.features.outcome_rank >= 4);
-      const successRate = neighbors.length > 0 ? successNeighbors.length / neighbors.length : 0;
-
-      return {
-        success_rate: Math.round(successRate * 100),
-        total_data_points: crystData.length,
-        recommendations: successNeighbors.slice(0, 5).map((n) => ({
-          ...crystData[n.index],
-          distance: Math.round(n.distance * 100) / 100,
-        })),
-      };
+      return queries.recommendCrystallization(supabase, params);
     },
   }),
 
@@ -153,44 +81,9 @@ export const chatTools = {
       precipitant_conc: z.number().optional(),
       protein_concentration: z.number().optional(),
     }),
-    execute: async ({ ph, temperature, precipitant_type, precipitant_conc, protein_concentration }) => {
+    execute: async (params) => {
       const supabase = await createClient();
-      const { data, error } = await supabase
-        .from('kbsi_crystallization')
-        .select('protein_concentration, precipitant_type, precipitant_conc, ph, temperature, additive, outcome')
-        .not('outcome', 'is', null);
-      if (error) return { error: error.message };
-      const crystData = (data ?? []) as any[];
-      if (crystData.length < 5) return { prediction: null, message: 'Insufficient data' };
-
-      const queryCondition = {
-        protein_concentration: protein_concentration ?? null,
-        precipitant_type: precipitant_type ?? null,
-        precipitant_conc: precipitant_conc ?? null,
-        ph: ph ?? null,
-        temperature: temperature ?? null,
-        additive: null,
-        outcome: null,
-      };
-      const queryFeatures = extractFeatures(queryCondition);
-      const datasetFeatures = crystData.map((r) => extractFeatures(r));
-      const k = Math.max(3, Math.min(20, Math.round(Math.sqrt(crystData.length))));
-      const neighbors = findKNearest(queryFeatures, datasetFeatures, k);
-      const probability = estimateSuccessProbability(neighbors);
-
-      const outcomeDistribution: Record<string, number> = {};
-      for (const n of neighbors) {
-        const outcome = crystData[n.index]?.outcome || 'unknown';
-        outcomeDistribution[outcome] = (outcomeDistribution[outcome] || 0) + 1;
-      }
-
-      return {
-        success_probability: Math.round(probability * 100),
-        confidence: crystData.length >= 50 ? 'high' : crystData.length >= 20 ? 'medium' : 'low',
-        k_used: k,
-        data_points_total: crystData.length,
-        outcome_distribution: outcomeDistribution,
-      };
+      return queries.predictSuccess(supabase, params);
     },
   }),
 
@@ -205,21 +98,9 @@ export const chatTools = {
       temperature_max: z.number().optional(),
       limit: z.number().optional().default(20),
     }),
-    execute: async ({ outcome, precipitant_type, ph_min, ph_max, temperature_min, temperature_max, limit }) => {
+    execute: async (params) => {
       const supabase = await createClient();
-      let q = supabase
-        .from('kbsi_crystallization')
-        .select('*, kbsi_construct(name, kbsi_protein(full_name))')
-        .limit(limit);
-      if (outcome) q = q.eq('outcome', outcome);
-      if (precipitant_type) q = q.ilike('precipitant_type', `%${precipitant_type}%`);
-      if (ph_min !== undefined) q = q.gte('ph', ph_min);
-      if (ph_max !== undefined) q = q.lte('ph', ph_max);
-      if (temperature_min !== undefined) q = q.gte('temperature', temperature_min);
-      if (temperature_max !== undefined) q = q.lte('temperature', temperature_max);
-      const { data, error } = await q.order('created_at', { ascending: false });
-      if (error) return { error: error.message };
-      return { results: data, count: data?.length ?? 0 };
+      return queries.searchCrystallizationConditions(supabase, params);
     },
   }),
 };
