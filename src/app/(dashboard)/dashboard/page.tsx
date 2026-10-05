@@ -7,6 +7,7 @@ import { OutcomeDistribution } from '@/components/charts/outcome-distribution';
 import { PipelineFunnel } from '@/components/charts/pipeline-funnel';
 import { SourceDistribution } from '@/components/charts/source-distribution';
 import { DataInsights } from '@/components/charts/data-insights';
+import { PipelineSankey } from '@/components/charts/pipeline-sankey';
 import Link from 'next/link';
 
 // ISR: 60초마다 재생성 (매 요청마다 39개 쿼리 방지)
@@ -160,9 +161,18 @@ export default async function DashboardPage() {
       {/* Charts Row */}
       <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
         <Card>
-          <CardHeader><CardTitle className="text-base">Pipeline Funnel</CardTitle></CardHeader>
+          <CardHeader><CardTitle className="text-base">Data Pipeline Flow</CardTitle></CardHeader>
           <CardContent>
-            <PipelineFunnel data={pipelineData} />
+            <PipelineSankey data={{
+              expression: pipelineData.expressions,
+              purification: pipelineData.purifications,
+              characterization: pipelineData.characterizations,
+              crystallization: pipelineData.crystallizations,
+              diffraction: pipelineData.diffractions,
+              structure: pipelineData.structures,
+              ligands: ligands.count ?? 0,
+              bindings: bindings.count ?? 0,
+            }} />
           </CardContent>
         </Card>
 

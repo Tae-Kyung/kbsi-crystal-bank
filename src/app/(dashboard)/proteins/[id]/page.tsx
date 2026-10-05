@@ -5,6 +5,7 @@ import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
 import { Pencil } from 'lucide-react';
+import { ProteinNetwork } from '@/components/charts/protein-network';
 
 export default async function ProteinDetailPage({
   params,
@@ -29,20 +30,25 @@ export default async function ProteinDetailPage({
   // Experiment counts for this protein's constructs
   const constructIds = constructs.map((c: any) => c.id);
   let crystSummary = { total: 0, success: 0, failure: 0 };
-  let exprCount = 0, purifCount = 0, structCount = 0;
+  let exprCount = 0, purifCount = 0, charCount = 0, crystCount = 0, diffrCount = 0, structCount = 0;
   let ligandBindings: any[] = [];
   if (constructIds.length > 0) {
-    const [{ count: totalCryst }, { count: successCryst }, { count: ec }, { count: pc }, { count: sc }, { data: bindings }] = await Promise.all([
+    const [{ count: totalCryst }, { count: successCryst }, { count: ec }, { count: pc }, { count: cc }, { count: dc }, { count: sc }, { data: bindings }] = await Promise.all([
       supabase.from('kbsi_crystallization').select('id', { count: 'exact', head: true }).in('construct_id', constructIds),
       supabase.from('kbsi_crystallization').select('id', { count: 'exact', head: true }).in('construct_id', constructIds).or('outcome.eq.diffraction_quality,outcome.eq.single_crystal'),
       supabase.from('kbsi_expression').select('id', { count: 'exact', head: true }).in('construct_id', constructIds),
       supabase.from('kbsi_purification').select('id', { count: 'exact', head: true }).in('construct_id', constructIds),
+      supabase.from('kbsi_characterization').select('id', { count: 'exact', head: true }).in('construct_id', constructIds),
+      supabase.from('kbsi_diffraction').select('id', { count: 'exact', head: true }).in('construct_id', constructIds),
       supabase.from('kbsi_structure').select('id', { count: 'exact', head: true }).in('construct_id', constructIds),
       supabase.from('kbsi_construct_ligand').select('id, binding_kd, binding_ic50, source_db, source_id, kbsi_ligand(id, name, smiles, mw, source_db, source_id), kbsi_construct(id, name)').in('construct_id', constructIds).limit(50),
     ]);
     crystSummary = { total: totalCryst ?? 0, success: successCryst ?? 0, failure: (totalCryst ?? 0) - (successCryst ?? 0) };
     exprCount = ec ?? 0;
     purifCount = pc ?? 0;
+    charCount = cc ?? 0;
+    crystCount = totalCryst ?? 0;
+    diffrCount = dc ?? 0;
     structCount = sc ?? 0;
     ligandBindings = bindings ?? [];
   }
@@ -141,6 +147,26 @@ export default async function ProteinDetailPage({
           </CardContent>
         </Card>
       </div>
+
+      {/* Data Network */}
+      <Card>
+        <CardHeader><CardTitle className="text-base">Data Overview</CardTitle></CardHeader>
+        <CardContent>
+          <ProteinNetwork
+            proteinName={protein.abbreviation || protein.gene_name || protein.full_name}
+            constructCount={constructs.length}
+            counts={{
+              expression: exprCount,
+              purification: purifCount,
+              characterization: charCount,
+              crystallization: crystCount,
+              diffraction: diffrCount,
+              structure: structCount,
+              ligands: ligandBindings.length,
+            }}
+          />
+        </CardContent>
+      </Card>
 
       {/* Crystallization Overview */}
       <Card>
