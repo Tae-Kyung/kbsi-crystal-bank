@@ -32,7 +32,7 @@ export default function LoginPage() {
         setLoading(false);
         return;
       }
-      router.push('/proteins');
+      router.push('/dashboard');
       router.refresh();
     } else {
       const { error } = await supabase.auth.signUp({ email, password });
