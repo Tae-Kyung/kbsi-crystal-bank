@@ -28,11 +28,12 @@ export default async function ConstructDetailPage({
   const mutations = construct.kbsi_mutation ?? [];
 
   // Fetch experiment counts + ligand bindings
-  const [expr, puri, cryst, char, struct, { data: ligandBindings }] = await Promise.all([
+  const [expr, puri, cryst, char, diffr, struct, { data: ligandBindings }] = await Promise.all([
     supabase.from('kbsi_expression').select('id', { count: 'exact', head: true }).eq('construct_id', parseInt(id)),
     supabase.from('kbsi_purification').select('id', { count: 'exact', head: true }).eq('construct_id', parseInt(id)),
     supabase.from('kbsi_crystallization').select('id', { count: 'exact', head: true }).eq('construct_id', parseInt(id)),
     supabase.from('kbsi_characterization').select('id', { count: 'exact', head: true }).eq('construct_id', parseInt(id)),
+    supabase.from('kbsi_diffraction').select('id', { count: 'exact', head: true }).eq('construct_id', parseInt(id)),
     supabase.from('kbsi_structure').select('id', { count: 'exact', head: true }).eq('construct_id', parseInt(id)),
     supabase.from('kbsi_construct_ligand').select('id, binding_kd, binding_ic50, source_db, kbsi_ligand(id, name, mw, source_db, source_id)').eq('construct_id', parseInt(id)).limit(50),
   ]);
@@ -40,8 +41,9 @@ export default async function ConstructDetailPage({
   const stats = [
     { label: 'Expression', slug: 'expression', count: expr.count ?? 0, color: 'text-green-600' },
     { label: 'Purification', slug: 'purification', count: puri.count ?? 0, color: 'text-blue-600' },
-    { label: 'Crystallization', slug: 'crystallization', count: cryst.count ?? 0, color: 'text-purple-600' },
     { label: 'Characterization', slug: 'characterization', count: char.count ?? 0, color: 'text-orange-600' },
+    { label: 'Crystallization', slug: 'crystallization', count: cryst.count ?? 0, color: 'text-purple-600' },
+    { label: 'Diffraction', slug: 'diffraction', count: diffr.count ?? 0, color: 'text-red-600' },
     { label: 'Structure', slug: 'structure', count: struct.count ?? 0, color: 'text-cyan-600' },
   ];
 

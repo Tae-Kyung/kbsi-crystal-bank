@@ -26,8 +26,8 @@ export default async function ExperimentsPage() {
     { name: 'Expression', slug: 'expression', desc: '발현 실험', count: exprCount ?? 0, color: 'bg-green-100 text-green-800 dark:bg-green-900 dark:text-green-200', extra: '논문 추출 활성' },
     { name: 'Purification', slug: 'purification', desc: '정제 실험', count: purCount ?? 0, color: 'bg-blue-100 text-blue-800 dark:bg-blue-900 dark:text-blue-200', extra: '논문 추출 활성' },
     { name: 'Crystallization', slug: 'crystallization', desc: '결정화 실험', count: crystCount ?? 0, color: 'bg-purple-100 text-purple-800 dark:bg-purple-900 dark:text-purple-200', extra: '' },
-    { name: 'Characterization', slug: 'characterization', desc: '특성분석', count: charCount ?? 0, color: 'bg-orange-100 text-orange-800 dark:bg-orange-900 dark:text-orange-200', extra: '' },
-    { name: 'Diffraction', slug: 'diffraction', desc: '회절 실험', count: diffCount ?? 0, color: 'bg-red-100 text-red-800 dark:bg-red-900 dark:text-red-200', extra: '' },
+    { name: 'Characterization', slug: 'characterization', desc: '특성분석', count: charCount ?? 0, color: 'bg-orange-100 text-orange-800 dark:bg-orange-900 dark:text-orange-200', extra: '논문 추출 활성' },
+    { name: 'Diffraction', slug: 'diffraction', desc: '회절 실험', count: diffCount ?? 0, color: 'bg-red-100 text-red-800 dark:bg-red-900 dark:text-red-200', extra: 'PDB + 논문 추출' },
     { name: 'Structure', slug: 'structure', desc: '구조결정', count: structCount ?? 0, color: 'bg-cyan-100 text-cyan-800 dark:bg-cyan-900 dark:text-cyan-200', extra: 'X-ray + Cryo-EM + NMR' },
   ];
 

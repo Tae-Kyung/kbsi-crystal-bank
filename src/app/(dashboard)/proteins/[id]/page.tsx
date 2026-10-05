@@ -211,7 +211,9 @@ export default async function ProteinDetailPage({
             {[
               { label: 'Expression', slug: 'expression', icon: '🧪', count: exprCount },
               { label: 'Purification', slug: 'purification', icon: '🔬', count: purifCount },
+              { label: 'Characterization', slug: 'characterization', icon: '📊', count: charCount },
               { label: 'Crystallization', slug: 'crystallization', icon: '💎', count: crystSummary.total },
+              { label: 'Diffraction', slug: 'diffraction', icon: '📡', count: diffrCount },
               { label: 'Structure', slug: 'structure', icon: '🏗️', count: structCount },
             ].map(exp => {
               // construct가 1개면 construct_id로 정확 필터, 여러 개면 protein 이름으로

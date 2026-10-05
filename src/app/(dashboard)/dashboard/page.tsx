@@ -4,7 +4,6 @@ import { Button } from '@/components/ui/button';
 import { Dna, FlaskConical, Gem, TestTubes, Pill, ClipboardCheck, Beaker, Link2, Microscope, Radiation } from 'lucide-react';
 import { CrystallizationHeatmap } from '@/components/charts/crystallization-heatmap';
 import { OutcomeDistribution } from '@/components/charts/outcome-distribution';
-import { PipelineFunnel } from '@/components/charts/pipeline-funnel';
 import { SourceDistribution } from '@/components/charts/source-distribution';
 import { DataInsights } from '@/components/charts/data-insights';
 import { PipelineSankey } from '@/components/charts/pipeline-sankey';

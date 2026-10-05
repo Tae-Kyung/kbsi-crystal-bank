@@ -113,6 +113,42 @@ function createMcpServer() {
     async () => toMcpResult(await queries.getDataQualitySummary(createServiceClient())),
   );
 
+  server.tool(
+    'search_characterizations',
+    '특성분석 데이터를 검색합니다 (DLS, SEC-MALS, SDS-PAGE, Tm 등)',
+    {
+      construct_id: z.number().optional(),
+      method: z.string().optional().describe('DLS, SEC-MALS, SDS-PAGE, thermal_stability, CD, Mass Spec'),
+      protein_name: z.string().optional(),
+      limit: z.number().optional().default(20),
+    },
+    async (params) => toMcpResult(await queries.searchCharacterizations(createServiceClient(), params)),
+  );
+
+  server.tool(
+    'search_diffractions',
+    '회절 데이터를 검색합니다 (해상도, 공간군, 빔라인 등)',
+    {
+      construct_id: z.number().optional(),
+      space_group: z.string().optional().describe('공간군 (예: P212121, C2)'),
+      resolution_max: z.number().optional().describe('최대 해상도 (Å)'),
+      protein_name: z.string().optional(),
+      limit: z.number().optional().default(20),
+    },
+    async (params) => toMcpResult(await queries.searchDiffractions(createServiceClient(), params)),
+  );
+
+  server.tool(
+    'get_ligand_binding_network',
+    '단백질-리간드 바인딩 네트워크를 조회합니다',
+    {
+      protein_name: z.string().optional().describe('단백질 이름으로 필터'),
+      ligand_name: z.string().optional().describe('리간드 이름으로 필터'),
+      limit: z.number().optional().default(30),
+    },
+    async (params) => toMcpResult(await queries.getLigandBindingNetwork(createServiceClient(), params)),
+  );
+
   return server;
 }
 

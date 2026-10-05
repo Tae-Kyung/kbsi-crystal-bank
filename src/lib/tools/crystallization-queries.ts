@@ -217,6 +217,77 @@ export async function searchStructures(supabase: SupabaseClient, pdb_id?: string
   return { structures: data, count: data?.length ?? 0 };
 }
 
+export async function searchCharacterizations(
+  supabase: SupabaseClient,
+  params: { construct_id?: number; method?: string; protein_name?: string; limit?: number }
+) {
+  const { construct_id, method, protein_name, limit = 20 } = params;
+  let q = supabase
+    .from('kbsi_characterization')
+    .select('*, kbsi_construct(name, kbsi_protein(full_name, abbreviation))')
+    .limit(limit);
+  if (construct_id) q = q.eq('construct_id', construct_id);
+  if (method) q = q.ilike('method', `%${method}%`);
+  const { data, error } = await q.order('created_at', { ascending: false });
+  if (error) return { error: error.message };
+  let results = data || [];
+  if (protein_name) {
+    results = results.filter((r: any) => {
+      const p = r.kbsi_construct?.kbsi_protein;
+      return p && (p.full_name?.toLowerCase().includes(protein_name.toLowerCase()) || p.abbreviation?.toLowerCase().includes(protein_name.toLowerCase()));
+    });
+  }
+  return { results, count: results.length };
+}
+
+export async function searchDiffractions(
+  supabase: SupabaseClient,
+  params: { construct_id?: number; space_group?: string; resolution_max?: number; protein_name?: string; limit?: number }
+) {
+  const { construct_id, space_group, resolution_max, protein_name, limit = 20 } = params;
+  let q = supabase
+    .from('kbsi_diffraction')
+    .select('*, kbsi_construct(name, kbsi_protein(full_name, abbreviation))')
+    .limit(limit);
+  if (construct_id) q = q.eq('construct_id', construct_id);
+  if (space_group) q = q.ilike('space_group', `%${space_group}%`);
+  if (resolution_max) q = q.lte('resolution', resolution_max);
+  const { data, error } = await q.order('resolution', { ascending: true });
+  if (error) return { error: error.message };
+  let results = data || [];
+  if (protein_name) {
+    results = results.filter((r: any) => {
+      const p = r.kbsi_construct?.kbsi_protein;
+      return p && (p.full_name?.toLowerCase().includes(protein_name.toLowerCase()) || p.abbreviation?.toLowerCase().includes(protein_name.toLowerCase()));
+    });
+  }
+  return { results, count: results.length };
+}
+
+export async function getLigandBindingNetwork(
+  supabase: SupabaseClient,
+  params: { protein_name?: string; ligand_name?: string; limit?: number }
+) {
+  const { protein_name, ligand_name, limit = 30 } = params;
+  let q = supabase
+    .from('kbsi_construct_ligand')
+    .select('id, binding_kd, binding_ic50, source_db, kbsi_construct(id, name, kbsi_protein(id, full_name, abbreviation)), kbsi_ligand(id, name, smiles, mw)')
+    .limit(limit);
+  const { data, error } = await q;
+  if (error) return { error: error.message };
+  let results = data || [];
+  if (protein_name) {
+    results = results.filter((r: any) => {
+      const p = r.kbsi_construct?.kbsi_protein;
+      return p && (p.full_name?.toLowerCase().includes(protein_name.toLowerCase()) || p.abbreviation?.toLowerCase().includes(protein_name.toLowerCase()));
+    });
+  }
+  if (ligand_name) {
+    results = results.filter((r: any) => r.kbsi_ligand?.name?.toLowerCase().includes(ligand_name.toLowerCase()));
+  }
+  return { bindings: results, count: results.length };
+}
+
 export async function getDataQualitySummary(supabase: SupabaseClient) {
   const [crystTotal, hasPH, hasTemp, hasPrecip, nullOutcome, syntheticCount] = await Promise.all([
     supabase.from('kbsi_crystallization').select('id', { count: 'exact', head: true }).then((r: any) => r.count ?? 0),
