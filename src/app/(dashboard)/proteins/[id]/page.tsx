@@ -64,16 +64,58 @@ export default async function ProteinDetailPage({
           <CardContent>
             {dbIds.length > 0 ? (
               <div className="space-y-2">
-                {dbIds.map((d: any) => (
-                  <div key={d.id} className="flex items-center gap-2">
-                    <Badge variant="outline">{d.db_name}</Badge>
-                    <span className="text-sm font-mono">{d.db_value}</span>
-                  </div>
-                ))}
+                {dbIds.map((d: any) => {
+                  const url = getExternalDbUrl(d.db_name, d.db_value);
+                  return (
+                    <div key={d.id} className="flex items-center gap-2">
+                      <Badge variant="outline">{d.db_name}</Badge>
+                      {url ? (
+                        <a href={url} target="_blank" rel="noopener noreferrer" className="text-sm font-mono text-primary hover:underline">
+                          {d.db_value}
+                          <svg className="inline-block ml-1 h-3 w-3" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M10 6H6a2 2 0 00-2 2v10a2 2 0 002 2h10a2 2 0 002-2v-4M14 4h6m0 0v6m0-6L10 14" /></svg>
+                        </a>
+                      ) : (
+                        <span className="text-sm font-mono">{d.db_value}</span>
+                      )}
+                    </div>
+                  );
+                })}
               </div>
             ) : (
               <p className="text-sm text-muted-foreground">No external IDs registered.</p>
             )}
+
+            {/* 추가 외부 링크 */}
+            <div className="mt-4 pt-3 border-t space-y-2">
+              <p className="text-xs font-medium text-muted-foreground">External Resources</p>
+              <div className="flex flex-wrap gap-2">
+                {protein.gene_name && (
+                  <a href={`https://www.ncbi.nlm.nih.gov/gene/?term=${encodeURIComponent(protein.gene_name)}+AND+${encodeURIComponent(protein.organism || 'human')}[Organism]`} target="_blank" rel="noopener noreferrer">
+                    <Badge variant="outline" className="text-xs cursor-pointer hover:bg-blue-50 dark:hover:bg-blue-950">NCBI Gene</Badge>
+                  </a>
+                )}
+                {protein.gene_name && (
+                  <a href={`https://pubmed.ncbi.nlm.nih.gov/?term=${encodeURIComponent(protein.gene_name)}+AND+crystallization`} target="_blank" rel="noopener noreferrer">
+                    <Badge variant="outline" className="text-xs cursor-pointer hover:bg-green-50 dark:hover:bg-green-950">PubMed</Badge>
+                  </a>
+                )}
+                {getUniProtId(dbIds) && (
+                  <a href={`https://alphafold.ebi.ac.uk/entry/${getUniProtId(dbIds)}`} target="_blank" rel="noopener noreferrer">
+                    <Badge variant="outline" className="text-xs cursor-pointer hover:bg-purple-50 dark:hover:bg-purple-950">AlphaFold</Badge>
+                  </a>
+                )}
+                {getUniProtId(dbIds) && (
+                  <a href={`https://www.ebi.ac.uk/interpro/protein/UniProt/${getUniProtId(dbIds)}/`} target="_blank" rel="noopener noreferrer">
+                    <Badge variant="outline" className="text-xs cursor-pointer hover:bg-amber-50 dark:hover:bg-amber-950">InterPro</Badge>
+                  </a>
+                )}
+                {protein.gene_name && (
+                  <a href={`https://string-db.org/cgi/network?identifier=${encodeURIComponent(protein.gene_name)}&species=9606`} target="_blank" rel="noopener noreferrer">
+                    <Badge variant="outline" className="text-xs cursor-pointer hover:bg-red-50 dark:hover:bg-red-950">STRING</Badge>
+                  </a>
+                )}
+              </div>
+            </div>
           </CardContent>
         </Card>
       </div>
@@ -120,6 +162,21 @@ export default async function ProteinDetailPage({
       </Card>
     </div>
   );
+}
+
+function getExternalDbUrl(dbName: string, dbValue: string): string | null {
+  switch (dbName) {
+    case 'UniProt': return `https://www.uniprot.org/uniprot/${dbValue}`;
+    case 'AlphaFold': return `https://alphafold.ebi.ac.uk/entry/${dbValue}`;
+    case 'NCBI Gene': return `https://www.ncbi.nlm.nih.gov/gene/${dbValue}`;
+    case 'PDB': return `https://www.rcsb.org/structure/${dbValue}`;
+    default: return null;
+  }
+}
+
+function getUniProtId(dbIds: any[]): string | null {
+  const up = dbIds.find((d: any) => d.db_name === 'UniProt');
+  return up?.db_value || null;
 }
 
 function Row({ label, value, italic }: { label: string; value?: string | null; italic?: boolean }) {
