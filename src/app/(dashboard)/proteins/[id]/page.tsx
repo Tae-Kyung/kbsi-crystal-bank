@@ -164,7 +164,7 @@ export default async function ProteinDetailPage({
           )}
 
           <div className="flex gap-3">
-            <Link href={`/experiments/crystallization?protein=${encodeURIComponent(protein.abbreviation || protein.full_name)}`}>
+            <Link href={`/experiments/crystallization?${constructs.length === 1 ? `construct_id=${constructs[0].id}` : `protein=${encodeURIComponent(protein.abbreviation || protein.gene_name || protein.full_name)}`}`}>
               <Button variant="outline" size="sm">View All Conditions</Button>
             </Link>
             <Link href="/benchmark">
@@ -184,14 +184,20 @@ export default async function ProteinDetailPage({
               { label: 'Purification', slug: 'purification', icon: '🔬', count: purifCount },
               { label: 'Crystallization', slug: 'crystallization', icon: '💎', count: crystSummary.total },
               { label: 'Structure', slug: 'structure', icon: '🏗️', count: structCount },
-            ].map(exp => (
-              <Link key={exp.slug} href={`/experiments/${exp.slug}?protein=${encodeURIComponent(protein.abbreviation || protein.full_name)}`}>
-                <Button variant={exp.count > 0 ? 'outline' : 'ghost'} size="sm" className={`gap-1.5 ${exp.count === 0 ? 'opacity-50' : ''}`}>
-                  <span>{exp.icon}</span> {exp.label}
-                  <Badge variant="secondary" className="ml-1 text-[10px] px-1.5">{exp.count.toLocaleString()}</Badge>
-                </Button>
-              </Link>
-            ))}
+            ].map(exp => {
+              // construct가 1개면 construct_id로 정확 필터, 여러 개면 protein 이름으로
+              const filterParam = constructs.length === 1
+                ? `construct_id=${constructs[0].id}`
+                : `protein=${encodeURIComponent(protein.abbreviation || protein.gene_name || protein.full_name)}`;
+              return (
+                <Link key={exp.slug} href={`/experiments/${exp.slug}?${filterParam}`}>
+                  <Button variant={exp.count > 0 ? 'outline' : 'ghost'} size="sm" className={`gap-1.5 ${exp.count === 0 ? 'opacity-50' : ''}`}>
+                    <span>{exp.icon}</span> {exp.label}
+                    <Badge variant="secondary" className="ml-1 text-[10px] px-1.5">{exp.count.toLocaleString()}</Badge>
+                  </Button>
+                </Link>
+              );
+            })}
             <a href={`https://www.rcsb.org/search?request=%7B%22query%22%3A%7B%22type%22%3A%22terminal%22%2C%22service%22%3A%22full_text%22%2C%22parameters%22%3A%7B%22value%22%3A%22${encodeURIComponent(protein.abbreviation || protein.full_name)}%22%7D%7D%2C%22return_type%22%3A%22entry%22%7D`} target="_blank" rel="noopener noreferrer">
               <Button variant="outline" size="sm" className="gap-1.5">
                 🏛️ RCSB PDB Search
