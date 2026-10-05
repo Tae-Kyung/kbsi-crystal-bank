@@ -16,14 +16,17 @@ interface LigandRow {
   kbsi_construct_ligand?: { count: number }[];
 }
 
-function getExternalUrl(source_db: string | null, source_id: string | null, name: string): { url: string; label: string } | null {
+function getExternalUrl(source_db: string | null, source_id: string | null, name: string): { url: string; label: string; badge: string } | null {
   if (source_db === 'ChEMBL' && source_id) {
-    return { url: `https://www.ebi.ac.uk/chembl/compound_report_card/${source_id}/`, label: source_id };
+    return { url: `https://www.ebi.ac.uk/chembl/compound_report_card/${source_id}/`, label: source_id, badge: 'ChEMBL' };
+  }
+  if (source_db === 'PDB' && source_id) {
+    return { url: `https://www.rcsb.org/ligand/${source_id}`, label: source_id, badge: 'PDB' };
   }
   // source 필드에서 ChEMBL ID 추출
   if (!source_id && name) {
     const match = name.match(/(CHEMBL\d+)/);
-    if (match) return { url: `https://www.ebi.ac.uk/chembl/compound_report_card/${match[1]}/`, label: match[1] };
+    if (match) return { url: `https://www.ebi.ac.uk/chembl/compound_report_card/${match[1]}/`, label: match[1], badge: 'ChEMBL' };
   }
   return null;
 }
@@ -65,6 +68,23 @@ const columns: ColumnDef<LigandRow>[] = [
     cell: ({ row }) => row.original.mw?.toFixed(1) ?? '-',
   },
   {
+    id: 'source',
+    header: 'Source',
+    cell: ({ row }) => {
+      const r = row.original;
+      const link = getExternalUrl(r.source_db, r.source_id, r.name);
+      if (link) {
+        return (
+          <a href={link.url} target="_blank" rel="noopener noreferrer" className="flex items-center gap-1">
+            <Badge variant="outline" className="text-[10px]">{link.badge}</Badge>
+            <span className="text-[10px] text-primary hover:underline font-mono">{link.label}</span>
+          </a>
+        );
+      }
+      return r.source_db ? <Badge variant="outline" className="text-[10px]">{r.source_db}</Badge> : '-';
+    },
+  },
+  {
     id: 'bindings',
     header: 'Bindings',
     cell: ({ row }) => {
@@ -85,7 +105,7 @@ const columns: ColumnDef<LigandRow>[] = [
           {link && (
             <a href={link.url} target="_blank" rel="noopener noreferrer">
               <Badge variant="outline" className="text-[10px] cursor-pointer hover:bg-blue-50 dark:hover:bg-blue-950">
-                ChEMBL
+                {link.badge}
               </Badge>
             </a>
           )}
