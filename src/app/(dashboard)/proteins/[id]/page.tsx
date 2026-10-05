@@ -26,6 +26,18 @@ export default async function ProteinDetailPage({
   const dbIds = protein.kbsi_database_id ?? [];
   const constructs = protein.kbsi_construct ?? [];
 
+  // Crystallization overview query
+  const constructIds = constructs.map((c: any) => c.id);
+  let crystSummary = { total: 0, success: 0, failure: 0 };
+  if (constructIds.length > 0) {
+    const [{ count: totalCryst }, { count: successCryst }] = await Promise.all([
+      supabase.from('kbsi_crystallization').select('id', { count: 'exact', head: true }).in('construct_id', constructIds),
+      supabase.from('kbsi_crystallization').select('id', { count: 'exact', head: true }).in('construct_id', constructIds).or('outcome.eq.diffraction_quality,outcome.eq.single_crystal'),
+    ]);
+    crystSummary = { total: totalCryst ?? 0, success: successCryst ?? 0, failure: (totalCryst ?? 0) - (successCryst ?? 0) };
+  }
+  const successRate = crystSummary.total > 0 ? Math.round((crystSummary.success / crystSummary.total) * 100) : 0;
+
   return (
     <div className="space-y-6">
       <div className="flex items-center justify-between">
@@ -119,6 +131,41 @@ export default async function ProteinDetailPage({
           </CardContent>
         </Card>
       </div>
+
+      {/* Crystallization Overview */}
+      <Card>
+        <CardHeader>
+          <CardTitle className="text-base">Crystallization Overview</CardTitle>
+        </CardHeader>
+        <CardContent className="space-y-4">
+          <p className="text-lg font-semibold">
+            {crystSummary.total} trials across {constructs.length} constructs
+            {crystSummary.total > 0 && (
+              <span className="text-muted-foreground font-normal">
+                {' '}&mdash; {crystSummary.success} successful ({successRate}%)
+              </span>
+            )}
+          </p>
+
+          {crystSummary.total > 0 && (
+            <div className="w-full h-4 rounded-full overflow-hidden bg-red-200 dark:bg-red-900 flex">
+              <div
+                className="h-full bg-green-500 dark:bg-green-600 transition-all"
+                style={{ width: `${successRate}%` }}
+              />
+            </div>
+          )}
+
+          <div className="flex gap-3">
+            <Link href="/experiments/crystallization">
+              <Button variant="outline" size="sm">View All Conditions</Button>
+            </Link>
+            <Link href="/benchmark">
+              <Button variant="outline" size="sm">Predict New Condition</Button>
+            </Link>
+          </div>
+        </CardContent>
+      </Card>
 
       <Card>
         <CardHeader className="flex flex-row items-center justify-between">

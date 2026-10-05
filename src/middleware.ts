@@ -40,6 +40,13 @@ export async function middleware(request: NextRequest) {
     return NextResponse.redirect(url);
   }
 
+  // Redirect authenticated users visiting '/' to dashboard
+  if (user && isHomePage) {
+    const url = request.nextUrl.clone();
+    url.pathname = '/dashboard';
+    return NextResponse.redirect(url);
+  }
+
   // Redirect authenticated users away from login
   if (user && isAuthPage) {
     const url = request.nextUrl.clone();

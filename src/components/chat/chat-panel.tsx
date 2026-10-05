@@ -241,29 +241,58 @@ function formatToolName(name: string): string {
   return name.replace(/_/g, ' ');
 }
 
+function parseInlineFormatting(text: string): React.ReactNode[] {
+  // Split by bold (**...**) and inline code (`...`) patterns safely
+  const tokens: React.ReactNode[] = [];
+  const regex = /(\*\*(.+?)\*\*|`([^`]+)`)/g;
+  let lastIndex = 0;
+  let match: RegExpExecArray | null;
+
+  while ((match = regex.exec(text)) !== null) {
+    // Add text before this match
+    if (match.index > lastIndex) {
+      tokens.push(text.slice(lastIndex, match.index));
+    }
+    if (match[2]) {
+      // Bold
+      tokens.push(<strong key={match.index}>{match[2]}</strong>);
+    } else if (match[3]) {
+      // Inline code
+      tokens.push(
+        <code key={match.index} className="rounded bg-foreground/10 px-1 py-0.5 text-xs font-mono">
+          {match[3]}
+        </code>
+      );
+    }
+    lastIndex = regex.lastIndex;
+  }
+
+  // Add remaining text
+  if (lastIndex < text.length) {
+    tokens.push(text.slice(lastIndex));
+  }
+
+  return tokens;
+}
+
 function MessageContent({ content }: { content: string }) {
-  // Simple markdown-like rendering for bold, code, and lists
   const lines = content.split('\n');
   return (
     <>
       {lines.map((line, i) => {
-        // Bold
-        let processed = line.replace(/\*\*(.+?)\*\*/g, '<b>$1</b>');
-        // Inline code
-        processed = processed.replace(/`([^`]+)`/g, '<code class="rounded bg-foreground/10 px-1 py-0.5 text-xs font-mono">$1</code>');
         // Bullet lists
-        if (/^[-*]\s/.test(processed)) {
-          processed = processed.replace(/^[-*]\s/, '');
+        if (/^[-*]\s/.test(line)) {
+          const bulletText = line.replace(/^[-*]\s/, '');
           return (
             <div key={i} className="flex gap-1.5 ml-1">
-              <span className="text-muted-foreground mt-0.5">&#x2022;</span>
-              <span dangerouslySetInnerHTML={{ __html: processed }} />
+              <span className="text-muted-foreground mt-0.5">{'\u2022'}</span>
+              <span>{parseInlineFormatting(bulletText)}</span>
             </div>
           );
         }
         return (
           <span key={i}>
-            <span dangerouslySetInnerHTML={{ __html: processed }} />
+            <span>{parseInlineFormatting(line)}</span>
             {i < lines.length - 1 && <br />}
           </span>
         );

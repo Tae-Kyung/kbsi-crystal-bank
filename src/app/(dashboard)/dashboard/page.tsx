@@ -1,10 +1,12 @@
 import { createClient } from '@/lib/supabase/server';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
+import { Button } from '@/components/ui/button';
 import { Dna, FlaskConical, Gem, TestTubes, Pill, ClipboardCheck, Beaker, Link2 } from 'lucide-react';
 import { CrystallizationHeatmap } from '@/components/charts/crystallization-heatmap';
 import { OutcomeDistribution } from '@/components/charts/outcome-distribution';
 import { PipelineFunnel } from '@/components/charts/pipeline-funnel';
 import { SourceDistribution } from '@/components/charts/source-distribution';
+import Link from 'next/link';
 
 export default async function DashboardPage() {
   const supabase = await createClient();
@@ -105,6 +107,13 @@ export default async function DashboardPage() {
     sourceDbCryst.push({ source_db: 'unknown' as any, count: unclassifiedCount ?? 0 });
   }
 
+  // Recent proteins
+  const { data: recentProteins } = await supabase
+    .from('kbsi_protein')
+    .select('id, full_name, abbreviation, organism, updated_at, kbsi_construct(count)')
+    .order('updated_at', { ascending: false })
+    .limit(5);
+
   // Fetch pipeline data
   const pipelineData = {
     expressions: expressions.count ?? 0,
@@ -133,6 +142,27 @@ export default async function DashboardPage() {
           </Card>
         ))}
       </div>
+
+      {/* Recent Proteins */}
+      <Card>
+        <CardHeader className="flex flex-row items-center justify-between">
+          <CardTitle className="text-base">Recent Proteins</CardTitle>
+          <Link href="/proteins"><Button variant="outline" size="sm">View All</Button></Link>
+        </CardHeader>
+        <CardContent>
+          <div className="grid grid-cols-1 md:grid-cols-5 gap-3">
+            {(recentProteins || []).map((p: any) => (
+              <Link key={p.id} href={`/proteins/${p.id}`}>
+                <div className="rounded-lg border p-3 hover:shadow-md transition-shadow cursor-pointer">
+                  <div className="font-medium text-sm truncate">{p.abbreviation || p.full_name?.slice(0, 15)}</div>
+                  <div className="text-xs text-muted-foreground italic truncate">{p.organism || '-'}</div>
+                  <div className="text-xs text-muted-foreground mt-1">{p.kbsi_construct?.[0]?.count ?? 0} constructs</div>
+                </div>
+              </Link>
+            ))}
+          </div>
+        </CardContent>
+      </Card>
 
       {/* Charts Row */}
       <div className="grid grid-cols-1 md:grid-cols-2 gap-6">

@@ -16,6 +16,7 @@ export function Header() {
   const { locale, setLocale } = useLocale();
   const title = pathname.split('/').filter(Boolean)[0] ?? 'Dashboard';
   const [loggingOut, setLoggingOut] = useState(false);
+  const [searchValue, setSearchValue] = useState('');
 
   function toggleDark() {
     document.documentElement.classList.toggle('dark');
@@ -48,7 +49,29 @@ export function Header() {
         </SheetContent>
       </Sheet>
 
-      <h1 className="text-lg font-semibold capitalize flex-1">{title}</h1>
+      <h1 className="text-lg font-semibold capitalize">{title}</h1>
+
+      <div className="flex-1 flex justify-center">
+        <form
+          onSubmit={(e) => {
+            e.preventDefault();
+            const value = searchValue.trim();
+            if (value) {
+              router.push(`/proteins?search=${encodeURIComponent(value)}`);
+              setSearchValue('');
+            }
+          }}
+          className="hidden sm:block"
+        >
+          <input
+            type="text"
+            value={searchValue}
+            onChange={(e) => setSearchValue(e.target.value)}
+            placeholder="단백질, PDB ID, 유전자명 검색... (⌘K)"
+            className="rounded-xl bg-muted/50 px-4 py-2 w-[400px] text-sm border-none outline-none focus:ring-2 focus:ring-primary/30"
+          />
+        </form>
+      </div>
 
       <div className="flex items-center gap-2">
         <Button variant="ghost" size="sm" onClick={cycleLocale} title="Switch language">
