@@ -92,7 +92,7 @@ async function fetchPDBEntry(pdbId: string): Promise<DiffractionRecord | null> {
     if (!method || !method.toUpperCase().includes('X-RAY')) return null;
 
     const resolution = entry.rcsb_entry_info?.resolution_combined?.[0] ?? null;
-    const spaceGroup = entry.cell?.space_group_name_H_M ?? null;
+    const spaceGroup = entry.symmetry?.space_group_name_H_M ?? null;
     const unitCell = formatUnitCell(entry.cell);
     const beamline = extractBeamline(entry);
     const phasing = entry.refine?.[0]?.pdbx_method_to_determine_struct ?? null;

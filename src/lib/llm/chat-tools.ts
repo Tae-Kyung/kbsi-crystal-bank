@@ -161,12 +161,54 @@ export const chatTools = {
       return queries.getDataQualitySummary(supabase);
     },
   }),
+
+  search_characterizations: tool({
+    description: '특성분석 데이터를 검색합니다 (DLS, SEC-MALS, SDS-PAGE, Tm 등).',
+    parameters: z.object({
+      construct_id: z.number().optional().describe('Construct ID'),
+      method: z.string().optional().describe('측정 방법 (DLS, SEC-MALS, SDS-PAGE, thermal_stability, CD, Mass Spec)'),
+      protein_name: z.string().optional().describe('단백질 이름으로 필터'),
+      limit: z.number().optional().default(20),
+    }),
+    execute: async (params) => {
+      const supabase = await createClient();
+      return queries.searchCharacterizations(supabase, params);
+    },
+  }),
+
+  search_diffractions: tool({
+    description: '회절 데이터를 검색합니다 (해상도, 공간군, 빔라인 등).',
+    parameters: z.object({
+      construct_id: z.number().optional().describe('Construct ID'),
+      space_group: z.string().optional().describe('공간군 (예: P212121, C2)'),
+      resolution_max: z.number().optional().describe('최대 해상도 (Å)'),
+      protein_name: z.string().optional().describe('단백질 이름으로 필터'),
+      limit: z.number().optional().default(20),
+    }),
+    execute: async (params) => {
+      const supabase = await createClient();
+      return queries.searchDiffractions(supabase, params);
+    },
+  }),
+
+  get_ligand_binding_network: tool({
+    description: '단백질-리간드 바인딩 네트워크를 조회합니다.',
+    parameters: z.object({
+      protein_name: z.string().optional().describe('단백질 이름으로 필터'),
+      ligand_name: z.string().optional().describe('리간드 이름으로 필터'),
+      limit: z.number().optional().default(30),
+    }),
+    execute: async (params) => {
+      const supabase = await createClient();
+      return queries.getLigandBindingNetwork(supabase, params);
+    },
+  }),
 };
 
 export const SYSTEM_PROMPT = `You are an AI assistant for the KBSI Protein Crystallization Bank (단백질 결정화은행).
 You help researchers manage and analyze protein crystallization experiment data.
 
-Your capabilities:
+Your capabilities (15 tools):
 - Search proteins, constructs, and experiments
 - Recommend crystallization conditions using k-NN similarity
 - Predict crystallization success probability
@@ -177,6 +219,9 @@ Your capabilities:
 - Query drug-target binding data (IC50, Kd, Ki)
 - Search 3D structures by PDB ID or method (X-ray, NMR, Cryo-EM)
 - Check data quality summary (field coverage, outcome distribution)
+- Search characterization data (DLS, SEC-MALS, SDS-PAGE, thermal stability)
+- Search diffraction data (resolution, space group, beamline)
+- Query protein-ligand binding networks
 
 When answering:
 - Be concise and scientific

@@ -892,20 +892,23 @@ PDB: "20% PEG 3350, 0.1 M Bis-Tris pH 6.5, 0.2 M ammonium acetate"
 
 ## 10. 데이터 현황
 
-### 10.1 전체 규모
+### 10.1 전체 규모 (2026-10-06 기준, 수집 진행 중)
 
-| 항목 | 건수 | 비고 |
-|------|------|------|
-| 단백질 | 70,023 | PDB + TargetTrack + KBSI |
-| Construct | 286,580 | 각 PDB 구조 → 1 Construct |
-| 결정화 | 1,161,043 | 실험 234K + NC 927K |
-| 구조 | 286,454 | X-ray 226K + Cryo-EM 4.4K + NMR 2.7K |
-| Expression | 1,620 | 논문 LLM 추출 |
-| Purification | 613 | 논문 LLM 추출 |
-| 리간드 | 6,313 | ChEMBL |
-| 바인딩 | 7,942 | IC50/Kd/Ki |
-| UniProt 연결 | 13,574 | 88.5% 발견율 |
-| AlphaFold 연결 | 12,748 | 93.7% 발견율 |
+| 항목 | 건수 | 소스 | 비고 |
+|------|------|------|------|
+| 단백질 | 70,023 | PDB + TargetTrack | |
+| Construct | 286,580 | PDB + TargetTrack | 각 PDB entry → 1 Construct |
+| 결정화 | 1,161,043 | PDB + TargetTrack + 합성 | 실험 234K + NC 927K |
+| 구조 | 286,454 | PDB | X-ray 226K + Cryo-EM 4.4K + NMR 2.7K |
+| Expression | 5,200+ | 논문 LLM 추출 | 수집 중 (5병렬) |
+| Purification | 2,300+ | 논문 LLM 추출 | 수집 중 |
+| Characterization | 2,700+ | 논문 LLM 추출 | DLS, SEC-MALS, SDS-PAGE, Tm 등 |
+| Diffraction | 95,000+ | PDB API 92K + 논문 3K | 수집 중 (34%) |
+| 리간드 | 9,100+ | PDB HET + ChEMBL | 수집 중 (38%) |
+| 바인딩 | 27,000+ | PDB co-crystal + ChEMBL IC50/Kd/Ki | 수집 중 |
+| UniProt 연결 | 13,574 | PDB polymer entity | 88.5% 발견율 |
+| AlphaFold 연결 | 12,748 | UniProt → AlphaFold API | 93.7% 발견율 |
+| Enrichment | 141K / 234K | condition_detail → 구조화 | 60% 완료, 진행 중 |
 
 ### 10.2 데이터 품질
 
@@ -913,7 +916,7 @@ PDB: "20% PEG 3350, 0.1 M Bis-Tris pH 6.5, 0.2 M ammonium acetate"
 |------|----------|------|
 | pH | 98.9% | 우수 |
 | Temperature | 94.2% | 우수 |
-| precipitant_type | 5.5% (64K건) | 개선 중 (Enrichment) |
+| precipitant_type | ~60% (141K건, Enrichment 진행 중) | 개선 중 |
 | outcome | 98.7% | 우수 |
 
 ### 10.3 기획보고서 대비 달성률
@@ -923,6 +926,11 @@ PDB: "20% PEG 3350, 0.1 M Bis-Tris pH 6.5, 0.2 M ammonium acetate"
 | 단백질 수 | 250+ | 70,023 | 28,009% |
 | 실험 데이터 | 5,000+ | 1,161,043 | 23,221% |
 | 예측 정확도 | 70%+ | 91.9% | 131% |
+| Expression | 100+ | 5,200+ | 5,200% |
+| Diffraction | - | 95,000+ | 신규 |
+| Characterization | - | 2,700+ | 신규 |
+| Ligands | 1,000+ | 9,100+ | 910% |
+| Bindings | 2,000+ | 27,000+ | 1,350% |
 
 ---
 
