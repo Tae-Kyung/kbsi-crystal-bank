@@ -37,11 +37,11 @@ export default async function ConstructDetailPage({
   ]);
 
   const stats = [
-    { label: 'Expression', count: expr.count ?? 0 },
-    { label: 'Purification', count: puri.count ?? 0 },
-    { label: 'Crystallization', count: cryst.count ?? 0 },
-    { label: 'Characterization', count: char.count ?? 0 },
-    { label: 'Structure', count: struct.count ?? 0 },
+    { label: 'Expression', slug: 'expression', count: expr.count ?? 0, color: 'text-green-600' },
+    { label: 'Purification', slug: 'purification', count: puri.count ?? 0, color: 'text-blue-600' },
+    { label: 'Crystallization', slug: 'crystallization', count: cryst.count ?? 0, color: 'text-purple-600' },
+    { label: 'Characterization', slug: 'characterization', count: char.count ?? 0, color: 'text-orange-600' },
+    { label: 'Structure', slug: 'structure', count: struct.count ?? 0, color: 'text-cyan-600' },
   ];
 
   return (
@@ -66,17 +66,31 @@ export default async function ConstructDetailPage({
         </Link>
       </div>
 
-      {/* Experiment Stats */}
-      <div className="grid grid-cols-2 md:grid-cols-5 gap-3">
-        {stats.map((s) => (
-          <Card key={s.label}>
-            <CardContent className="p-4 text-center">
-              <div className="text-2xl font-bold">{s.count}</div>
-              <div className="text-xs text-muted-foreground">{s.label}</div>
-            </CardContent>
-          </Card>
-        ))}
-      </div>
+      {/* Pipeline Status */}
+      <Card>
+        <CardHeader><CardTitle className="text-base">Experiment Pipeline</CardTitle></CardHeader>
+        <CardContent>
+          <div className="flex items-center justify-between gap-2">
+            {stats.map((s, i) => (
+              <div key={s.label} className="flex items-center">
+                <Link href={s.count > 0 ? `/experiments/${s.slug}?construct_id=${id}` : '#'} className={s.count > 0 ? 'cursor-pointer' : 'cursor-default'}>
+                  <div className={`flex flex-col items-center rounded-lg border p-3 transition-shadow ${s.count > 0 ? 'hover:shadow-md hover:border-blue-300' : 'opacity-40'}`}>
+                    <div className={`h-4 w-4 rounded-full mb-1 ${s.count > 0 ? 'bg-green-500' : 'bg-gray-300 dark:bg-gray-600'}`} />
+                    <div className={`text-xl font-bold ${s.count > 0 ? s.color : 'text-gray-400'}`}>{s.count.toLocaleString()}</div>
+                    <div className="text-[10px] text-muted-foreground">{s.label}</div>
+                  </div>
+                </Link>
+                {i < stats.length - 1 && (
+                  <div className={`mx-1 text-lg ${stats[i + 1].count > 0 ? 'text-green-400' : 'text-gray-300'}`}>→</div>
+                )}
+              </div>
+            ))}
+          </div>
+          <p className="text-xs text-muted-foreground mt-3 text-center">
+            초록 ● = 데이터 있음 (클릭하면 상세 목록). 회색 ● = 미시도.
+          </p>
+        </CardContent>
+      </Card>
 
       <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
         <Card>
