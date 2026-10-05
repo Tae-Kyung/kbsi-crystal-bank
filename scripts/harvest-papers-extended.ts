@@ -250,62 +250,76 @@ async function main() {
       if (!error) totalPurif++;
     }
 
-    // 6. Characterization insert (one row per measurement)
+    // 6. Characterization insert (one row per measurement) — 중복 체크
     if (Array.isArray(parsed.characterization) && parsed.characterization.length > 0) {
-      for (const char of parsed.characterization) {
-        if (!isValid(char.method)) continue;
-        // Skip entries with no meaningful data
-        if (char.value_num == null && !isValid(char.value_text)) continue;
+      // 이미 이 construct+doi에서 추출된 characterization이 있으면 스킵
+      const { count: existingCharCount } = await supabase
+        .from('kbsi_characterization')
+        .select('id', { count: 'exact', head: true })
+        .eq('construct_id', s.construct_id)
+        .eq('source_id', doi);
+      if ((existingCharCount ?? 0) === 0) {
+        for (const char of parsed.characterization) {
+          if (!isValid(char.method)) continue;
+          if (char.value_num == null && !isValid(char.value_text)) continue;
 
-        const row: any = {
-          construct_id: s.construct_id,
-          source_type: 'literature',
-          source_db: 'PubMed',
-          source_id: doi,
-          method: char.method,
-        };
-        if (typeof char.value_num === 'number') row.value_num = char.value_num;
-        if (isValid(char.value_text)) row.value_text = char.value_text;
-        if (isValid(char.unit)) {
-          row.unit_normalized = char.unit;
-          row.unit_raw = char.unit;
+          const row: any = {
+            construct_id: s.construct_id,
+            source_type: 'literature',
+            source_db: 'PubMed',
+            source_id: doi,
+            method: char.method,
+          };
+          if (typeof char.value_num === 'number') row.value_num = char.value_num;
+          if (isValid(char.value_text)) row.value_text = char.value_text;
+          if (isValid(char.unit)) {
+            row.unit_normalized = char.unit;
+            row.unit_raw = char.unit;
+          }
+          if (isValid(char.notes)) row.notes = char.notes;
+
+          const { error } = await supabase.from('kbsi_characterization').insert(row);
+          if (!error) totalChar++;
         }
-        if (isValid(char.notes)) row.notes = char.notes;
-
-        const { error } = await supabase.from('kbsi_characterization').insert(row);
-        if (!error) totalChar++;
       }
     }
 
-    // 7. Diffraction insert (one row)
+    // 7. Diffraction insert (one row) — 중복 체크
     if (parsed.diffraction) {
       const d = parsed.diffraction;
       const hasAnyDiffraction = isValid(d.beamline) || typeof d.resolution === 'number' ||
         isValid(d.space_group) || isValid(d.unit_cell) || isValid(d.phasing);
 
       if (hasAnyDiffraction) {
-        const row: any = {
-          construct_id: s.construct_id,
-          source_type: 'literature',
-          source_db: 'PubMed',
-          source_id: doi,
-        };
-        if (isValid(d.beamline)) row.beamline = d.beamline;
-        if (typeof d.resolution === 'number') row.resolution = d.resolution;
-        if (isValid(d.space_group)) row.space_group = d.space_group;
-        if (isValid(d.unit_cell)) row.unit_cell = d.unit_cell;
-        if (isValid(d.phasing)) row.phasing = d.phasing;
-        if (isValid(d.data_quality)) row.data_quality = d.data_quality;
+        // 이미 이 construct+doi에서 추출된 diffraction이 있으면 스킵
+        const { count: existingDiffrCount } = await supabase
+          .from('kbsi_diffraction')
+          .select('id', { count: 'exact', head: true })
+          .eq('construct_id', s.construct_id)
+          .eq('source_id', doi);
+        if ((existingDiffrCount ?? 0) === 0) {
+          const row: any = {
+            construct_id: s.construct_id,
+            source_type: 'literature',
+            source_db: 'PubMed',
+            source_id: doi,
+          };
+          if (isValid(d.beamline)) row.beamline = d.beamline;
+          if (typeof d.resolution === 'number') row.resolution = d.resolution;
+          if (isValid(d.space_group)) row.space_group = d.space_group;
+          if (isValid(d.unit_cell)) row.unit_cell = d.unit_cell;
+          if (isValid(d.phasing)) row.phasing = d.phasing;
+          if (isValid(d.data_quality)) row.data_quality = d.data_quality;
 
-        // Combine wavelength, cryoprotectant, completeness into notes (no dedicated columns)
-        const extraNotes: string[] = [];
-        if (typeof d.wavelength === 'number') extraNotes.push(`wavelength: ${d.wavelength} A`);
-        if (isValid(d.cryoprotectant)) extraNotes.push(`cryoprotectant: ${d.cryoprotectant}`);
-        if (typeof d.completeness === 'number') extraNotes.push(`completeness: ${d.completeness}%`);
-        if (extraNotes.length > 0) row.notes = extraNotes.join('; ');
+          const extraNotes: string[] = [];
+          if (typeof d.wavelength === 'number') extraNotes.push(`wavelength: ${d.wavelength} A`);
+          if (isValid(d.cryoprotectant)) extraNotes.push(`cryoprotectant: ${d.cryoprotectant}`);
+          if (typeof d.completeness === 'number') extraNotes.push(`completeness: ${d.completeness}%`);
+          if (extraNotes.length > 0) row.notes = extraNotes.join('; ');
 
-        const { error } = await supabase.from('kbsi_diffraction').insert(row);
-        if (!error) totalDiffr++;
+          const { error } = await supabase.from('kbsi_diffraction').insert(row);
+          if (!error) totalDiffr++;
+        }
       }
     }
 
