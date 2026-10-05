@@ -39,30 +39,94 @@ export default function HomePage() {
       <LandingNav onLocaleChange={setLocale} />
 
       {/* Hero Section */}
-      <section className="relative overflow-hidden bg-gradient-to-b from-blue-50 to-white dark:from-gray-900 dark:to-gray-950 py-20 md:py-32">
-        <div className="mx-auto max-w-5xl px-6 text-center">
-          <div className="mb-6 inline-block rounded-full bg-blue-100 dark:bg-blue-900 px-4 py-1.5 text-sm font-medium text-blue-700 dark:text-blue-300">
+      <section className="relative overflow-hidden bg-gradient-to-br from-blue-600 via-blue-700 to-indigo-800 dark:from-gray-900 dark:via-blue-950 dark:to-gray-950 py-20 md:py-28">
+        <div className="absolute inset-0 opacity-10" style={{ backgroundImage: 'radial-gradient(circle at 25% 25%, white 1px, transparent 1px), radial-gradient(circle at 75% 75%, white 1px, transparent 1px)', backgroundSize: '40px 40px' }} />
+        <div className="relative mx-auto max-w-6xl px-6 text-center">
+          <div className="mb-6 inline-block rounded-full bg-white/20 backdrop-blur px-4 py-1.5 text-sm font-medium text-white">
             {t('hero.badge', locale)}
           </div>
-          <h1 className="text-4xl font-bold tracking-tight text-gray-900 dark:text-white md:text-6xl">
+          <h1 className="text-4xl font-bold tracking-tight text-white md:text-6xl">
             {t('hero.title1', locale)}
             <br />
-            <span className="text-blue-600">{t('hero.title2', locale)}</span>
+            <span className="text-blue-200">{t('hero.title2', locale)}</span>
           </h1>
-          <p className="mx-auto mt-6 max-w-2xl text-lg text-gray-600 dark:text-gray-400 md:text-xl">
-            {t('hero.desc', locale)}
+          <p className="mx-auto mt-6 max-w-2xl text-lg text-blue-100 md:text-xl leading-relaxed">
+            전 세계 최초로 결정화 실패 데이터를 체계적으로 축적 — 116만건 데이터 기반 91.9% 예측 정확도
           </p>
           <div className="mt-10 flex flex-col items-center gap-4 sm:flex-row sm:justify-center">
             <Link href="/login">
-              <Button size="lg" className="px-8 text-base">
+              <Button size="lg" className="px-8 text-base bg-white text-blue-700 hover:bg-blue-50">
                 {t('hero.start', locale)}
               </Button>
             </Link>
             <Link href="/dashboard">
-              <Button variant="outline" size="lg" className="px-8 text-base">
+              <Button variant="outline" size="lg" className="px-8 text-base border-white/50 text-white hover:bg-white/10">
                 {t('hero.dashboard', locale)}
               </Button>
             </Link>
+          </div>
+        </div>
+      </section>
+
+      {/* Live Statistics Bar */}
+      <section className="relative -mt-8 z-10 px-6">
+        <div className="mx-auto max-w-6xl">
+          <div className="grid grid-cols-2 md:grid-cols-5 gap-3 rounded-2xl border bg-white dark:bg-gray-900 shadow-xl p-6">
+            {[
+              { value: '70,023', label: 'Proteins', color: 'text-blue-600' },
+              { value: '286,454', label: 'Structures', color: 'text-violet-600' },
+              { value: '1,161,043', label: 'Crystallizations', color: 'text-emerald-600' },
+              { value: '91.9%', label: 'AI Accuracy', color: 'text-purple-600' },
+              { value: '6,313', label: 'Drug Compounds', color: 'text-pink-600' },
+            ].map((stat) => (
+              <div key={stat.label} className="text-center">
+                <div className={`text-2xl md:text-3xl font-bold ${stat.color}`}>{stat.value}</div>
+                <div className="text-xs text-muted-foreground mt-1">{stat.label}</div>
+              </div>
+            ))}
+          </div>
+        </div>
+      </section>
+
+      {/* AI Chat Preview */}
+      <section className="py-16 bg-white dark:bg-gray-950">
+        <div className="mx-auto max-w-5xl px-6">
+          <div className="grid md:grid-cols-2 gap-8 items-center">
+            <div>
+              <h2 className="text-2xl font-bold text-gray-900 dark:text-white md:text-3xl">
+                AI 챗봇으로 데이터 탐색
+              </h2>
+              <p className="mt-4 text-gray-600 dark:text-gray-400 leading-relaxed">
+                자연어로 질문하면 AI가 116만건의 결정화 데이터를 분석하여 조건 추천, 성공 확률 예측, 유사 단백질 검색을 수행합니다.
+              </p>
+              <div className="mt-6 flex gap-3">
+                <Link href="/dashboard">
+                  <Button className="bg-blue-600 hover:bg-blue-700">AI Assistant 사용해보기</Button>
+                </Link>
+                <Link href="/api-docs">
+                  <Button variant="outline">API 문서 보기</Button>
+                </Link>
+              </div>
+            </div>
+            <div className="rounded-2xl border bg-gray-50 dark:bg-gray-900 p-4 shadow-lg">
+              <div className="flex items-center gap-2 mb-3 pb-3 border-b">
+                <div className="h-3 w-3 rounded-full bg-green-500" />
+                <span className="text-sm font-medium">AI Assistant</span>
+              </div>
+              <div className="space-y-3">
+                <div className="flex justify-end">
+                  <div className="rounded-2xl rounded-br-md bg-blue-600 text-white px-4 py-2 text-sm max-w-[80%]">
+                    KRAS pH 7.0에서 결정화 성공 확률은?
+                  </div>
+                </div>
+                <div className="flex gap-2">
+                  <div className="h-7 w-7 rounded-full bg-blue-100 flex items-center justify-center text-blue-600 text-xs shrink-0">AI</div>
+                  <div className="rounded-2xl rounded-bl-md bg-gray-100 dark:bg-gray-800 px-4 py-2 text-sm max-w-[80%]">
+                    DB 분석 결과, pH 7.0에서의 성공 확률은 <strong>45%</strong>입니다. PEG 3350 20%와 조합 시 <strong>62%</strong>로 상승합니다. 유사 조건 5건을 추천해드릴까요?
+                  </div>
+                </div>
+              </div>
+            </div>
           </div>
         </div>
       </section>
@@ -96,7 +160,7 @@ export default function HomePage() {
       </section>
 
       {/* Data Story Section */}
-      <section className="py-16 bg-gray-50 dark:bg-gray-900">
+      <section id="data-story" className="py-16 bg-gray-50 dark:bg-gray-900">
         <div className="mx-auto max-w-5xl px-6">
           <h2 className="text-center text-2xl font-bold text-gray-900 dark:text-white md:text-3xl">
             데이터의 여정 — 단백질에서 신약까지
@@ -111,7 +175,7 @@ export default function HomePage() {
       </section>
 
       {/* Features Grid */}
-      <section className="py-16 bg-white dark:bg-gray-950">
+      <section id="features" className="py-16 bg-white dark:bg-gray-950">
         <div className="mx-auto max-w-5xl px-6">
           <h2 className="text-center text-2xl font-bold text-gray-900 dark:text-white md:text-3xl">
             {t('features.title', locale)}
@@ -132,7 +196,7 @@ export default function HomePage() {
       </section>
 
       {/* Why This Database — PDB vs KBSI */}
-      <section className="py-16 bg-white dark:bg-gray-950">
+      <section id="compare" className="py-16 bg-white dark:bg-gray-950">
         <div className="mx-auto max-w-5xl px-6">
           <h2 className="text-center text-2xl font-bold text-gray-900 dark:text-white md:text-3xl">
             기존 DB와의 차별점
