@@ -161,12 +161,23 @@ PDB 공개 데이터를 활용하여 결정화 조건 데이터를 체계적으�
 - `/api/export/benchmark-dataset` — DOI용 벤치마크 데이터셋 Export (CC-BY-4.0)
 
 ### F18. UX 디자인 개선 (Stitch + 멀티 에이전트 리뷰)
-- Stitch 프로젝트: 16개 화면 디자인 (초기 8 + 개선 8)
+- Stitch 프로젝트 `6596413338564247833`: 16개 화면 디자인 (초기 8 + 개선 8)
 - 멀티 에이전트 UX 리뷰: 바이오연구자 + 시각화 전문가 + 접근성 전문가
-- **P0 적용 완료**: XSS 수정, 글로벌 검색바, 사이드바 그룹화, 인증 리다이렉트
+- **P0 적용 완료**: XSS 수정, 글로벌 검색바, 사이드바 그룹화, 인증 리다이렉트 (/dashboard)
 - **P1 적용 완료**: Crystallization Overview 카드, Recent Proteins, Feature Importance 수평 막대
-- **전체 화면 적용**: Landing 리뉴얼, Experiments 배지, Ligands Quick Stats, Data Management 섹션 헤더
+- **전체 화면 적용**: Landing 딥블루 Hero + 통계 바 + AI 프리뷰 + PDB 비교표 + 12 DB 배지, Experiments 배지 + 0건 dimming, Ligands Quick Stats, Data Management 섹션 헤더, Benchmark 수평 막대
 - 12개 외부 DB 링크 (NCBI Gene, PubMed, UniProt, AlphaFold, InterPro, STRING, PDB, EMDB, BMRB, ChEMBL, PubChem, DOI)
+
+### F19. 페이지 간 링크 연결
+- Protein 상세: Explore Data 4종 (Expression/Purification/Crystallization/Structure) + 건수 Badge + construct_id 정확 필터
+- Proteins 목록: U(UniProt) + P(PDB) 빠른 외부 검색
+- Construct 상세: 파이프라인 traffic-light (●초록/●회색) → construct_id 필터된 실험 목록
+- Experiments/[type]: protein/construct_id 필터 + DOI 논문 링크
+
+### F20. 성능 최적화
+- Dashboard: ISR `revalidate=60` + 39쿼리→2 Promise.all (530ms→260ms)
+- Scatter SVG: outcome별 균등 샘플 6K + Cache-Control 30분 (162초→3초)
+- Proteins 목록: count 분리 (JOIN+count 동시 타임아웃 방지) + 50건/페이지
 
 ### F17. 공개 DB 대규모 데이터 수집 파이프라인
 - **PDB Bulk Harvest** (`scripts/bulk-pdb-harvest.ts`)
