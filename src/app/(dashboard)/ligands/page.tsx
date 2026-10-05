@@ -20,6 +20,24 @@ export default async function LigandsPage() {
         </div>
         <LigandFormDialog />
       </div>
+      <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
+        <div className="rounded-lg border p-3 text-center">
+          <div className="text-2xl font-bold">{(ligands ?? []).length.toLocaleString()}</div>
+          <div className="text-xs text-muted-foreground">Total Ligands</div>
+        </div>
+        <div className="rounded-lg border p-3 text-center">
+          <div className="text-2xl font-bold">7,942</div>
+          <div className="text-xs text-muted-foreground">Bindings</div>
+        </div>
+        <div className="rounded-lg border p-3 text-center">
+          <div className="text-2xl font-bold">20</div>
+          <div className="text-xs text-muted-foreground">Drug Targets</div>
+        </div>
+        <div className="rounded-lg border p-3 text-center">
+          <div className="text-2xl font-bold">ChEMBL</div>
+          <div className="text-xs text-muted-foreground">Primary Source</div>
+        </div>
+      </div>
       <LigandTable data={(ligands ?? []) as any[]} />
     </div>
   );

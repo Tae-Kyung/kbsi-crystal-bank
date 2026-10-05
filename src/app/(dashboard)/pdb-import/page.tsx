@@ -3,6 +3,7 @@ import { ConditionEnricher } from '@/components/pdb-import/condition-enricher';
 import { NegativeControlGenerator } from '@/components/pdb-import/negative-control-generator';
 import { MlExportCard } from '@/components/pdb-import/ml-export-card';
 import { DataCollectionStatus } from '@/components/pdb-import/data-collection-status';
+import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 
 export default function DataManagementPage() {
   return (
@@ -14,20 +15,35 @@ export default function DataManagementPage() {
         </p>
       </div>
 
-      {/* 수집 현황 + 데이터 품질 */}
-      <DataCollectionStatus />
+      {/* Section 1: Overview */}
+      <div>
+        <h3 className="text-sm font-semibold text-muted-foreground uppercase tracking-wider mb-3">Overview</h3>
+        <DataCollectionStatus />
+      </div>
 
-      {/* PDB Import */}
-      <PdbImportClient />
+      {/* Section 2: PDB Import */}
+      <div>
+        <h3 className="text-sm font-semibold text-muted-foreground uppercase tracking-wider mb-3">PDB Import</h3>
+        <PdbImportClient />
+      </div>
 
-      {/* Condition Enrichment */}
-      <ConditionEnricher />
+      {/* Section 3: Condition Enrichment */}
+      <div>
+        <h3 className="text-sm font-semibold text-muted-foreground uppercase tracking-wider mb-3">Condition Enrichment</h3>
+        <ConditionEnricher />
+      </div>
 
-      {/* Negative Control */}
-      <NegativeControlGenerator />
+      {/* Section 4: Negative Control */}
+      <div>
+        <h3 className="text-sm font-semibold text-muted-foreground uppercase tracking-wider mb-3">Negative Control</h3>
+        <NegativeControlGenerator />
+      </div>
 
-      {/* ML Export */}
-      <MlExportCard />
+      {/* Section 5: ML Export */}
+      <div>
+        <h3 className="text-sm font-semibold text-muted-foreground uppercase tracking-wider mb-3">ML Export</h3>
+        <MlExportCard />
+      </div>
     </div>
   );
 }

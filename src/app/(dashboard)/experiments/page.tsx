@@ -23,12 +23,12 @@ export default async function ExperimentsPage() {
   ]);
 
   const categories = [
-    { name: 'Expression', slug: 'expression', desc: '발현 실험', count: exprCount ?? 0, color: 'bg-green-100 text-green-800 dark:bg-green-900 dark:text-green-200' },
-    { name: 'Purification', slug: 'purification', desc: '정제 실험', count: purCount ?? 0, color: 'bg-blue-100 text-blue-800 dark:bg-blue-900 dark:text-blue-200' },
-    { name: 'Crystallization', slug: 'crystallization', desc: '결정화 실험', count: crystCount ?? 0, color: 'bg-purple-100 text-purple-800 dark:bg-purple-900 dark:text-purple-200' },
-    { name: 'Characterization', slug: 'characterization', desc: '특성분석', count: charCount ?? 0, color: 'bg-orange-100 text-orange-800 dark:bg-orange-900 dark:text-orange-200' },
-    { name: 'Diffraction', slug: 'diffraction', desc: '회절 실험', count: diffCount ?? 0, color: 'bg-red-100 text-red-800 dark:bg-red-900 dark:text-red-200' },
-    { name: 'Structure', slug: 'structure', desc: '구조결정', count: structCount ?? 0, color: 'bg-cyan-100 text-cyan-800 dark:bg-cyan-900 dark:text-cyan-200' },
+    { name: 'Expression', slug: 'expression', desc: '발현 실험', count: exprCount ?? 0, color: 'bg-green-100 text-green-800 dark:bg-green-900 dark:text-green-200', extra: '논문 추출 활성' },
+    { name: 'Purification', slug: 'purification', desc: '정제 실험', count: purCount ?? 0, color: 'bg-blue-100 text-blue-800 dark:bg-blue-900 dark:text-blue-200', extra: '논문 추출 활성' },
+    { name: 'Crystallization', slug: 'crystallization', desc: '결정화 실험', count: crystCount ?? 0, color: 'bg-purple-100 text-purple-800 dark:bg-purple-900 dark:text-purple-200', extra: '' },
+    { name: 'Characterization', slug: 'characterization', desc: '특성분석', count: charCount ?? 0, color: 'bg-orange-100 text-orange-800 dark:bg-orange-900 dark:text-orange-200', extra: '' },
+    { name: 'Diffraction', slug: 'diffraction', desc: '회절 실험', count: diffCount ?? 0, color: 'bg-red-100 text-red-800 dark:bg-red-900 dark:text-red-200', extra: '' },
+    { name: 'Structure', slug: 'structure', desc: '구조결정', count: structCount ?? 0, color: 'bg-cyan-100 text-cyan-800 dark:bg-cyan-900 dark:text-cyan-200', extra: 'X-ray + Cryo-EM + NMR' },
   ];
 
   return (
@@ -44,14 +44,18 @@ export default async function ExperimentsPage() {
       <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-3">
         {categories.map((cat) => (
           <Link key={cat.name} href={`/experiments/${cat.slug}`}>
-            <Card className="hover:shadow-md transition-shadow cursor-pointer">
+            <Card className={`hover:shadow-md transition-shadow cursor-pointer${cat.count === 0 ? ' opacity-50' : ''}`}>
               <CardContent className="p-6">
                 <div className="flex items-center justify-between">
                   <div>
                     <h3 className="font-semibold text-lg">{cat.name}</h3>
                     <p className="text-sm text-muted-foreground">{cat.desc}</p>
                   </div>
-                  <Badge className={cat.color}>{(cat.count).toLocaleString()}건</Badge>
+                  <div className="flex flex-col items-end">
+                    <Badge className={cat.color}>{(cat.count).toLocaleString()}건</Badge>
+                    {cat.extra && <span className="text-[10px] text-muted-foreground mt-1 block">{cat.extra}</span>}
+                    {cat.count === 0 && <span className="text-xs text-muted-foreground">(데이터 없음)</span>}
+                  </div>
                 </div>
               </CardContent>
             </Card>

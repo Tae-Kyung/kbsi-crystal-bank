@@ -2,7 +2,6 @@
 
 import {
   BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, Legend, ResponsiveContainer,
-  RadarChart, PolarGrid, PolarAngleAxis, PolarRadiusAxis, Radar,
   Cell,
 } from 'recharts';
 
@@ -82,17 +81,17 @@ export function BenchmarkResults() {
           </ResponsiveContainer>
         </div>
 
-        {/* Feature Importance Radar */}
+        {/* Feature Importance Horizontal Bar */}
         <div>
           <h4 className="text-sm font-semibold mb-3">Feature Importance (Ablation Study)</h4>
           <ResponsiveContainer width="100%" height={280}>
-            <RadarChart cx="50%" cy="50%" outerRadius="70%" data={FEATURE_IMPORTANCE}>
-              <PolarGrid stroke="#e5e7eb" />
-              <PolarAngleAxis dataKey="feature" tick={{ fontSize: 10 }} />
-              <PolarRadiusAxis angle={90} domain={[0, 8]} tick={{ fontSize: 9 }} />
-              <Radar name="Accuracy Drop (%)" dataKey="drop" stroke="#ef4444" fill="#ef4444" fillOpacity={0.3} strokeWidth={2} />
+            <BarChart data={FEATURE_IMPORTANCE.filter(f => f.drop > 0).sort((a,b) => b.drop - a.drop)} layout="vertical" margin={{ top: 5, right: 30, left: 100, bottom: 5 }}>
+              <CartesianGrid strokeDasharray="3 3" opacity={0.3} horizontal={false} />
+              <XAxis type="number" unit="%" tick={{ fontSize: 11 }} />
+              <YAxis type="category" dataKey="feature" tick={{ fontSize: 11 }} width={90} />
               <Tooltip formatter={(value: number) => `${value}%`} />
-            </RadarChart>
+              <Bar dataKey="drop" name="Accuracy Drop" fill="#ef4444" radius={[0, 4, 4, 0]} />
+            </BarChart>
           </ResponsiveContainer>
         </div>
       </div>

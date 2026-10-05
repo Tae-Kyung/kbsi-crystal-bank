@@ -131,6 +131,48 @@ export default function HomePage() {
         </div>
       </section>
 
+      {/* Why This Database — PDB vs KBSI */}
+      <section className="py-16 bg-white dark:bg-gray-950">
+        <div className="mx-auto max-w-5xl px-6">
+          <h2 className="text-center text-2xl font-bold text-gray-900 dark:text-white md:text-3xl">
+            기존 DB와의 차별점
+          </h2>
+          <p className="mx-auto mt-3 max-w-xl text-center text-gray-500 dark:text-gray-400">
+            PDB는 성공한 구조만 저장합니다. KBSI 결정화은행은 다릅니다.
+          </p>
+          <div className="mt-10 overflow-hidden rounded-xl border">
+            <table className="w-full text-sm">
+              <thead className="bg-gray-50 dark:bg-gray-800">
+                <tr>
+                  <th className="px-6 py-3 text-left font-medium text-gray-500">항목</th>
+                  <th className="px-6 py-3 text-left font-medium text-gray-500">PDB</th>
+                  <th className="px-6 py-3 text-left font-medium text-blue-600">KBSI 결정화은행</th>
+                </tr>
+              </thead>
+              <tbody className="divide-y">
+                <tr><td className="px-6 py-3 text-gray-700 dark:text-gray-300">실패 데이터</td><td className="px-6 py-3 text-gray-400">없음</td><td className="px-6 py-3 font-medium text-blue-700 dark:text-blue-300">927K건 체계적 축적</td></tr>
+                <tr><td className="px-6 py-3 text-gray-700 dark:text-gray-300">AI 예측</td><td className="px-6 py-3 text-gray-400">불가</td><td className="px-6 py-3 font-medium text-blue-700 dark:text-blue-300">91.9% 정확도 (k-NN)</td></tr>
+                <tr><td className="px-6 py-3 text-gray-700 dark:text-gray-300">자연어 검색</td><td className="px-6 py-3 text-gray-400">없음</td><td className="px-6 py-3 font-medium text-blue-700 dark:text-blue-300">MCP + AI 챗봇</td></tr>
+                <tr><td className="px-6 py-3 text-gray-700 dark:text-gray-300">약물 바인딩</td><td className="px-6 py-3 text-gray-400">별도 DB</td><td className="px-6 py-3 font-medium text-blue-700 dark:text-blue-300">7,942건 통합 조회</td></tr>
+                <tr><td className="px-6 py-3 text-gray-700 dark:text-gray-300">외부 DB 연동</td><td className="px-6 py-3 text-gray-400">PDB만</td><td className="px-6 py-3 font-medium text-blue-700 dark:text-blue-300">12개 DB 원클릭 연결</td></tr>
+              </tbody>
+            </table>
+          </div>
+        </div>
+      </section>
+
+      {/* External DB Integration */}
+      <section className="py-12 bg-gray-50 dark:bg-gray-900">
+        <div className="mx-auto max-w-5xl px-6 text-center">
+          <h3 className="text-lg font-bold text-gray-900 dark:text-white">12개 외부 데이터베이스 연동</h3>
+          <div className="mt-6 flex flex-wrap justify-center gap-4">
+            {['RCSB PDB', 'UniProt', 'AlphaFold', 'NCBI Gene', 'PubMed', 'ChEMBL', 'PubChem', 'InterPro', 'STRING', 'EMDB', 'BMRB', 'TargetTrack'].map(db => (
+              <span key={db} className="rounded-full border bg-white dark:bg-gray-800 px-4 py-2 text-sm font-medium text-gray-700 dark:text-gray-300">{db}</span>
+            ))}
+          </div>
+        </div>
+      </section>
+
       {/* Use Case Scenarios */}
       <section className="py-16 bg-white dark:bg-gray-950">
         <div className="mx-auto max-w-5xl px-6">

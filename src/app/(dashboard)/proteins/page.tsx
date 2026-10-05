@@ -42,7 +42,7 @@ export default async function ProteinsPage({
         <div>
           <h2 className="text-2xl font-bold">Proteins</h2>
           <p className="text-muted-foreground">
-            {(count ?? 0).toLocaleString()}개의 단백질이 등록되어 있습니다.
+            {(count ?? 0).toLocaleString()}개의 단백질이 등록되어 있습니다. (PDB, TargetTrack, KBSI)
           </p>
         </div>
         <Link href="/proteins/new">
