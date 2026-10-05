@@ -7,12 +7,14 @@ import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { FormField } from '@/components/forms/form-field';
+import { Loader2 } from 'lucide-react';
 
 export default function LoginPage() {
   const router = useRouter();
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
   const [loading, setLoading] = useState(false);
+  const [loadingStep, setLoadingStep] = useState('');
   const [error, setError] = useState('');
   const [mode, setMode] = useState<'login' | 'signup'>('login');
   const [message, setMessage] = useState('');
@@ -26,12 +28,15 @@ export default function LoginPage() {
     const supabase = createClient();
 
     if (mode === 'login') {
+      setLoadingStep('인증 확인 중...');
       const { error } = await supabase.auth.signInWithPassword({ email, password });
       if (error) {
         setError(error.message);
         setLoading(false);
+        setLoadingStep('');
         return;
       }
+      setLoadingStep('대시보드로 이동 중...');
       window.location.href = '/dashboard';
     } else {
       const { error } = await supabase.auth.signUp({ email, password });
@@ -79,10 +84,14 @@ export default function LoginPage() {
             {error && <p className="text-sm text-destructive">{error}</p>}
             {message && <p className="text-sm text-green-600">{message}</p>}
             <Button type="submit" className="w-full" disabled={loading}>
-              {loading
-                ? (mode === 'login' ? 'Signing in...' : 'Creating account...')
-                : (mode === 'login' ? 'Sign In' : 'Sign Up')
-              }
+              {loading ? (
+                <span className="flex items-center gap-2">
+                  <Loader2 className="h-4 w-4 animate-spin" />
+                  {loadingStep || (mode === 'login' ? 'Signing in...' : 'Creating account...')}
+                </span>
+              ) : (
+                mode === 'login' ? 'Sign In' : 'Sign Up'
+              )}
             </Button>
           </form>
           <div className="mt-4 text-center text-sm text-muted-foreground">
