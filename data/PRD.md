@@ -206,9 +206,9 @@ PDB 공개 데이터를 활용하여 결정화 조건 데이터를 체계적으�
 | ChEMBL 바인딩 | 7,942건 | `harvest-chembl.ts` | 20개 신약 타겟 IC50/Kd/Ki |
 | UniProt ID | 13,574건 | `backfill-uniprot-ids.ts` | PDB→UniProt accession 연결 완료 |
 | AlphaFold | 12,748건 | `harvest-alphafold.ts` | UniProt→AlphaFold 예측 구조 (93.7% 발견율) |
-| 논문 추출 (Expression) | ~279건 (증가 중) | `harvest-papers.ts` | PDB DOI→PMC full text→LLM |
-| 논문 추출 (Purification) | ~110건 (증가 중) | `harvest-papers.ts` | 50K 병렬 추출 진행 중 |
-| Condition Enrichment | 진행 중 | `harvest:enrich` | free-text → 구조화 필드 추출 |
+| 논문 추출 (Expression) | **1,620건** | `harvest-papers.ts` | PDB DOI→Europe PMC full text→GPT-4o-mini 파싱 |
+| 논문 추출 (Purification) | **613건** | `harvest-papers.ts` | 50K 배치 완료, source_db='PubMed', source_id=DOI |
+| Condition Enrichment | **64,048건** (5.5%) | `harvest:enrich` | condition_detail free-text → precipitant/pH/temp 구조화 |
 | Negative Control (극단) | 602,072건 | `bulk-negative-controls.ts` | 7가지 전략 |
 | Negative Control (현실적) | 324,836건 | `realistic-negative-controls.ts` | 7가지 경계 영역 전략 |
 
@@ -217,8 +217,9 @@ PDB 공개 데이터를 활용하여 결정화 조건 데이터를 체계적으�
 - Construct: **286,580개**
 - 결정화 데이터: **1,161,043건** (실험 234K + NC 927K)
 - 구조: **286,454건** (X-ray + Cryo-EM + NMR)
-- Expression: **~279건** (논문 추출 증가 중)
-- Purification: **~110건** (논문 추출 증가 중)
+- Expression: **1,620건** (논문 LLM 추출 완료)
+- Purification: **613건** (논문 LLM 추출 완료)
+- Condition Enrichment: **64,048건** (precipitant_type 구조화 5.5%)
 - AlphaFold 연결: **12,748건**
 - 리간드: **6,313개** (ChEMBL)
 - 바인딩 데이터: **7,942건** (IC50/Kd/Ki)
@@ -239,8 +240,8 @@ PDB 공개 데이터를 활용하여 결정화 조건 데이터를 체계적으�
 | AlphaFold 403 | User-Agent 차단 | 헤더 추가 → 12,748건 연결 | 해결 |
 | UniProt ID 부재 | 26건만 존재 | backfill 13,574건 (db_value 수정) | 해결 |
 | XSS 취약점 | dangerouslySetInnerHTML | React 엘리먼트 렌더링으로 수정 | 해결 |
-| Expression/Purification | 1건 | **75/23건** (논문 추출 진행 중) | 진행 중 |
-| precipitant 미구조화 | 98%+ NULL | Enrichment 진행 중 | 진행 중 |
+| Expression/Purification | 1건 | **1,620/613건** (논문 50K 추출 완료) | **해결** |
+| precipitant 미구조화 | 98%+ NULL | **64,048건 (5.5%)** Enrichment 진행 중 | 진행 중 |
 | pH/temp 이상치 | 각 3건 이하 | 무시 가능 | — |
 
 ## 5-4. 활용 방향 — 기존 DB(PDB 등)와의 차별화
@@ -248,12 +249,34 @@ PDB 공개 데이터를 활용하여 결정화 조건 데이터를 체계적으�
 ### PDB에서 할 수 없는 것 vs KBSI 결정화은행
 | PDB | KBSI 결정화은행 |
 |-----|-----------------|
-| 성공 데이터만 등록 | **실패 조건(clear, precipitate) 체계적 축적** → ML 학습 |
-| 조건-결과 추론 불가 | **"이 조건이면 성공/실패" AI 예측 (91.9% 정확도, 현실적 데이터)** |
-| 자연어 질의 없음 | **MCP 챗봇으로 자연어 데이터 분석** |
-| 약물 바인딩 별도 DB | **단백질→구조→결정화→약물 통합 조회** |
-| ML 데이터셋 직접 가공 필요 | **이진분류/다단계 ML Export API 제공** |
-| 연구자 실험 기록 없음 | **KBSI 자체 실험 데이터 축적 시스템** |
+| 성공 데이터만 등록 | **실패 조건(clear, precipitate) 체계적 축적 (92.7만건)** → ML 학습 |
+| 조건-결과 추론 불가 | **"이 조건이면 성공/실패" AI 예측 (91.9% 정확도)** |
+| 발현/정제 데이터 없음 | **Expression 1,620건 + Purification 613건** (논문 자동 추출) |
+| 결정화 조건 비구조화 | **Condition Enrichment 64K건** (LLM 파싱으로 precipitant 구조화) |
+| 자연어 질의 없음 | **MCP 12 tools + AI 챗봇으로 자연어 데이터 분석** |
+| 약물 바인딩 별도 DB | **단백질→구조→결정화→약물 통합 조회 (7,942건 바인딩)** |
+| ML 데이터셋 직접 가공 필요 | **이진분류/다단계 ML Export API + DOI용 벤치마크 Export** |
+| 연구자 실험 기록 없음 | **Quick Entry 폼으로 30초 입력 (실패 데이터 유도)** |
+
+### 핵심 차별화 요소 상세
+
+#### 1. 논문 기반 Expression/Purification 자동 추출 (세계 최초)
+- PDB 구조 → primary citation DOI → Europe PMC full text → GPT-4o-mini Methods 파싱
+- Expression: 숙주, 균주, 유도 온도, 수율, IPTG 조건 등 구조화
+- Purification: 컬럼(Ni-NTA, SEC), 순도, 수율 등 구조화
+- 출처: `source_db='PubMed'`, `source_id=DOI` → 원논문 역추적 가능
+- **PDB에는 "E. coli"만 있지만, KBSI에는 "BL21(DE3), 0.5mM IPTG, 18°C, 16h, 15mg/L"까지**
+
+#### 2. Condition Enrichment (결정화 조건 구조화)
+- PDB `pdbx_details` free-text: "20% PEG 3350, 0.1 M Bis-Tris pH 6.5"
+- KBSI Enrichment: → precipitant_type: PEG 3350, conc: 20, unit: %, buffer: Bis-Tris
+- **PDB는 검색 불가한 자유 텍스트, KBSI는 구조화 필드로 "PEG 3350 조건 검색" 가능**
+
+#### 3. Quick Entry — 연구자 실패 데이터 직접 입력
+- 3단계 30초 입력: 단백질 검색 → Outcome 선택(기본 precipitate) → 저장
+- 침전제 프리셋 12종 클릭 선택
+- `source_type='experimental'`, `source_db='KBSI'` → 진짜 실험 데이터
+- **PDB에는 절대 올라오지 않는 "이 조건에서 실패했다"를 수집하는 유일한 시스템**
 
 ### MCP 기반 활용 시나리오
 - **실험 계획 코파일럿**: "내일 결정화 실험할 건데, DB에서 비슷한 단백질의 성공 조건 찾아줘"
