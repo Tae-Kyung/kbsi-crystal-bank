@@ -26,15 +26,22 @@ export default async function ProteinDetailPage({
   const dbIds = protein.kbsi_database_id ?? [];
   const constructs = protein.kbsi_construct ?? [];
 
-  // Crystallization overview query
+  // Experiment counts for this protein's constructs
   const constructIds = constructs.map((c: any) => c.id);
   let crystSummary = { total: 0, success: 0, failure: 0 };
+  let exprCount = 0, purifCount = 0, structCount = 0;
   if (constructIds.length > 0) {
-    const [{ count: totalCryst }, { count: successCryst }] = await Promise.all([
+    const [{ count: totalCryst }, { count: successCryst }, { count: ec }, { count: pc }, { count: sc }] = await Promise.all([
       supabase.from('kbsi_crystallization').select('id', { count: 'exact', head: true }).in('construct_id', constructIds),
       supabase.from('kbsi_crystallization').select('id', { count: 'exact', head: true }).in('construct_id', constructIds).or('outcome.eq.diffraction_quality,outcome.eq.single_crystal'),
+      supabase.from('kbsi_expression').select('id', { count: 'exact', head: true }).in('construct_id', constructIds),
+      supabase.from('kbsi_purification').select('id', { count: 'exact', head: true }).in('construct_id', constructIds),
+      supabase.from('kbsi_structure').select('id', { count: 'exact', head: true }).in('construct_id', constructIds),
     ]);
     crystSummary = { total: totalCryst ?? 0, success: successCryst ?? 0, failure: (totalCryst ?? 0) - (successCryst ?? 0) };
+    exprCount = ec ?? 0;
+    purifCount = pc ?? 0;
+    structCount = sc ?? 0;
   }
   const successRate = crystSummary.total > 0 ? Math.round((crystSummary.success / crystSummary.total) * 100) : 0;
 
@@ -173,14 +180,15 @@ export default async function ProteinDetailPage({
         <CardContent>
           <div className="flex flex-wrap gap-2">
             {[
-              { label: 'Expression', slug: 'expression', icon: '🧪' },
-              { label: 'Purification', slug: 'purification', icon: '🔬' },
-              { label: 'Crystallization', slug: 'crystallization', icon: '💎' },
-              { label: 'Structure', slug: 'structure', icon: '🔬' },
+              { label: 'Expression', slug: 'expression', icon: '🧪', count: exprCount },
+              { label: 'Purification', slug: 'purification', icon: '🔬', count: purifCount },
+              { label: 'Crystallization', slug: 'crystallization', icon: '💎', count: crystSummary.total },
+              { label: 'Structure', slug: 'structure', icon: '🏗️', count: structCount },
             ].map(exp => (
               <Link key={exp.slug} href={`/experiments/${exp.slug}?protein=${encodeURIComponent(protein.abbreviation || protein.full_name)}`}>
-                <Button variant="outline" size="sm" className="gap-1.5">
+                <Button variant={exp.count > 0 ? 'outline' : 'ghost'} size="sm" className={`gap-1.5 ${exp.count === 0 ? 'opacity-50' : ''}`}>
                   <span>{exp.icon}</span> {exp.label}
+                  <Badge variant="secondary" className="ml-1 text-[10px] px-1.5">{exp.count.toLocaleString()}</Badge>
                 </Button>
               </Link>
             ))}
