@@ -140,21 +140,33 @@ PDB 공개 데이터를 활용하여 결정화 조건 데이터를 체계적으�
 
 ### F14. AI 챗봇 사이드패널
 - Vercel AI SDK `useChat` + OpenAI GPT-4o-mini 스트리밍
-- 7개 function calling 도구: search_proteins, search_constructs, get_experiments, get_statistics, recommend_crystallization, predict_success, search_crystallization_conditions
-- 대시보드 우측 하단 플로팅 버튼 → 접이식 사이드패널
-- 제안 질문 3개 + tool 호출 상태 실시간 표시
+- **12개** function calling 도구 (공통 쿼리 모듈 `crystallization-queries.ts` 기반)
+  - 검색: search_proteins, search_constructs, search_ligands, search_structures, search_crystallization_conditions, sequence_search
+  - 예측: recommend_crystallization, predict_success
+  - 조회: get_experiments, get_statistics, get_bindings, get_data_quality
+- XSS 수정 완료 (dangerouslySetInnerHTML → React 엘리먼트)
 
 ### F15. MCP 서버 (Model Context Protocol)
 - `/api/mcp` — WebStandard Streamable HTTP MCP 서버 (Stateless)
 - claude.ai, Claude Desktop, Claude Code에서 직접 연결 가능
 - Service Role 클라이언트로 RLS 바이패스 (읽기 전용)
-- 7개 MCP 도구 = 챗봇과 동일 도구셋
+- **12개** MCP 도구 = 챗봇과 동일 도구셋 (공통 모듈 공유)
 - 연결: claude.ai → Settings → Integrations → `https://kbsi-crystal-bank.vercel.app/api/mcp`
 
-### F16. OpenAPI / Swagger
-- `/api/openapi` — OpenAPI 3.0 JSON 스펙 (28개 엔드포인트)
+### F16. OpenAPI / Swagger + API Key
+- `/api/openapi` — OpenAPI 3.0 JSON 스펙 (30+ 엔드포인트)
 - `/api-docs` — Swagger UI 인터랙티브 문서
-- 다크모드 지원, 사이드바 네비게이션 포함
+- `/api/api-keys` — API Key 발급/조회 시스템
+- `/api/sequence-search` — 서열 유사도 검색 (k-mer Jaccard)
+- `/api/export/benchmark-dataset` — DOI용 벤치마크 데이터셋 Export (CC-BY-4.0)
+
+### F18. UX 디자인 개선 (Stitch + 멀티 에이전트 리뷰)
+- Stitch 프로젝트: 16개 화면 디자인 (초기 8 + 개선 8)
+- 멀티 에이전트 UX 리뷰: 바이오연구자 + 시각화 전문가 + 접근성 전문가
+- **P0 적용 완료**: XSS 수정, 글로벌 검색바, 사이드바 그룹화, 인증 리다이렉트
+- **P1 적용 완료**: Crystallization Overview 카드, Recent Proteins, Feature Importance 수평 막대
+- **전체 화면 적용**: Landing 리뉴얼, Experiments 배지, Ligands Quick Stats, Data Management 섹션 헤더
+- 12개 외부 DB 링크 (NCBI Gene, PubMed, UniProt, AlphaFold, InterPro, STRING, PDB, EMDB, BMRB, ChEMBL, PubChem, DOI)
 
 ### F17. 공개 DB 대규모 데이터 수집 파이프라인
 - **PDB Bulk Harvest** (`scripts/bulk-pdb-harvest.ts`)
@@ -181,10 +193,10 @@ PDB 공개 데이터를 활용하여 결정화 조건 데이터를 체계적으�
 | RCSB PDB NMR | ~2,700건 | `pdb-sweep-method.ts` | 용액 구조 |
 | TargetTrack/PepcDB | 80건 | `harvest:targettrack` | LLM 프로토콜 파싱 (전량 완료) |
 | ChEMBL 바인딩 | 7,942건 | `harvest-chembl.ts` | 20개 신약 타겟 IC50/Kd/Ki |
-| UniProt ID | 13,574건 | `backfill-uniprot-ids.ts` | PDB→UniProt accession 연결 |
-| AlphaFold | 수집 중 | `harvest-alphafold.ts` | UniProt→AlphaFold 예측 구조 |
-| 논문 추출 (Expression) | 75건 (증가 중) | `harvest-papers.ts` | PDB DOI→PMC full text→LLM |
-| 논문 추출 (Purification) | 23건 (증가 중) | `harvest-papers.ts` | 50K 병렬 추출 진행 중 |
+| UniProt ID | 13,574건 | `backfill-uniprot-ids.ts` | PDB→UniProt accession 연결 완료 |
+| AlphaFold | 12,748건 | `harvest-alphafold.ts` | UniProt→AlphaFold 예측 구조 (93.7% 발견율) |
+| 논문 추출 (Expression) | ~279건 (증가 중) | `harvest-papers.ts` | PDB DOI→PMC full text→LLM |
+| 논문 추출 (Purification) | ~110건 (증가 중) | `harvest-papers.ts` | 50K 병렬 추출 진행 중 |
 | Condition Enrichment | 진행 중 | `harvest:enrich` | free-text → 구조화 필드 추출 |
 | Negative Control (극단) | 602,072건 | `bulk-negative-controls.ts` | 7가지 전략 |
 | Negative Control (현실적) | 324,836건 | `realistic-negative-controls.ts` | 7가지 경계 영역 전략 |
@@ -194,8 +206,9 @@ PDB 공개 데이터를 활용하여 결정화 조건 데이터를 체계적으�
 - Construct: **286,580개**
 - 결정화 데이터: **1,161,043건** (실험 234K + NC 927K)
 - 구조: **286,454건** (X-ray + Cryo-EM + NMR)
-- Expression: **75건** (논문 추출 증가 중)
-- Purification: **23건** (논문 추출 증가 중)
+- Expression: **~279건** (논문 추출 증가 중)
+- Purification: **~110건** (논문 추출 증가 중)
+- AlphaFold 연결: **12,748건**
 - 리간드: **6,313개** (ChEMBL)
 - 바인딩 데이터: **7,942건** (IC50/Kd/Ki)
 - UniProt 연결: **13,574건**
@@ -212,7 +225,9 @@ PDB 공개 데이터를 활용하여 결정화 조건 데이터를 체계적으�
 |------|------|------|------|
 | Outcome 편향 | ~95% 성공 (PDB만) | **28% 성공 / 72% 실패** (NC 927K 합성) | 해결 |
 | UniProt ID 부재 | 26건 | **13,574건** (backfill 완료) | 해결 |
-| AlphaFold 403 | User-Agent 차단 | 헤더 추가로 해결 | 해결 |
+| AlphaFold 403 | User-Agent 차단 | 헤더 추가 → 12,748건 연결 | 해결 |
+| UniProt ID 부재 | 26건만 존재 | backfill 13,574건 (db_value 수정) | 해결 |
+| XSS 취약점 | dangerouslySetInnerHTML | React 엘리먼트 렌더링으로 수정 | 해결 |
 | Expression/Purification | 1건 | **75/23건** (논문 추출 진행 중) | 진행 중 |
 | precipitant 미구조화 | 98%+ NULL | Enrichment 진행 중 | 진행 중 |
 | pH/temp 이상치 | 각 3건 이하 | 무시 가능 | — |
