@@ -17,35 +17,53 @@ export async function GET(request: NextRequest) {
 
   const supabase = createServiceClient();
 
-  // 전체 데이터 fetch (서버 → DB 직접, 클라이언트 미경유)
-  const PAGE = 1000;
+  // outcome별 균등 샘플링 (시각적으로 5K~10K 포인트면 충분)
+  const OUTCOMES = ['clear', 'precipitate', 'phase_separation', 'microcrystal', 'single_crystal', 'diffraction_quality'];
+  const SAMPLE_PER_OUTCOME = 1000;
   let allData: any[] = [];
-  let offset = 0;
-  while (true) {
+
+  const pages = await Promise.all(
+    OUTCOMES.map(async (outcome) => {
+      let query = supabase
+        .from('kbsi_crystallization')
+        .select('ph, temperature, outcome, source_type')
+        .eq('outcome', outcome)
+        .not('ph', 'is', null)
+        .not('temperature', 'is', null)
+        .limit(SAMPLE_PER_OUTCOME);
+
+      if (sourceFilter === 'real') query = query.neq('source_type', 'synthetic');
+      if (sourceFilter === 'synthetic') query = query.eq('source_type', 'synthetic');
+
+      const { data } = await query;
+      return data || [];
+    })
+  );
+  allData = pages.flat();
+
+  // 전체 건수도 가져옴 (범례 표시용)
+  const countsPromises = OUTCOMES.map(async (outcome) => {
     let query = supabase
       .from('kbsi_crystallization')
-      .select('ph, temperature, outcome, source_type')
+      .select('id', { count: 'exact', head: true })
+      .eq('outcome', outcome)
       .not('ph', 'is', null)
-      .not('temperature', 'is', null)
-      .not('outcome', 'is', null)
-      .range(offset, offset + PAGE - 1);
-
+      .not('temperature', 'is', null);
     if (sourceFilter === 'real') query = query.neq('source_type', 'synthetic');
     if (sourceFilter === 'synthetic') query = query.eq('source_type', 'synthetic');
+    const { count } = await query;
+    return { outcome, count: count ?? 0 };
+  });
+  const totalCounts = await Promise.all(countsPromises);
+  const totalCountMap: Record<string, number> = {};
+  for (const { outcome, count } of totalCounts) totalCountMap[outcome] = count;
 
-    const { data } = await query;
-    if (!data || data.length === 0) break;
-    allData = allData.concat(data);
-    if (data.length < PAGE) break;
-    offset += PAGE;
-  }
-
-  const svg = generateScatterSVG(allData, width, height);
+  const svg = generateScatterSVG(allData, width, height, totalCountMap);
 
   return new Response(svg, {
     headers: {
       'Content-Type': 'image/svg+xml',
-      'Cache-Control': 'public, max-age=300, s-maxage=600',
+      'Cache-Control': 'public, max-age=600, s-maxage=1800',
     },
   });
 }
@@ -59,7 +77,7 @@ const OUTCOME_COLORS: Record<string, string> = {
   diffraction_quality: '#059669',
 };
 
-function generateScatterSVG(data: any[], width: number, height: number): string {
+function generateScatterSVG(data: any[], width: number, height: number, totalCountMap?: Record<string, number>): string {
   const margin = { top: 30, right: 30, bottom: 50, left: 60 };
   const plotW = width - margin.left - margin.right;
   const plotH = height - margin.top - margin.bottom;
@@ -124,12 +142,13 @@ function generateScatterSVG(data: any[], width: number, height: number): string 
   // 범례
   const legendX = margin.left + plotW - 180;
   const legendY = margin.top + 10;
-  svg += `<rect x="${legendX - 8}" y="${legendY - 5}" width="190" height="${Object.keys(OUTCOME_COLORS).length * 18 + 30}" rx="4" fill="white" stroke="#e5e7eb" stroke-width="1" opacity="0.95"/>`;
-  svg += `<text x="${legendX}" y="${legendY + 10}" font-size="11" font-weight="600" fill="#333">Total: ${data.length.toLocaleString()} points</text>`;
+  const totalAll = totalCountMap ? Object.values(totalCountMap).reduce((a, b) => a + b, 0) : data.length;
+  svg += `<rect x="${legendX - 8}" y="${legendY - 5}" width="210" height="${Object.keys(OUTCOME_COLORS).length * 18 + 30}" rx="4" fill="white" stroke="#e5e7eb" stroke-width="1" opacity="0.95"/>`;
+  svg += `<text x="${legendX}" y="${legendY + 10}" font-size="11" font-weight="600" fill="#333">Total: ${totalAll.toLocaleString()} (sample: ${data.length.toLocaleString()})</text>`;
 
   let ly = legendY + 28;
   for (const [outcome, color] of Object.entries(OUTCOME_COLORS)) {
-    const count = outcomeCounts[outcome] || 0;
+    const count = totalCountMap ? (totalCountMap[outcome] || 0) : (outcomeCounts[outcome] || 0);
     const label = outcome.replace(/_/g, ' ');
     svg += `<circle cx="${legendX + 5}" cy="${ly - 3}" r="4" fill="${color}"/>`;
     svg += `<text x="${legendX + 15}" y="${ly}" font-size="10" fill="#555">${label}: ${count.toLocaleString()}</text>`;
