@@ -9,7 +9,7 @@ import {
   LayoutDashboard,
   ClipboardCheck,
   Pill,
-  Database,
+  DatabaseZap,
   FileCode,
   BarChart3,
 } from 'lucide-react';
@@ -24,7 +24,7 @@ const NAV_ITEMS = [
   { href: '/experiments', labelKey: 'nav.experiments' as TranslationKey, icon: TestTubes },
   { href: '/ligands', labelKey: 'nav.ligands' as TranslationKey, icon: Pill },
   { href: '/staging', labelKey: 'nav.staging' as TranslationKey, icon: ClipboardCheck },
-  { href: '/pdb-import', labelKey: 'nav.pdb-import' as TranslationKey, icon: Database },
+  { href: '/pdb-import', labelKey: 'nav.data-management' as TranslationKey, icon: DatabaseZap },
   { href: '/benchmark', labelKey: 'nav.benchmark' as TranslationKey, icon: BarChart3 },
   { href: '/api-docs', labelKey: 'nav.api-docs' as TranslationKey, icon: FileCode },
 ] as const;

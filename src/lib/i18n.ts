@@ -103,6 +103,7 @@ const translations = {
   'nav.ligands': { ko: '리간드', en: 'Ligands', zh: '配体' },
   'nav.staging': { ko: 'Staging 검토', en: 'Staging Review', zh: '暂存审核' },
   'nav.pdb-import': { ko: 'PDB 가져오기', en: 'PDB Import', zh: 'PDB 导入' },
+  'nav.data-management': { ko: '데이터 관리', en: 'Data Management', zh: '数据管理' },
   'nav.benchmark': { ko: 'ML 벤치마크', en: 'ML Benchmark', zh: 'ML 基准测试' },
   'nav.api-docs': { ko: 'API 문서', en: 'API Docs', zh: 'API 文档' },
   'common.logout': { ko: '로그아웃', en: 'Logout', zh: '退出' },
