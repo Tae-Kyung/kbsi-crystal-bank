@@ -146,6 +146,21 @@ class KBSIClient:
         result = resp.json()
         return json.loads(result["result"]["content"][0]["text"])
 
+    # ─── Benchmark Dataset ───
+    def export_benchmark_dataset(self, format: str = "json", include_synthetic: bool = True,
+                                  limit: Optional[int] = None) -> Any:
+        """Export benchmark dataset for ML research (DOI-ready)"""
+        params: Dict = {"format": format}
+        if not include_synthetic:
+            params["include_synthetic"] = "false"
+        if limit:
+            params["limit"] = limit
+        if format == "csv":
+            resp = self.session.get(f"{self.base_url}/api/export/benchmark-dataset", params=params)
+            resp.raise_for_status()
+            return resp.text
+        return self._get("/api/export/benchmark-dataset", params)
+
     # ─── OpenAPI ───
     def get_openapi_spec(self) -> Dict:
         """Get OpenAPI 3.0 specification"""

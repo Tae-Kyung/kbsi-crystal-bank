@@ -1,0 +1,91 @@
+{
+  "title": "KBSI Protein Crystallization Bank: A Comprehensive Dataset of Crystallization Conditions and Outcomes Including Failure Data",
+  "description": "A large-scale dataset of protein crystallization conditions and experimental outcomes, uniquely including both successful and failed crystallization attempts. The dataset contains 1.16 million crystallization records covering 70,000+ proteins with structured condition parameters (pH, temperature, precipitant type/concentration, buffer, salt, additives) and ordinal outcome labels (clear, precipitate, phase_separation, microcrystal, single_crystal, diffraction_quality). This is the first publicly available dataset that systematically includes crystallization failure data for machine learning applications in structural biology.",
+  "creators": [
+    {
+      "name": "KBSI (Korea Basic Science Institute)",
+      "affiliation": "Korea Basic Science Institute",
+      "orcid": ""
+    }
+  ],
+  "keywords": [
+    "protein crystallization",
+    "structural biology",
+    "crystallization conditions",
+    "failure data",
+    "machine learning",
+    "drug discovery",
+    "SBDD",
+    "k-NN prediction",
+    "PDB",
+    "negative controls"
+  ],
+  "license": "CC-BY-4.0",
+  "version": "1.0.0",
+  "publication_date": "2026-10-05",
+  "resource_type": "Dataset",
+  "related_identifiers": [
+    {
+      "identifier": "https://kbsi-crystal-bank.vercel.app",
+      "relation": "isSupplementTo",
+      "resource_type": "Software"
+    },
+    {
+      "identifier": "https://github.com/Tae-Kyung/kbsi-crystal-bank",
+      "relation": "isSupplementTo",
+      "resource_type": "Software"
+    }
+  ],
+  "subjects": [
+    "Structural Biology",
+    "Protein Crystallography",
+    "Machine Learning",
+    "Drug Discovery"
+  ],
+  "dataset_statistics": {
+    "total_crystallization_records": 1161043,
+    "experimental_records": 234000,
+    "synthetic_negative_controls": 927000,
+    "proteins": 70023,
+    "constructs": 286580,
+    "structures": 286454,
+    "ligands": 6313,
+    "drug_target_bindings": 7942,
+    "data_sources": {
+      "RCSB_PDB_Xray": 226000,
+      "RCSB_PDB_CryoEM": 4430,
+      "RCSB_PDB_NMR": 2700,
+      "TargetTrack": 80,
+      "ChEMBL": 7942,
+      "KBSI_experimental": 3,
+      "Negative_Control_extreme": 602000,
+      "Negative_Control_realistic": 325000
+    },
+    "outcome_distribution": {
+      "diffraction_quality": "~20%",
+      "single_crystal": "<1%",
+      "microcrystal": "~3%",
+      "phase_separation": "~4%",
+      "precipitate": "~64%",
+      "clear": "~7%"
+    },
+    "benchmark_accuracy": {
+      "binary_classification": "91.9% (k-NN, k=3)",
+      "multiclass_exact_match": "88.2%",
+      "key_features": "pH (-25%), Temperature (-16.5%)"
+    }
+  },
+  "access": {
+    "api_endpoint": "https://kbsi-crystal-bank.vercel.app/api/export/benchmark-dataset",
+    "formats": ["JSON", "CSV"],
+    "mcp_endpoint": "https://kbsi-crystal-bank.vercel.app/api/mcp",
+    "swagger": "https://kbsi-crystal-bank.vercel.app/api-docs",
+    "python_sdk": "pip install kbsi-protein"
+  },
+  "methodology": {
+    "data_collection": "Automated harvesting from RCSB PDB (X-ray, Cryo-EM, NMR structures), TargetTrack crystallization protocols (LLM-parsed), and ChEMBL drug-target binding data.",
+    "negative_controls": "Synthetic failure conditions generated from successful crystallization records using 14 perturbation strategies: extreme pH (low/high), no/excess/low precipitant, high temperature, high salt, pH shift (±1-2), temperature shift (±8-15), combined pH+temp shift, near-success microcrystal, and phase separation zones.",
+    "condition_enrichment": "Free-text crystallization condition descriptions parsed to structured fields using GPT-4o-mini with JSON schema extraction.",
+    "source_tracking": "All records tagged with source_db (PDB, TargetTrack, ChEMBL, KBSI, synthetic) and source_id for full provenance."
+  }
+}

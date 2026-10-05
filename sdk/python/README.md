@@ -43,6 +43,11 @@ for r in results["results"]:
 csv_data = client.export_ml_dataset(format="csv", binary=True)
 with open("dataset.csv", "w") as f:
     f.write(csv_data)
+
+# Export benchmark dataset (DOI-ready)
+benchmark = client.export_benchmark_dataset(format="json", include_synthetic=False)
+print(f"Records: {benchmark['dataset']['total_records']}")
+print(f"Outcomes: {benchmark['dataset']['outcome_distribution']}")
 ```
 
 ## API Reference
