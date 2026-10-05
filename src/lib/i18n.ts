@@ -105,6 +105,7 @@ const translations = {
   'nav.pdb-import': { ko: 'PDB 가져오기', en: 'PDB Import', zh: 'PDB 导入' },
   'nav.data-management': { ko: '데이터 관리', en: 'Data Management', zh: '数据管理' },
   'nav.benchmark': { ko: 'ML 벤치마크', en: 'ML Benchmark', zh: 'ML 基准测试' },
+  'nav.quick-entry': { ko: '빠른 입력', en: 'Quick Entry', zh: '快速录入' },
   'nav.api-docs': { ko: 'API 문서', en: 'API Docs', zh: 'API 文档' },
   'common.logout': { ko: '로그아웃', en: 'Logout', zh: '退出' },
   'common.nodata': { ko: '데이터가 없습니다.', en: 'No data available.', zh: '暂无数据。' },
