@@ -174,7 +174,7 @@ export default async function LigandsPage({
   // === Ligands tab (default) ===
   let countQuery = supabase.from('kbsi_ligand').select('id', { count: 'exact', head: true }) as any;
   let dataQuery = supabase.from('kbsi_ligand')
-    .select('*, kbsi_construct_ligand(kbsi_construct(id, name, protein_id, kbsi_protein(id, abbreviation, full_name)))') as any;
+    .select('*, kbsi_construct_ligand(count)') as any;
 
   if (search) {
     countQuery = countQuery.or(`name.ilike.%${search}%,source_id.ilike.%${search}%`);
@@ -185,25 +185,42 @@ export default async function LigandsPage({
     dataQuery = dataQuery.lte('mw', mwMax);
   }
 
+  // protein filter: find ligand IDs through binding table
+  if (proteinFilter) {
+    const { data: matchedProteins } = await (supabase as any)
+      .from('kbsi_protein').select('id')
+      .or(`full_name.ilike.%${proteinFilter}%,abbreviation.ilike.%${proteinFilter}%,gene_name.ilike.%${proteinFilter}%`)
+      .limit(20);
+    if (matchedProteins && matchedProteins.length > 0) {
+      const pIds = matchedProteins.map((p: any) => p.id);
+      const { data: matchedConstructs } = await (supabase as any)
+        .from('kbsi_construct').select('id').in('protein_id', pIds).limit(500);
+      const cIds = (matchedConstructs || []).map((c: any) => c.id);
+      if (cIds.length > 0) {
+        const { data: matchedBindings } = await (supabase as any)
+          .from('kbsi_construct_ligand').select('ligand_id').in('construct_id', cIds.slice(0, 100)).limit(1000);
+        const lIds = [...new Set((matchedBindings || []).map((b: any) => b.ligand_id))];
+        if (lIds.length > 0) {
+          countQuery = countQuery.in('id', lIds.slice(0, 500));
+          dataQuery = dataQuery.in('id', lIds.slice(0, 500));
+        } else {
+          countQuery = countQuery.in('id', [-1]);
+          dataQuery = dataQuery.in('id', [-1]);
+        }
+      } else {
+        countQuery = countQuery.in('id', [-1]);
+        dataQuery = dataQuery.in('id', [-1]);
+      }
+    }
+  }
+
   const [{ count: filteredCount }, { data: ligands }] = await Promise.all([
     countQuery,
     dataQuery.order('created_at', { ascending: false }).range(offset, offset + limit - 1),
   ]);
 
   const totalPages = Math.ceil((filteredCount ?? 0) / limit);
-
-  // protein filter (client-side for ligands since it's through join)
-  let filteredLigands = ligands ?? [];
-  if (proteinFilter) {
-    const pf = proteinFilter.toLowerCase();
-    filteredLigands = filteredLigands.filter((l: any) => {
-      const bindings = l.kbsi_construct_ligand || [];
-      return bindings.some((b: any) => {
-        const p = b.kbsi_construct?.kbsi_protein;
-        return p && ((p.full_name || '').toLowerCase().includes(pf) || (p.abbreviation || '').toLowerCase().includes(pf));
-      });
-    });
-  }
+  const filteredLigands = ligands ?? [];
 
   return (
     <div className="space-y-4">
@@ -266,8 +283,8 @@ export default async function LigandsPage({
           <thead className="bg-muted/50">
             <tr>
               <th className="px-3 py-2 text-left font-medium">Name</th>
-              <th className="px-3 py-2 text-left font-medium">Target</th>
               <th className="px-3 py-2 text-left font-medium">MW</th>
+              <th className="px-3 py-2 text-left font-medium">Bindings</th>
               <th className="px-3 py-2 text-left font-medium">SMILES</th>
               <th className="px-3 py-2 text-left font-medium">Source</th>
               <th className="px-3 py-2 text-left font-medium">Links</th>
@@ -276,16 +293,14 @@ export default async function LigandsPage({
           <tbody className="divide-y">
             {filteredLigands.map((l: any) => {
               const lUrl = l.source_db === 'ChEMBL' && l.source_id ? `https://www.ebi.ac.uk/chembl/compound_report_card/${l.source_id}/` : l.source_db === 'PDB' && l.source_id ? `https://www.rcsb.org/ligand/${l.source_id}` : null;
-              const target = (l.kbsi_construct_ligand || []).find((b: any) => b.kbsi_construct?.kbsi_protein)?.kbsi_construct?.kbsi_protein;
+              const bindCount = l.kbsi_construct_ligand?.[0]?.count ?? 0;
               return (
                 <tr key={l.id} className="hover:bg-muted/30">
                   <td className="px-3 py-2 text-xs">
                     {lUrl ? <a href={lUrl} target="_blank" rel="noopener noreferrer" className="text-primary hover:underline font-medium">{l.name?.slice(0, 30)}</a> : <span className="font-medium">{l.name?.slice(0, 30)}</span>}
                   </td>
-                  <td className="px-3 py-2 text-xs">
-                    {target ? <Link href={`/proteins/${target.id}`} className="text-primary hover:underline">{target.abbreviation || target.full_name?.slice(0, 15)}</Link> : '-'}
-                  </td>
                   <td className="px-3 py-2 text-xs">{l.mw ? l.mw.toFixed(0) : '-'}</td>
+                  <td className="px-3 py-2 text-xs">{bindCount > 0 ? <Badge variant="secondary" className="text-[10px]">{bindCount}</Badge> : '-'}</td>
                   <td className="px-3 py-2 text-xs font-mono max-w-[200px] truncate" title={l.smiles || ''}>{l.smiles ? (l.smiles.length > 30 ? l.smiles.slice(0, 30) + '...' : l.smiles) : '-'}</td>
                   <td className="px-3 py-2 text-xs">{l.source_db ? <Badge variant="outline" className="text-[10px]">{l.source_db}</Badge> : '-'}</td>
                   <td className="px-3 py-2 text-xs">
