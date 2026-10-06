@@ -361,6 +361,54 @@ Outcome 분포: precipitate 63.8%, diffraction_quality 22.9%, clear 6.7%, phase_
 - 데이터 존재 여부를 한눈에 파악 (파이프라인 전 단계)
 - 대규모 DB를 효율적으로 브라우징
 
+### F15-1. 유사 단백질 추천 엔진 (핵심 기능)
+
+트리 네비게이션에서 단백질을 선택하면, 유사한 단백질의 성공/실패 사례를 자동 분석하여 최적 실험 조건을 추천합니다.
+
+**시나리오 1: "내 단백질과 비슷한 성공 사례 찾기"**
+```
+입력: 내 단백질 (KRAS, kinase, 45kDa, Homo sapiens)
+출력:
+  "유사 단백질 200개 분석 결과:
+   - PEG 3350 + pH 7.0 + 18°C 에서 62% 성공 (124/200)
+   - Ammonium Sulfate + pH 6.5 에서 41% 성공 (82/200)
+   - 추천 1순위: PEG 3350 20%, 0.1M Bis-Tris pH 7.0, 18°C
+   - 추천 2순위: (NH4)2SO4 2M, 0.1M HEPES pH 7.5, 20°C"
+```
+
+**시나리오 2: "실패 패턴 분석"**
+```
+입력: 내 단백질의 실패 데이터 50건
+출력:
+  "실패 패턴 분석:
+   - pH 8 이상: 100% 침전 (25/25건)
+   - PEG 4000: 80% 실패 (16/20건)
+   - 20°C 이상: 70% 실패
+   → pH 6-7, PEG 3350, 18°C를 먼저 시도하세요"
+```
+
+**시나리오 3: "Construct 설계 비교"**
+```
+입력: 같은 단백질의 Construct 3개
+출력:
+  "Construct 비교:
+   - Full-length: insoluble (발현 실패)
+   - 1-169 truncation: 15mg/L, 결정화 200건 중 15건 성공
+   - G12D mutant: 10mg/L, 결정화 100건 중 20건 성공 (최고)
+   → G12D mutant 1-169 truncation 추천"
+```
+
+**매칭 알고리즘:**
+- Level 1: 서열 유사도 (k-mer Jaccard, 기존 구현)
+- Level 2: 도메인 유사도 (InterPro/Pfam — F17)
+- Level 3: 물리화학 유사도 (MW, pI, hydrophobicity)
+- Level 4: 생물종 가중치 (같은 종 > 유사 종)
+
+**기대 효과:**
+- 연구자의 결정화 시행착오를 **50% 이상 감소**
+- 세계 유일: 실패 데이터 기반 "하지 말아야 할 조건" 추천
+- 논문에서 찾을 수 없는 실패 패턴의 체계적 분석
+
 ### F16. 아미노산 조성 기반 Feature Engineering
 - seq_final → hydrophobic %, charged %, aromatic % 자동 계산
 - IUPred disorder 예측, Kyte-Doolittle surface hydrophobicity
