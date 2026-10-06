@@ -1,4 +1,4 @@
-import { createClient } from '@/lib/supabase/server';
+import { createServiceClient } from '@/lib/supabase/service';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Dna, FlaskConical, Gem, TestTubes, Pill, ClipboardCheck, Beaker, Link2, Microscope, Radiation } from 'lucide-react';
@@ -13,7 +13,7 @@ import Link from 'next/link';
 export const revalidate = 60;
 
 export default async function DashboardPage() {
-  const supabase = await createClient();
+  const supabase = createServiceClient();
 
   const OUTCOMES = ['clear', 'precipitate', 'phase_separation', 'microcrystal', 'single_crystal', 'diffraction_quality'] as const;
   const SOURCE_DBS = ['PDB', 'TargetTrack', 'ChEMBL', 'KBSI', 'synthetic'] as const;
