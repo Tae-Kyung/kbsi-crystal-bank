@@ -13,6 +13,7 @@ import {
   FileCode,
   BarChart3,
   PenLine,
+  Sparkles,
 } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { useLocale } from '@/lib/locale-context';
@@ -23,6 +24,7 @@ const NAV_GROUPS = [
     label: 'Research',
     items: [
       { href: '/dashboard', labelKey: 'nav.dashboard' as TranslationKey, icon: LayoutDashboard },
+      { href: '/copilot', labelKey: 'nav.copilot' as TranslationKey, icon: Sparkles },
       { href: '/quick-entry', labelKey: 'nav.quick-entry' as TranslationKey, icon: PenLine },
       { href: '/proteins', labelKey: 'nav.proteins' as TranslationKey, icon: Dna },
       { href: '/constructs', labelKey: 'nav.constructs' as TranslationKey, icon: FlaskConical },
