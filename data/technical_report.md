@@ -677,6 +677,126 @@ UniProt accession → AlphaFold API
 
 모든 스크립트는 `--limit`, `--offset`, `--dry-run` 옵션을 지원하며, 중복 방지 로직(upsert 또는 existing check)이 내장되어 있습니다.
 
+### 5.13 데이터 정제 파이프라인
+
+수집된 데이터는 그대로 사용하지 않고, 6단계 정제 과정을 거칩니다.
+
+#### 5.13.1 Protein 중복 병합 (Deduplication)
+
+PDB entry 단위로 수집하면 같은 단백질이 여러 행으로 생성됩니다. 예: KRAS (Homo sapiens)가 540개 PDB entry에서 540개 protein 행으로 중복.
+
+```
+병합 전: 70,023 proteins (중복 포함)
+병합 후: ~59,000 proteins (고유)
+
+기준: full_name + organism (lowercase, trim)
+대표: 가장 작은 ID (oldest) 유지
+처리: construct.protein_id, database_id.protein_id 재지정 → 빈 protein 삭제
+```
+
+**안전 조치:**
+- organism이 NULL인 그룹은 병합하지 않음 (다른 종일 수 있음) — 208 그룹 스킵
+- full_name이 3글자 이하면 병합하지 않음 — 7 그룹 스킵
+- 에러율 0% (실험 데이터는 construct 기반이라 영향 없음)
+
+**스크립트**: `dedupe-proteins.ts`
+
+#### 5.13.2 메타데이터 보강 (Backfill)
+
+PDB sweep 시 수집하지 못한 메타데이터를 PDB API에서 추가 수집합니다:
+
+| 대상 | 필드 | 소스 | 스크립트 |
+|------|------|------|---------|
+| **Protein** | gene_name, abbreviation | PDB polymer_entity `rcsb_gene_name`, `pdbx_description` | `backfill-protein-metadata.ts` |
+| **Construct** | expression_system | PDB `entity_src_gen.pdbx_host_org_scientific_name` | 위와 동일 |
+| **Construct** | theoretical_mw, theoretical_pi | seq_final → 아미노산 잔기 무게 합산 + Henderson-Hasselbalch pI | `backfill-theoretical-mw.ts` |
+| **Construct** | seq_hash | seq_final → MD5 hash (중복 서열 탐지용) | `backfill-seq-hash.ts` |
+| **Structure** | performed_on (날짜) | PDB `rcsb_accession_info.deposit_date` | `backfill-structure-metadata.ts` |
+| **Structure** | emdb_id | PDB `pdbx_database_related` (Cryo-EM) | 위와 동일 |
+| **Structure** | reference_id | PDB primary citation → kbsi_reference 등록 + 연결 | `backfill-references.ts` |
+| **Diffraction** | space_group | PDB `symmetry.space_group_name_H_M` (초기 버그 수정) | `backfill-space-group.ts` |
+| **Database ID** | PDB ID | kbsi_structure.pdb_id → kbsi_database_id 등록 | `backfill-pdb-database-ids.ts` |
+| **Database ID** | NCBI Gene ID | PDB polymer_entity → reference_sequence_identifiers | 위와 동일 |
+| **Database ID** | UniProt | PDB polymer_entity → UniProt accession | `backfill-uniprot-ids.ts` |
+| **Database ID** | AlphaFold | UniProt → AlphaFold API | `harvest-alphafold.ts` |
+
+**원칙**: 기존 값이 있는 필드는 덮어쓰지 않음 (`WHERE field IS NULL` 조건).
+
+#### 5.13.3 Condition Enrichment (결정화 조건 구조화)
+
+PDB의 `condition_detail` 자유 텍스트를 GPT-4o-mini로 파싱하여 구조화 필드로 변환합니다:
+
+```
+입력: "20% PEG 3350, 0.1 M Bis-Tris pH 6.5, 0.2 M ammonium acetate"
+출력 (기존 행 UPDATE):
+  precipitant_type: PEG 3350    precipitant_conc: 20    precipitant_unit: %
+  buffer_type: Bis-Tris         salt_type: ammonium acetate    salt_conc: 200 (mM)
+```
+
+- **INSERT가 아니라 UPDATE** — 기존 행의 NULL 필드만 채움
+- 현재 ~175K / 234K (75%) 구조화 완료, 100% 목표
+- 구조화 후 "PEG 3350 조건 검색"이 가능해짐 (PDB에서는 불가)
+
+**스크립트**: `bulk-enrich-conditions.ts`
+
+#### 5.13.4 데이터 품질 검증
+
+수집/정제 후 자동 검증 항목:
+
+| 검증 항목 | 방법 | 도구 |
+|-----------|------|------|
+| 필드 커버리지 | NULL 비율 확인 (pH 99%, temp 94% 등) | `ops-harness.ts quality` |
+| outcome 분포 | 성공/실패 비율 확인, 합성 데이터 분리 | Dashboard Outcome Distribution |
+| source 분포 | PDB/ChEMBL/PubMed 등 소스별 건수 | Dashboard Source Distribution |
+| 중복 체크 | seq_hash 기반 서열 중복 탐지 | `backfill-seq-hash.ts` |
+| LLM 추출 정확도 | 샘플링 후 수동 검토 (staging 테이블) | `/staging` 페이지 |
+| 외부 ID 발견율 | UniProt 88.5%, AlphaFold 93.7% | DB 쿼리 |
+
+#### 5.13.5 재시작 안전성 (Checkpoint)
+
+모든 수집/정제 스크립트는 **중단 후 재시작이 안전**합니다:
+
+| 스크립트 유형 | 중복 방지 방식 |
+|-------------|-------------|
+| INSERT 스크립트 | `existingSet` 사전 로드 또는 `source_db+source_id` 체크 |
+| UPDATE 스크립트 | `WHERE field IS NULL` 조건 (이미 채워진 행 스킵) |
+| upsert 스크립트 | `onConflict` 옵션 (unique constraint 기반) |
+| Dedupe 스크립트 | 이미 삭제된 protein은 FK 오류로 자연 스킵 |
+
+컴퓨터가 꺼져도 같은 명령어로 재실행하면 이미 처리된 건은 자동 스킵되고 미처리 건부터 이어서 진행됩니다.
+
+### 5.14 수집/정제 스크립트 전체 일람 (22개)
+
+| # | 스크립트 | 유형 | 대상 | API |
+|---|---------|------|------|-----|
+| 1 | `bulk-pdb-sweep.ts` | 수집 | protein, construct, cryst, structure | RCSB PDB |
+| 2 | `pdb-sweep-method.ts` | 수집 | 위와 동일 (Cryo-EM, NMR) | RCSB PDB |
+| 3 | `bulk-targettrack.ts` | 수집 | protein, construct, cryst | TargetTrack |
+| 4 | `harvest-chembl.ts` | 수집 | ligand, binding (20 타겟) | ChEMBL |
+| 5 | `harvest-chembl-expanded.ts` | 수집 | ligand, binding (전체 gene) | ChEMBL |
+| 6 | `harvest-pdb-ligands.ts` | 수집 | ligand, binding (HET) | RCSB PDB |
+| 7 | `harvest-diffraction-from-pdb.ts` | 수집 | diffraction | RCSB PDB |
+| 8 | `harvest-papers.ts` | 수집 | expression, purification | PMC + GPT-4o-mini |
+| 9 | `harvest-papers-extended.ts` | 수집 | expr, purif, char, diffr | PMC + GPT-4o-mini |
+| 10 | `harvest-alphafold.ts` | 수집 | database_id (AlphaFold) | AlphaFold API |
+| 11 | `bulk-enrich-conditions.ts` | 정제 | crystallization (UPDATE) | GPT-4o-mini |
+| 12 | `bulk-negative-controls.ts` | 합성 | crystallization (극단 NC) | 내부 |
+| 13 | `realistic-negative-controls.ts` | 합성 | crystallization (현실 NC) | 내부 |
+| 14 | `dedupe-proteins.ts` | 정제 | protein (중복 병합) | 없음 |
+| 15 | `backfill-protein-metadata.ts` | 정제 | protein gene/abbr, construct expr_sys | RCSB PDB |
+| 16 | `backfill-theoretical-mw.ts` | 정제 | construct MW/pI | 없음 (계산) |
+| 17 | `backfill-seq-hash.ts` | 정제 | construct seq_hash | 없음 (MD5) |
+| 18 | `backfill-uniprot-ids.ts` | 정제 | database_id (UniProt) | RCSB PDB |
+| 19 | `backfill-space-group.ts` | 정제 | diffraction space_group | RCSB PDB |
+| 20 | `backfill-structure-metadata.ts` | 정제 | structure date/EMDB | RCSB PDB |
+| 21 | `backfill-references.ts` | 정제 | reference + structure 연결 | RCSB PDB |
+| 22 | `backfill-pdb-database-ids.ts` | 정제 | database_id (PDB/NCBI Gene) | RCSB PDB |
+
+**운영 도구** (별도):
+- `ops-harness.ts` — 상태/헬스/품질/보고서/유지보수
+- `verify.ts` — 데이터 검증
+- `benchmark.ts` — ML 벤치마크
+
 ---
 
 ## 6. AI/ML 예측 시스템
@@ -746,7 +866,7 @@ features = [
 3. Name: "KBSI ProteinDB"
 4. 새 대화에서 바로 사용
 
-### 7.2 MCP 도구 (12개)
+### 7.2 MCP 도구 (15개)
 
 | # | 도구 | 설명 |
 |---|------|------|
@@ -981,24 +1101,36 @@ npm run ops:report        # 종합 보고서
 npm run ops:maintenance   # source_db 정리 + precipitant 정규화
 ```
 
-### 12.2 데이터 수집 스크립트 (14개)
+### 12.2 데이터 수집/정제 스크립트 (22개)
+
+5.14절의 전체 스크립트 일람 참조. 주요 운영 명령:
 
 ```bash
-npm run harvest:pdb       # PDB 카테고리별 수집 (22개)
-npm run harvest:targettrack  # TargetTrack 프로토콜
-npm run harvest:enrich    # Condition Enrichment
+# 수집 (신규 데이터)
+npx tsx scripts/bulk-pdb-sweep.ts --offset 0 --limit 50000
+npx tsx scripts/harvest-papers-extended.ts --limit 50000 --offset 0
+npx tsx scripts/harvest-pdb-ligands.ts --limit 50000
+npx tsx scripts/harvest-diffraction-from-pdb.ts --limit 286000
+npx tsx scripts/harvest-chembl-expanded.ts
 
-# 추가 스크립트 (npx tsx scripts/...)
-bulk-pdb-sweep.ts         # PDB 전체 sweep
-pdb-sweep-method.ts       # Cryo-EM, NMR 수집
-harvest-chembl.ts         # ChEMBL 바인딩
-harvest-papers.ts         # 논문 Expression/Purification 추출
-harvest-alphafold.ts      # AlphaFold 연결
-backfill-uniprot-ids.ts   # UniProt ID backfill
-bulk-negative-controls.ts # 극단 NC 합성
-realistic-negative-controls.ts  # 현실적 NC 합성
-benchmark-prediction.ts   # k-NN 벤치마크
+# 정제 (기존 데이터 보강)
+npx tsx scripts/bulk-enrich-conditions.ts --limit 93000
+npx tsx scripts/dedupe-proteins.ts
+npx tsx scripts/backfill-protein-metadata.ts --limit 70000
+npx tsx scripts/backfill-theoretical-mw.ts
+npx tsx scripts/backfill-seq-hash.ts
+npx tsx scripts/backfill-structure-metadata.ts --limit 286000
+npx tsx scripts/backfill-references.ts --limit 286000
+npx tsx scripts/backfill-space-group.ts
+npx tsx scripts/backfill-pdb-database-ids.ts --limit 286000
+npx tsx scripts/backfill-uniprot-ids.ts --limit 286000
+
+# 합성 (ML 학습용)
+npx tsx scripts/bulk-negative-controls.ts
+npx tsx scripts/realistic-negative-controls.ts
 ```
+
+모든 스크립트는 `--dry-run`으로 사전 검증, 중단 후 재실행 안전.
 
 ### 12.3 Python SDK
 
