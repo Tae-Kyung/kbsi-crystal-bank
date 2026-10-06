@@ -51,7 +51,7 @@ export default function HomePage() {
             <span className="text-blue-200">{t('hero.title2', locale)}</span>
           </h1>
           <p className="mx-auto mt-6 max-w-2xl text-lg text-blue-100 md:text-xl leading-relaxed">
-            전 세계 최초로 결정화 실패 데이터를 체계적으로 축적 — 116만건 데이터 기반 91.9% 예측 정확도
+            {t('hero.subtitle', locale)}
           </p>
           <div className="mt-10 flex flex-col items-center gap-4 sm:flex-row sm:justify-center">
             <Link href="/login">
@@ -94,17 +94,17 @@ export default function HomePage() {
           <div className="grid md:grid-cols-2 gap-8 items-center">
             <div>
               <h2 className="text-2xl font-bold text-gray-900 dark:text-white md:text-3xl">
-                AI 챗봇으로 데이터 탐색
+                {t('landing.ai.title', locale)}
               </h2>
               <p className="mt-4 text-gray-600 dark:text-gray-400 leading-relaxed">
-                자연어로 질문하면 AI가 116만건의 결정화 데이터를 분석하여 조건 추천, 성공 확률 예측, 유사 단백질 검색을 수행합니다.
+                {t('landing.ai.desc', locale)}
               </p>
               <div className="mt-6 flex gap-3">
                 <Link href="/dashboard">
-                  <Button className="bg-blue-600 hover:bg-blue-700">AI Assistant 사용해보기</Button>
+                  <Button className="bg-blue-600 hover:bg-blue-700">{t('landing.ai.try', locale)}</Button>
                 </Link>
                 <Link href="/api-docs">
-                  <Button variant="outline">API 문서 보기</Button>
+                  <Button variant="outline">{t('landing.ai.docs', locale)}</Button>
                 </Link>
               </div>
             </div>
@@ -163,10 +163,10 @@ export default function HomePage() {
       <section id="data-story" className="py-16 bg-gray-50 dark:bg-gray-900">
         <div className="mx-auto max-w-5xl px-6">
           <h2 className="text-center text-2xl font-bold text-gray-900 dark:text-white md:text-3xl">
-            데이터의 여정 — 단백질에서 신약까지
+            {t('landing.datastory.title', locale)}
           </h2>
           <p className="mx-auto mt-3 max-w-2xl text-center text-gray-500 dark:text-gray-400">
-            단백질 구조 연구의 전 과정이 하나의 데이터베이스에서 어떻게 연결되는지 알아보세요
+            {t('landing.datastory.desc', locale)}
           </p>
           <div className="mt-10">
             <DataStory />
@@ -199,26 +199,34 @@ export default function HomePage() {
       <section id="compare" className="py-16 bg-white dark:bg-gray-950">
         <div className="mx-auto max-w-5xl px-6">
           <h2 className="text-center text-2xl font-bold text-gray-900 dark:text-white md:text-3xl">
-            기존 DB와의 차별점
+            {t('landing.compare.title', locale)}
           </h2>
           <p className="mx-auto mt-3 max-w-xl text-center text-gray-500 dark:text-gray-400">
-            PDB는 성공한 구조만 저장합니다. KBSI 결정화은행은 다릅니다.
+            {t('landing.compare.desc', locale)}
           </p>
           <div className="mt-10 overflow-hidden rounded-xl border">
             <table className="w-full text-sm">
               <thead className="bg-gray-50 dark:bg-gray-800">
                 <tr>
-                  <th className="px-6 py-3 text-left font-medium text-gray-500">항목</th>
+                  <th className="px-6 py-3 text-left font-medium text-gray-500">{t('landing.compare.item', locale)}</th>
                   <th className="px-6 py-3 text-left font-medium text-gray-500">PDB</th>
-                  <th className="px-6 py-3 text-left font-medium text-blue-600">KBSI 결정화은행</th>
+                  <th className="px-6 py-3 text-left font-medium text-blue-600">KBSI</th>
                 </tr>
               </thead>
               <tbody className="divide-y">
-                <tr><td className="px-6 py-3 text-gray-700 dark:text-gray-300">실패 데이터</td><td className="px-6 py-3 text-gray-400">없음</td><td className="px-6 py-3 font-medium text-blue-700 dark:text-blue-300">927K건 체계적 축적</td></tr>
-                <tr><td className="px-6 py-3 text-gray-700 dark:text-gray-300">AI 예측</td><td className="px-6 py-3 text-gray-400">불가</td><td className="px-6 py-3 font-medium text-blue-700 dark:text-blue-300">91.9% 정확도 (k-NN)</td></tr>
-                <tr><td className="px-6 py-3 text-gray-700 dark:text-gray-300">자연어 검색</td><td className="px-6 py-3 text-gray-400">없음</td><td className="px-6 py-3 font-medium text-blue-700 dark:text-blue-300">MCP + AI 챗봇</td></tr>
-                <tr><td className="px-6 py-3 text-gray-700 dark:text-gray-300">약물 바인딩</td><td className="px-6 py-3 text-gray-400">별도 DB</td><td className="px-6 py-3 font-medium text-blue-700 dark:text-blue-300">7,942건 통합 조회</td></tr>
-                <tr><td className="px-6 py-3 text-gray-700 dark:text-gray-300">외부 DB 연동</td><td className="px-6 py-3 text-gray-400">PDB만</td><td className="px-6 py-3 font-medium text-blue-700 dark:text-blue-300">12개 DB 원클릭 연결</td></tr>
+                {([
+                  ['failure', 'failure.pdb', 'failure.kbsi'],
+                  ['ai', 'ai.pdb', 'ai.kbsi'],
+                  ['nlp', 'nlp.pdb', 'nlp.kbsi'],
+                  ['drug', 'drug.pdb', 'drug.kbsi'],
+                  ['ext', 'ext.pdb', 'ext.kbsi'],
+                ] as const).map(([item, pdb, kbsi]) => (
+                  <tr key={item}>
+                    <td className="px-6 py-3 text-gray-700 dark:text-gray-300">{t(`landing.compare.${item}` as any, locale)}</td>
+                    <td className="px-6 py-3 text-gray-400">{t(`landing.compare.${pdb}` as any, locale)}</td>
+                    <td className="px-6 py-3 font-medium text-blue-700 dark:text-blue-300">{t(`landing.compare.${kbsi}` as any, locale)}</td>
+                  </tr>
+                ))}
               </tbody>
             </table>
           </div>
@@ -228,7 +236,7 @@ export default function HomePage() {
       {/* External DB Integration */}
       <section className="py-12 bg-gray-50 dark:bg-gray-900">
         <div className="mx-auto max-w-5xl px-6 text-center">
-          <h3 className="text-lg font-bold text-gray-900 dark:text-white">12개 외부 데이터베이스 연동</h3>
+          <h3 className="text-lg font-bold text-gray-900 dark:text-white">{t('landing.extdb', locale)}</h3>
           <div className="mt-6 flex flex-wrap justify-center gap-4">
             {['RCSB PDB', 'UniProt', 'AlphaFold', 'NCBI Gene', 'PubMed', 'ChEMBL', 'PubChem', 'InterPro', 'STRING', 'EMDB', 'BMRB', 'TargetTrack'].map(db => (
               <span key={db} className="rounded-full border bg-white dark:bg-gray-800 px-4 py-2 text-sm font-medium text-gray-700 dark:text-gray-300">{db}</span>
@@ -244,7 +252,7 @@ export default function HomePage() {
             {t('tutorial.title', locale)}
           </h2>
           <p className="mx-auto mt-3 max-w-2xl text-center text-gray-500 dark:text-gray-400">
-            실제 데이터 기반 8가지 활용 시나리오 — PDB Import, 실험 기록, AI 예측, 논문 추출, 챗봇, MCP 연동까지
+            {t('landing.scenarios.desc', locale)}
           </p>
           <div className="mt-12">
             <UseCaseScenarios />

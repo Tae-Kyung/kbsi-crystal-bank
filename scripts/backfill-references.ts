@@ -95,7 +95,7 @@ async function main() {
             .limit(1)
             .maybeSingle();
           if (existing) {
-            refId = existing.id;
+            refId = existing.id as number;
             doiCache.set(doi, refId);
           }
         }
@@ -113,7 +113,7 @@ async function main() {
             await sleep(200);
             continue;
           }
-          refId = inserted.id;
+          refId = inserted.id as number;
           if (doi) doiCache.set(doi, refId);
           created++;
         }

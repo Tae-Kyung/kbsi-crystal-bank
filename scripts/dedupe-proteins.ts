@@ -111,23 +111,21 @@ async function main() {
     for (const dupeId of group.duplicates) {
       if (!dryRun) {
         // construct 재지정
-        const { count: cCount, error: cErr } = await supabase
+        const { error: cErr } = await supabase
           .from('kbsi_construct')
           .update({ protein_id: group.canonical })
-          .eq('protein_id', dupeId)
-          .select('id', { count: 'exact', head: true });
+          .eq('protein_id', dupeId);
 
         if (cErr) { errors++; continue; }
-        constructsUpdated += cCount ?? 0;
+        constructsUpdated++;
 
         // database_id 재지정
-        const { count: dCount, error: dErr } = await supabase
+        const { error: dErr } = await supabase
           .from('kbsi_database_id')
           .update({ protein_id: group.canonical })
-          .eq('protein_id', dupeId)
-          .select('id', { count: 'exact', head: true });
+          .eq('protein_id', dupeId);
 
-        if (!dErr) dbIdsUpdated += dCount ?? 0;
+        if (!dErr) dbIdsUpdated++;
 
         // 중복 protein 삭제
         const { error: delErr } = await supabase

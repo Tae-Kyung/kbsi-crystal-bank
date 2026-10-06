@@ -95,6 +95,65 @@ const translations = {
   'footer.org': { ko: 'KBSI 한국기초과학지원연구원', en: 'KBSI Korea Basic Science Institute', zh: 'KBSI 韩国基础科学支援研究院' },
   'footer.desc': { ko: '단백질 결정화은행 기반 신약개발 AI 데이터 허브', en: 'Protein Crystallization Bank AI Data Hub for Drug Discovery', zh: '基于蛋白质结晶银行的新药研发AI数据中心' },
 
+  // Landing — hero subtitle
+  'hero.subtitle': {
+    ko: '전 세계 최초로 결정화 실패 데이터를 체계적으로 축적 — 116만건 데이터 기반 91.9% 예측 정확도',
+    en: 'The world\'s first systematic collection of crystallization failure data — 91.9% prediction accuracy based on 1.16M records',
+    zh: '全球首创系统性积累结晶失败数据 — 基于116万条数据的91.9%预测准确率',
+  },
+
+  // Landing — AI chatbot section
+  'landing.ai.title': { ko: 'AI 챗봇으로 데이터 탐색', en: 'Explore Data with AI Chatbot', zh: '用AI聊天机器人探索数据' },
+  'landing.ai.desc': {
+    ko: '자연어로 질문하면 AI가 116만건의 결정화 데이터를 분석하여 조건 추천, 성공 확률 예측, 유사 단백질 검색을 수행합니다.',
+    en: 'Ask in natural language and AI analyzes 1.16M crystallization records to recommend conditions, predict success probability, and search similar proteins.',
+    zh: '用自然语言提问，AI分析116万条结晶数据，推荐条件、预测成功概率、搜索相似蛋白质。',
+  },
+  'landing.ai.try': { ko: 'AI Assistant 사용해보기', en: 'Try AI Assistant', zh: '试用AI助手' },
+  'landing.ai.docs': { ko: 'API 문서 보기', en: 'View API Docs', zh: '查看API文档' },
+
+  // Landing — data story
+  'landing.datastory.title': { ko: '데이터의 여정 — 단백질에서 신약까지', en: 'Data Journey — From Protein to Drug', zh: '数据之旅 — 从蛋白质到新药' },
+  'landing.datastory.desc': {
+    ko: '단백질 구조 연구의 전 과정이 하나의 데이터베이스에서 어떻게 연결되는지 알아보세요',
+    en: 'Discover how the entire protein structure research process connects in one database',
+    zh: '了解蛋白质结构研究的全过程如何在一个数据库中连接',
+  },
+
+  // Landing — comparison
+  'landing.compare.title': { ko: '기존 DB와의 차별점', en: 'What Makes Us Different', zh: '与现有数据库的差异' },
+  'landing.compare.desc': {
+    ko: 'PDB는 성공한 구조만 저장합니다. KBSI 결정화은행은 다릅니다.',
+    en: 'PDB only stores successful structures. KBSI Crystallization Bank is different.',
+    zh: 'PDB只存储成功的结构。KBSI结晶银行不同。',
+  },
+  'landing.compare.item': { ko: '항목', en: 'Item', zh: '项目' },
+  'landing.compare.failure': { ko: '실패 데이터', en: 'Failure Data', zh: '失败数据' },
+  'landing.compare.failure.pdb': { ko: '없음', en: 'None', zh: '无' },
+  'landing.compare.failure.kbsi': { ko: '927K건 체계적 축적', en: '927K systematic records', zh: '927K条系统积累' },
+  'landing.compare.ai': { ko: 'AI 예측', en: 'AI Prediction', zh: 'AI预测' },
+  'landing.compare.ai.pdb': { ko: '불가', en: 'Not available', zh: '不可用' },
+  'landing.compare.ai.kbsi': { ko: '91.9% 정확도 (k-NN)', en: '91.9% accuracy (k-NN)', zh: '91.9%准确率 (k-NN)' },
+  'landing.compare.nlp': { ko: '자연어 검색', en: 'Natural Language Search', zh: '自然语言搜索' },
+  'landing.compare.nlp.pdb': { ko: '없음', en: 'None', zh: '无' },
+  'landing.compare.nlp.kbsi': { ko: 'MCP + AI 챗봇', en: 'MCP + AI Chatbot', zh: 'MCP + AI聊天机器人' },
+  'landing.compare.drug': { ko: '약물 바인딩', en: 'Drug Binding', zh: '药物结合' },
+  'landing.compare.drug.pdb': { ko: '별도 DB', en: 'Separate DB', zh: '独立数据库' },
+  'landing.compare.drug.kbsi': { ko: '55K건 통합 조회', en: '55K integrated records', zh: '55K条综合查询' },
+  'landing.compare.ext': { ko: '외부 DB 연동', en: 'External DB', zh: '外部数据库' },
+  'landing.compare.ext.pdb': { ko: 'PDB만', en: 'PDB only', zh: '仅PDB' },
+  'landing.compare.ext.kbsi': { ko: '12개 DB 원클릭 연결', en: '12 DBs one-click', zh: '12个数据库一键连接' },
+
+  // Landing — external DB
+  'landing.extdb': { ko: '12개 외부 데이터베이스 연동', en: '12 External Database Integrations', zh: '12个外部数据库对接' },
+
+  // Landing — scenarios
+  'landing.scenarios.desc': {
+    ko: '실제 데이터 기반 8가지 활용 시나리오 — PDB Import, 실험 기록, AI 예측, 논문 추출, 챗봇, MCP 연동까지',
+    en: '8 real data-based scenarios — PDB Import, experiment logging, AI prediction, paper extraction, chatbot, MCP integration',
+    zh: '基于实际数据的8种应用场景 — PDB导入、实验记录、AI预测、论文提取、聊天机器人、MCP集成',
+  },
+
   // Dashboard / common
   'nav.dashboard': { ko: '대시보드', en: 'Dashboard', zh: '仪表板' },
   'nav.proteins': { ko: '단백질', en: 'Proteins', zh: '蛋白质' },
