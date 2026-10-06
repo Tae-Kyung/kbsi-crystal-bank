@@ -9,8 +9,8 @@ import { DataInsights } from '@/components/charts/data-insights';
 import { PipelineSankey } from '@/components/charts/pipeline-sankey';
 import Link from 'next/link';
 
-// ISR: 60초마다 재생성
-export const revalidate = 60;
+// RPC로 최적화되어 매 요청 fresh 데이터 (ISR 캐시 제거)
+export const dynamic = 'force-dynamic';
 
 export default async function DashboardPage() {
   const supabase = createServiceClient();
