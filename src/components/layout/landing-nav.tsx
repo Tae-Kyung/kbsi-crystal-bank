@@ -3,8 +3,9 @@
 import { useState, useEffect } from 'react';
 import Link from 'next/link';
 import { Button } from '@/components/ui/button';
-import { Moon, Sun, Globe, Menu, X } from 'lucide-react';
+import { Moon, Sun, Globe, Menu, X, LayoutDashboard } from 'lucide-react';
 import { type Locale, LOCALE_LABELS, getLocaleFromStorage } from '@/lib/i18n';
+import { createClient } from '@/lib/supabase/client';
 
 const NAV_LINKS = [
   { href: '#data-story', label: 'Data Journey' },
@@ -17,9 +18,15 @@ const NAV_LINKS = [
 export function LandingNav({ onLocaleChange }: { onLocaleChange?: (locale: Locale) => void }) {
   const [locale, setLocale] = useState<Locale>('ko');
   const [mobileOpen, setMobileOpen] = useState(false);
+  const [isLoggedIn, setIsLoggedIn] = useState(false);
 
   useEffect(() => {
     setLocale(getLocaleFromStorage());
+    // Check auth status
+    const supabase = createClient();
+    supabase.auth.getUser().then(({ data }) => {
+      setIsLoggedIn(!!data.user);
+    });
   }, []);
 
   function toggleDark() {
@@ -63,9 +70,18 @@ export function LandingNav({ onLocaleChange }: { onLocaleChange?: (locale: Local
             <Sun className="h-4 w-4 dark:hidden" />
             <Moon className="h-4 w-4 hidden dark:block" />
           </Button>
-          <Link href="/login">
-            <Button size="sm" className="bg-blue-600 hover:bg-blue-700">Sign In</Button>
-          </Link>
+          {isLoggedIn ? (
+            <Link href="/dashboard">
+              <Button size="sm" variant="outline" className="gap-1.5">
+                <LayoutDashboard className="h-4 w-4" />
+                Dashboard
+              </Button>
+            </Link>
+          ) : (
+            <Link href="/login">
+              <Button size="sm" className="bg-blue-600 hover:bg-blue-700">Sign In</Button>
+            </Link>
+          )}
           <Button variant="ghost" size="sm" className="md:hidden" onClick={() => setMobileOpen(!mobileOpen)}>
             {mobileOpen ? <X className="h-5 w-5" /> : <Menu className="h-5 w-5" />}
           </Button>
@@ -80,6 +96,11 @@ export function LandingNav({ onLocaleChange }: { onLocaleChange?: (locale: Local
               {link.label}
             </Link>
           ))}
+          {isLoggedIn && (
+            <Link href="/dashboard" className="block text-sm font-medium text-blue-600" onClick={() => setMobileOpen(false)}>
+              Dashboard
+            </Link>
+          )}
         </div>
       )}
     </nav>
