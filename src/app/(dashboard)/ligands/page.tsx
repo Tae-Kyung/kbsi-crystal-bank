@@ -174,7 +174,7 @@ export default async function LigandsPage({
   // === Ligands tab (default) ===
   let countQuery = supabase.from('kbsi_ligand').select('id', { count: 'exact', head: true }) as any;
   let dataQuery = supabase.from('kbsi_ligand')
-    .select('*, kbsi_construct_ligand(count)') as any;
+    .select('id, name, smiles, mw, source_db, source_id, created_at') as any;
 
   if (search) {
     countQuery = countQuery.or(`name.ilike.%${search}%,source_id.ilike.%${search}%`);
@@ -284,7 +284,6 @@ export default async function LigandsPage({
             <tr>
               <th className="px-3 py-2 text-left font-medium">Name</th>
               <th className="px-3 py-2 text-left font-medium">MW</th>
-              <th className="px-3 py-2 text-left font-medium">Bindings</th>
               <th className="px-3 py-2 text-left font-medium">SMILES</th>
               <th className="px-3 py-2 text-left font-medium">Source</th>
               <th className="px-3 py-2 text-left font-medium">Links</th>
@@ -293,14 +292,12 @@ export default async function LigandsPage({
           <tbody className="divide-y">
             {filteredLigands.map((l: any) => {
               const lUrl = l.source_db === 'ChEMBL' && l.source_id ? `https://www.ebi.ac.uk/chembl/compound_report_card/${l.source_id}/` : l.source_db === 'PDB' && l.source_id ? `https://www.rcsb.org/ligand/${l.source_id}` : null;
-              const bindCount = l.kbsi_construct_ligand?.[0]?.count ?? 0;
               return (
                 <tr key={l.id} className="hover:bg-muted/30">
                   <td className="px-3 py-2 text-xs">
                     {lUrl ? <a href={lUrl} target="_blank" rel="noopener noreferrer" className="text-primary hover:underline font-medium">{l.name?.slice(0, 30)}</a> : <span className="font-medium">{l.name?.slice(0, 30)}</span>}
                   </td>
                   <td className="px-3 py-2 text-xs">{l.mw ? l.mw.toFixed(0) : '-'}</td>
-                  <td className="px-3 py-2 text-xs">{bindCount > 0 ? <Badge variant="secondary" className="text-[10px]">{bindCount}</Badge> : '-'}</td>
                   <td className="px-3 py-2 text-xs font-mono max-w-[200px] truncate" title={l.smiles || ''}>{l.smiles ? (l.smiles.length > 30 ? l.smiles.slice(0, 30) + '...' : l.smiles) : '-'}</td>
                   <td className="px-3 py-2 text-xs">{l.source_db ? <Badge variant="outline" className="text-[10px]">{l.source_db}</Badge> : '-'}</td>
                   <td className="px-3 py-2 text-xs">
