@@ -9,8 +9,8 @@ import { DataInsights } from '@/components/charts/data-insights';
 import { PipelineSankey } from '@/components/charts/pipeline-sankey';
 import Link from 'next/link';
 
-// RPC로 최적화되어 매 요청 fresh 데이터 (ISR 캐시 제거)
-export const dynamic = 'force-dynamic';
+// ISR: 10초 캐시 (RPC 2.4초 + 클라이언트 네비게이션 대응)
+export const revalidate = 10;
 
 export default async function DashboardPage() {
   const supabase = createServiceClient();
@@ -19,8 +19,8 @@ export default async function DashboardPage() {
   const SAMPLE_PER_OUTCOME = 400;
 
   // ─── 1개 RPC + scatter/recent만 병렬 ───
-  const [{ data: s }, heatmapPages, recentProteinsRes] = await Promise.all([
-    supabase.rpc('dashboard_stats'),
+  const [rpcResult, heatmapPages, recentProteinsRes] = await Promise.all([
+    supabase.rpc('dashboard_stats').then(r => r).catch(() => ({ data: null })),
     // Scatter 샘플
     Promise.all(OUTCOMES.map(async (outcome) => {
       const { data } = await supabase
@@ -34,7 +34,7 @@ export default async function DashboardPage() {
     supabase.from('kbsi_protein').select('id, full_name, abbreviation, organism, updated_at, kbsi_construct(count)').order('updated_at', { ascending: false }).limit(5),
   ]);
 
-  const d = (s || {}) as any;
+  const d = (rpcResult?.data || {}) as any;
 
   const stats = [
     { label: 'Proteins', value: d.proteins ?? 0, icon: Dna },
