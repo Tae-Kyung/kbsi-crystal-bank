@@ -409,6 +409,50 @@ Outcome 분포: precipitate 63.8%, diffraction_quality 22.9%, clear 6.7%, phase_
 - 세계 유일: 실패 데이터 기반 "하지 말아야 할 조건" 추천
 - 논문에서 찾을 수 없는 실패 패턴의 체계적 분석
 
+### F15-2. Crystallization Copilot (킬러 기능 #1)
+
+단백질 서열 하나를 입력하면 Construct 설계 → 발현 조건 → 결정화 조건 → 실패 시 대안까지 엔드투엔드 실험 전략을 생성합니다.
+
+**입력**: FASTA 서열 1개
+**출력**: 4단계 실험 전략 (Construct 설계, 발현 조건, 결정화 상위 12조건, 실패 시 대안)
+
+**파이프라인**:
+1. 서열 → k-mer Jaccard로 유사 단백질 검색 (기존 구현)
+2. 유사 단백질의 Construct/Expression/Crystallization 성공 패턴 집계
+3. 성공률 기반 조건 랭킹 + 실패 패턴 분석 (피할 조건)
+4. 단계별 추천 생성 (AI 요약)
+
+**기대 효과**: 1500번 시행착오 → 12번으로 감소. 모든 구조생물학자가 매일 사용하는 서비스.
+
+**현재 준비도**: 80% (1.16M 데이터 + k-NN + 26K expression 확보)
+
+### F15-3. Custom Screen Designer (킬러 기능 #2)
+
+범용 상업 스크린(96조건, 성공률 ~5%) 대신, 내 단백질에 최적화된 맞춤 스크린(24조건, 예상 성공률 ~30%)을 자동 생성합니다.
+
+**입력**: 단백질 정보 (서열 or 유사 단백질 ID)
+**출력**: 24조건 맞춤 스크린 (precipitant, buffer, pH, temp, additive 조합)
+
+**알고리즘**:
+1. 유사 단백질의 성공 조건에서 빈출 조합 추출
+2. 실패 조건 제거 (pH>8.5 100% 침전 등)
+3. 조건 공간을 균등 커버하는 24조건 선택 (diversity sampling)
+4. 출력: 96-well plate 배치도 (PDF/Excel)
+
+**기대 효과**: 시약 비용 75% 절감, 시간 75% 절감, 논문 가능.
+
+### F15-4. Adaptive Feedback Loop (킬러 기능 #3)
+
+실험 결과를 입력하면 즉시 다음 실험 조건을 추천하는 실시간 피드백 루프.
+
+**흐름**:
+1. 연구자: 96조건 결과 입력 (Quick Entry, 30초)
+2. 시스템: microcrystal 3개의 공통 조건 분석
+3. 시스템: Optimization 24조건 자동 생성 (pH/농도/온도 그리드)
+4. 연구자: 다음 플레이트 세팅 → 결과 입력 → 반복
+
+**현재 준비도**: 50% (Quick Entry 있음, 추천 연동 필요)
+
 ### F16. 아미노산 조성 기반 Feature Engineering
 - seq_final → hydrophobic %, charged %, aromatic % 자동 계산
 - IUPred disorder 예측, Kyte-Doolittle surface hydrophobicity
