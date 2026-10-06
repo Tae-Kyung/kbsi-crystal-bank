@@ -20,7 +20,7 @@ export default async function DashboardPage() {
 
   // ─── 1개 RPC + scatter/recent만 병렬 ───
   const [rpcResult, heatmapPages, recentProteinsRes] = await Promise.all([
-    supabase.rpc('dashboard_stats').then(r => r).catch(() => ({ data: null })),
+    supabase.rpc('dashboard_stats'),
     // Scatter 샘플
     Promise.all(OUTCOMES.map(async (outcome) => {
       const { data } = await supabase
@@ -34,7 +34,7 @@ export default async function DashboardPage() {
     supabase.from('kbsi_protein').select('id, full_name, abbreviation, organism, updated_at, kbsi_construct(count)').order('updated_at', { ascending: false }).limit(5),
   ]);
 
-  const d = (rpcResult?.data || {}) as any;
+  const d = (rpcResult.data || {}) as any;
 
   const stats = [
     { label: 'Proteins', value: d.proteins ?? 0, icon: Dna },
