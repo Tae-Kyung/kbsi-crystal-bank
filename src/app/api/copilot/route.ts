@@ -17,6 +17,7 @@ export async function POST(request: Request) {
 
   // 1. 유사 단백질 찾기
   let similarConstructs: any[] = [];
+  let searchedCount = 0;
 
   if (sequence) {
     // 서열 기반 검색 (k-mer Jaccard)
@@ -29,15 +30,21 @@ export async function POST(request: Request) {
     const queryKmers = new Set<string>();
     for (let i = 0; i <= querySeq.length - K; i++) queryKmers.add(querySeq.substring(i, i + K));
 
-    // 서열 있는 construct 조회
-    const { data: constructs } = await supabase
-      .from('kbsi_construct')
-      .select('id, name, protein_id, seq_final, expression_system, theoretical_mw, theoretical_pi, kbsi_protein(full_name, abbreviation, organism)')
-      .not('seq_final', 'is', null)
-      .limit(5000);
+    // 서열 있는 construct 조회 (여러 페이지에서 샘플링)
+    const allConstructs: any[] = [];
+    for (let off = 0; off < 50000; off += 5000) {
+      const { data } = await supabase
+        .from('kbsi_construct')
+        .select('id, name, protein_id, seq_final, expression_system, theoretical_mw, theoretical_pi, kbsi_protein(full_name, abbreviation, organism)')
+        .not('seq_final', 'is', null)
+        .range(off, off + 4999);
+      if (!data || data.length === 0) break;
+      allConstructs.push(...data);
+    }
 
-    if (constructs) {
-      similarConstructs = constructs
+    searchedCount = allConstructs.length;
+    if (allConstructs.length > 0) {
+      const scored = allConstructs
         .map((c: any) => {
           const seq = (c.seq_final || '').toUpperCase();
           if (seq.length < 10) return null;
@@ -49,9 +56,11 @@ export async function POST(request: Request) {
           const similarity = union > 0 ? intersection / union : 0;
           return { ...c, similarity: Math.round(similarity * 1000) / 10 };
         })
-        .filter((r: any) => r && r.similarity > 10)
-        .sort((a: any, b: any) => b.similarity - a.similarity)
-        .slice(0, 50);
+        .filter((r: any) => r && r.similarity > 0)
+        .sort((a: any, b: any) => b.similarity - a.similarity);
+
+      // 상위 50개 사용 (유사도가 낮아도 최선의 매칭)
+      similarConstructs = scored.slice(0, 50);
     }
   } else if (protein_id) {
     // 단백질 ID로 직접 construct 조회
@@ -80,8 +89,10 @@ export async function POST(request: Request) {
 
   const constructIds = similarConstructs.map((c: any) => c.id);
   if (constructIds.length === 0) {
-    return NextResponse.json({ error: '유사 단백질을 찾을 수 없습니다', recommendations: null });
+    return NextResponse.json({ error: '유사 단백질을 찾을 수 없습니다. 서열을 확인해주세요.', recommendations: null });
   }
+
+  const maxSimilarity = similarConstructs[0]?.similarity || 0;
 
   // 2. 결정화 데이터 분석
   const { data: crystData } = await supabase
@@ -189,11 +200,13 @@ export async function POST(request: Request) {
   return NextResponse.json({
     analysis: {
       similar_proteins: similarConstructs.length,
+      max_similarity: maxSimilarity,
       total_crystallization: total,
       success_count: success.length,
       failure_count: failure.length,
       success_rate: total > 0 ? Math.round(success.length / total * 1000) / 10 : 0,
       expression_data: exprData?.length || 0,
+      searched_constructs: searchedCount || constructIds.length,
     },
     construct_recommendation: {
       expression_system: topHost ? topHost[0] : 'E. coli',

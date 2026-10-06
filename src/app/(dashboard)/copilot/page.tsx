@@ -113,6 +113,14 @@ export default function CopilotPage() {
           <Card>
             <CardHeader><CardTitle className="text-base">분석 요약</CardTitle></CardHeader>
             <CardContent>
+              {(result.analysis as any).max_similarity < 20 && (
+                <div className="rounded-lg bg-amber-50 dark:bg-amber-950 border border-amber-200 dark:border-amber-800 p-3 mb-3">
+                  <p className="text-sm text-amber-800 dark:text-amber-200">
+                    ⚠ 최고 유사도 {(result.analysis as any).max_similarity}% — DB에 높은 유사도의 단백질이 없습니다. 추천 결과는 일반적인 패턴 기반이며, 유사 단백질이 추가되면 정확도가 높아집니다.
+                    ({(result.analysis as any).searched_constructs?.toLocaleString()}개 서열 검색됨)
+                  </p>
+                </div>
+              )}
               <div className="grid grid-cols-2 md:grid-cols-5 gap-3">
                 <div className="text-center p-3 rounded-lg bg-blue-50 dark:bg-blue-950">
                   <div className="text-xl font-bold">{result.analysis.similar_proteins}</div>
