@@ -326,6 +326,58 @@ Outcome 분포: precipitate 63.8%, diffraction_quality 22.9%, clear 6.7%, phase_
 
 스크립트: `npx tsx scripts/benchmark-prediction.ts --sample 5000 --k 3,5,10,15,20 --maxload 100000`
 
+## 5-3. Phase 5 Features — 탐색 UX 고도화
+
+### F15. 트리 기반 네비게이션 (Explorer)
+
+종(Organism) → 단백질 → Construct → 실험 데이터를 트리 구조로 탐색하는 Explorer 뷰.
+
+```
+🌍 Homo sapiens (35,000 proteins)
+  └── 🧬 KRAS (540 constructs)
+        ├── 🔬 KRAS-G12D-1-169
+        │     ├── Expression (3) ✅
+        │     ├── Purification (2) ✅
+        │     ├── Characterization (1) ✅
+        │     ├── Crystallization (200) ✅
+        │     ├── Diffraction (15) ✅
+        │     ├── Structure (15) ✅
+        │     └── Ligands (50) 💊
+        └── 🔬 KRAS-FL (full-length)
+              └── Expression (1) ❌ insoluble
+```
+
+**구현 요구사항:**
+- Lazy loading: 트리 노드 펼칠 때만 하위 데이터 로드 (286K construct 한번에 불가)
+- 1단계: 상위 종 20개 (건수 순) + 종 검색
+- 2단계: 해당 종의 단백질 (페이지네이션)
+- 3단계: 해당 단백질의 Construct 목록
+- 4단계: 실험 데이터 카운트 배지 (✅/❌ 표시) + 클릭 → 상세 이동
+- 검색: 종명, 단백질명, gene_name, PDB ID로 트리 노드 바로 이동
+- 사이드바 또는 전용 `/explorer` 페이지
+
+**기대 효과:**
+- 연구자가 "내 관심 종 → 단백질 → 실험"으로 자연스럽게 탐색
+- 데이터 존재 여부를 한눈에 파악 (파이프라인 전 단계)
+- 대규모 DB를 효율적으로 브라우징
+
+### F16. 아미노산 조성 기반 Feature Engineering
+- seq_final → hydrophobic %, charged %, aromatic % 자동 계산
+- IUPred disorder 예측, Kyte-Doolittle surface hydrophobicity
+- ML 벤치마크 v5에 feature로 추가
+
+### F17. Protein Family / Domain 분류
+- InterPro/Pfam domain annotation 수집 (UniProt 연결 활용)
+- "kinase domain은 PEG 3350에서 성공률 높다" 같은 도메인 수준 인사이트
+- 도메인별 결정화 성공률 교차 분석
+
+### F18. 데이터 논문 발행
+- Nature Scientific Data 데이터셋 논문 제출
+- Zenodo DOI 발행 + 벤치마크 데이터셋 공개
+- PyPI 패키지 (kbsi-protein) 배포
+
+---
+
 ## 6. Technical Constraints
 
 | 항목 | 결정 |
