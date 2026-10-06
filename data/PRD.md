@@ -468,6 +468,101 @@ Outcome 분포: precipitate 63.8%, diffraction_quality 22.9%, clear 6.7%, phase_
 - Zenodo DOI 발행 + 벤치마크 데이터셋 공개
 - PyPI 패키지 (kbsi-protein) 배포
 
+## 5-4. Phase 6 — AI Scientist for Crystallization
+
+### F19. AI Scientist Agent (Sakana AI 기반)
+
+Sakana AI의 "AI Scientist" 프레임워크를 단백질 결정화 도메인에 적용하여, 자율적으로 가설을 생성하고 DB를 분석하여 새로운 패턴을 발견하고 실험을 설계하는 AI 연구자 시스템.
+
+**아키텍처:**
+```
+┌─────────────────────────────────────────────┐
+│              AI Scientist Agent              │
+│  (Sakana 기반, 가설→검증→발견→논문 루프)      │
+├─────────────────────────────────────────────┤
+│         MCP (15+ 도구)                       │
+│  searchProteins, predictSuccess,             │
+│  searchCrystallization, getLigandBinding, ... │
+├─────────────────────────────────────────────┤
+│         KBSI Database                        │
+│  59K proteins, 1.16M crystallization,        │
+│  476K diffraction, 63K bindings, ...        │
+├─────────────────────────────────────────────┤
+│         실험실 (KBSI 연구자)                  │
+│  Quick Entry → 실험 결과 → 피드백 루프       │
+└─────────────────────────────────────────────┘
+```
+
+**자율 연구 루프:**
+1. **가설 생성**: DB 메타데이터 스캔 → "kinase domain은 PEG 3350 pH 6.5에서 성공률이 높을 것"
+2. **데이터 수집**: MCP 도구로 관련 데이터 쿼리 (1.16M 결정화 조건)
+3. **통계 검증**: p-value, effect size, confidence interval 계산
+4. **패턴 발견**: 기존에 알려지지 않은 상관관계 자동 도출
+5. **실험 설계**: 검증 실험 조건 자동 생성 (24조건 맞춤 스크린)
+6. **실험 요청**: KBSI 연구자에게 실험 의뢰 (Quick Entry로 결과 수신)
+7. **결과 분석**: 가설 검증/기각 → 수정 가설 → 반복
+8. **보고서/논문**: 발견 + 통계 + 시각화 자동 생성
+
+**시나리오 1: 자율 패턴 발견**
+```
+AI Scientist 자동 분석 결과:
+  발견 1: Transmembrane 단백질은 MPD > PEG (p=0.003, n=1,247)
+  발견 2: MW 30-50kDa가 결정화 최적 (성공률 28% vs 평균 19%)
+  발견 3: insect cell → E. coli 전환 시 결정화 2.1배 상승 (n=342)
+```
+
+**시나리오 2: 자율 실험 설계 + 검증 루프**
+```
+라운드 1: DB 분석 → KRAS G12C 최적 조건 12개 설계 → 연구자 실험
+라운드 2: 결과 수신 → microcrystal 3개 → pH/농도 최적화 12개
+라운드 3: single crystal 2개 발견 → 최적 조건 확정 → 논문 초안
+```
+
+**시나리오 3: 크로스 도메인 인사이트**
+```
+ChEMBL 바인딩 + 결정화 교차 분석:
+  IC50 < 100nM 약물 공결정화 시 해상도 1.3Å 향상 (n=890)
+  → 강한 리간드가 단백질 안정화 → 결정화 촉진
+  → 결정 난이도 높은 단백질에 리간드 첨가 전략 제안
+```
+
+**Sakana AI Scientist와의 차이점:**
+
+| 항목 | Sakana 원본 | KBSI 적용 |
+|------|-----------|----------|
+| 실험 환경 | ML 코드 실행 (in silico) | **실제 결정화 DB + wet lab 실험** |
+| 데이터 | ML 벤치마크 | **1.16M 실험 데이터 (성공+실패)** |
+| 도구 | Python 코드 실행 | **MCP 15개 도구 (DB 직접 접근)** |
+| 검증 | 모델 성능 | **통계 검정 + 실험 검증** |
+| 출력 | ML 논문 | **실험 프로토콜 + 결정화 논문** |
+| 피드백 | 없음 (1회성) | **연구자 실험 결과 → 반복 루프** |
+
+**구현 요구사항:**
+- Sakana AI Scientist 코드 포크 및 도메인 어댑터 개발
+- MCP 도구 확장 (통계 분석, 실험 설계 전용 도구)
+- 가설 템플릿 라이브러리 (결정화 도메인 특화)
+- 실험 요청 → Quick Entry → 결과 수신 자동화 파이프라인
+- 보고서/논문 생성 템플릿 (Nature Scientific Data 형식)
+
+**리스크 및 대응:**
+- AI 제안 실험 실패 시 신뢰 상실 → 초기 "AI vs 연구자 경험" 비교 실험으로 신뢰 구축
+- 가설 품질 → 도메인 전문가 검토 단계 추가 (human-in-the-loop)
+- 계산 비용 → 가설 우선순위 랭킹 후 상위만 검증
+
+### F20. MCP 기반 AI Agent 생태계
+
+KBSI 데이터를 다양한 AI Agent에서 접근할 수 있는 개방형 생태계 구축.
+
+**지원 Agent:**
+- Claude (Anthropic) — MCP 네이티브 지원, 이미 연동 완료
+- GPT (OpenAI) — Function Calling 어댑터
+- 자체 Agent — Sakana AI Scientist 기반
+
+**MCP 도구 확장 계획:**
+- 현재 15개 → 25개 (통계 분석, 실험 설계, 보고서 생성 등)
+- 도구 간 체이닝 지원 (서열 검색 → 유사 조건 → 예측 → 스크린 설계)
+- 벌크 데이터 접근 도구 (CSV/JSON export, 벤치마크 데이터셋)
+
 ---
 
 ## 6. Technical Constraints
