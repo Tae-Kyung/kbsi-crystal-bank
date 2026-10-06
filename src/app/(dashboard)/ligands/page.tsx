@@ -139,7 +139,13 @@ export default async function LigandsPage({
                       {con ? <Link href={`/constructs/${con.id}`} className="text-primary hover:underline">{con.name?.slice(0, 15) || `#${con.id}`}</Link> : '-'}
                     </td>
                     <td className="px-3 py-2 text-xs">
-                      {lUrl ? <a href={lUrl} target="_blank" rel="noopener noreferrer" className="text-primary hover:underline">{lig?.name?.slice(0, 25)}</a> : (lig?.name?.slice(0, 25) || '-')}
+                      {lUrl ? (
+                        <a href={lUrl} target="_blank" rel="noopener noreferrer" className="text-primary hover:underline" title={lig?.name}>
+                          {lig?.source_id || lig?.name?.slice(0, 25)}
+                        </a>
+                      ) : (
+                        <span title={lig?.name}>{lig?.source_id || lig?.name?.slice(0, 25) || '-'}</span>
+                      )}
                     </td>
                     <td className="px-3 py-2 text-xs">{lig?.mw ? `${lig.mw.toFixed(0)}` : '-'}</td>
                     <td className="px-3 py-2 text-xs font-mono">{b.binding_kd ? b.binding_kd.toLocaleString() : '-'}</td>
@@ -295,7 +301,13 @@ export default async function LigandsPage({
               return (
                 <tr key={l.id} className="hover:bg-muted/30">
                   <td className="px-3 py-2 text-xs">
-                    {lUrl ? <a href={lUrl} target="_blank" rel="noopener noreferrer" className="text-primary hover:underline font-medium">{l.name?.slice(0, 30)}</a> : <span className="font-medium">{l.name?.slice(0, 30)}</span>}
+                    {lUrl ? (
+                      <a href={lUrl} target="_blank" rel="noopener noreferrer" className="text-primary hover:underline font-medium" title={l.name}>
+                        {l.source_id || l.name?.slice(0, 30)}
+                      </a>
+                    ) : (
+                      <span className="font-medium" title={l.name}>{l.source_id || l.name?.slice(0, 30)}</span>
+                    )}
                   </td>
                   <td className="px-3 py-2 text-xs">{l.mw ? l.mw.toFixed(0) : '-'}</td>
                   <td className="px-3 py-2 text-xs font-mono max-w-[200px] truncate" title={l.smiles || ''}>{l.smiles ? (l.smiles.length > 30 ? l.smiles.slice(0, 30) + '...' : l.smiles) : '-'}</td>
