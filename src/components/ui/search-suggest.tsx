@@ -18,7 +18,7 @@ export function SearchSuggest({ placeholder = '단백질, 유전자명 검색...
   const [selected, setSelected] = useState(-1);
   const router = useRouter();
   const ref = useRef<HTMLDivElement>(null);
-  const timerRef = useRef<NodeJS.Timeout>();
+  const timerRef = useRef<NodeJS.Timeout>(undefined);
 
   useEffect(() => {
     if (query.length < 2) { setSuggestions([]); setOpen(false); return; }
