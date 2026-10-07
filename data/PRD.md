@@ -795,6 +795,67 @@ CREATE TABLE kbsi_search_log (
 - 인기 검색어 대시보드 (관리자)
 - 검색 패턴 분석 → 데이터 수집 우선순위
 
+**동기화 전략: Trigger + 배치 조합**
+
+1. **DB Trigger (실시간)**: 데이터 INSERT/UPDATE 시 keyword 자동 동기화
+```sql
+CREATE FUNCTION sync_keyword_from_protein() RETURNS TRIGGER AS $$
+BEGIN
+  -- gene_name
+  IF NEW.gene_name IS NOT NULL THEN
+    INSERT INTO kbsi_search_keywords (keyword, type, entity_id)
+    VALUES (NEW.gene_name, 'gene_name', NEW.id)
+    ON CONFLICT DO NOTHING;
+  END IF;
+  -- abbreviation
+  IF NEW.abbreviation IS NOT NULL THEN
+    INSERT INTO kbsi_search_keywords (keyword, type, entity_id)
+    VALUES (NEW.abbreviation, 'abbreviation', NEW.id)
+    ON CONFLICT DO NOTHING;
+  END IF;
+  -- organism (entity_id NULL — 종은 단일 엔티티 아님)
+  IF NEW.organism IS NOT NULL THEN
+    INSERT INTO kbsi_search_keywords (keyword, type, entity_id)
+    VALUES (NEW.organism, 'organism', NULL)
+    ON CONFLICT DO NOTHING;
+  END IF;
+  RETURN NEW;
+END;
+$$ LANGUAGE plpgsql;
+
+CREATE TRIGGER trg_protein_keyword
+  AFTER INSERT OR UPDATE ON kbsi_protein
+  FOR EACH ROW EXECUTE FUNCTION sync_keyword_from_protein();
+```
+
+유사 trigger를 kbsi_crystallization (precipitant_type), kbsi_construct (expression_system) 등에도 적용.
+
+2. **배치 전체 재구축 (주기적)**: 누락 방지 + frequency 갱신
+```bash
+# 어드민 시스템(F21) 연쇄 실행 체인에 포함
+# PDB 수집 완료 → keyword 재구축
+npx tsx scripts/rebuild-search-keywords.ts
+```
+- TRUNCATE → 전체 재생성 (깨끗한 상태 보장)
+- frequency 업데이트 (search_log에서 집계)
+- 일 1회 또는 수집 후 자동 실행
+
+3. **Materialized View (대안)**
+```sql
+CREATE MATERIALIZED VIEW kbsi_search_keywords_mv AS
+  SELECT gene_name AS keyword, 'gene_name' AS type, id AS entity_id
+    FROM kbsi_protein WHERE gene_name IS NOT NULL
+  UNION ALL
+  SELECT DISTINCT organism, 'organism', NULL
+    FROM kbsi_protein WHERE organism IS NOT NULL
+  UNION ALL
+  SELECT DISTINCT precipitant_type, 'precipitant', NULL
+    FROM kbsi_crystallization WHERE precipitant_type IS NOT NULL;
+
+REFRESH MATERIALIZED VIEW CONCURRENTLY kbsi_search_keywords_mv;
+```
+- 단순하지만 실시간 반영 안 됨 → Trigger 보조로 사용
+
 ---
 
 ## 6. Technical Constraints
