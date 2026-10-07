@@ -1,6 +1,6 @@
 'use client';
 
-import { useState } from 'react';
+import { useState, useEffect, useRef } from 'react';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
@@ -41,27 +41,46 @@ export default function CopilotPage() {
   const [loading, setLoading] = useState(false);
   const [result, setResult] = useState<CopilotResult | null>(null);
   const [error, setError] = useState('');
-  const [blastResults, setBlastResults] = useState<any>(null);
-  const [blastLoading, setBlastLoading] = useState(false);
+  const [mode, setMode] = useState<'db' | 'sequence'>('db');
+  const [searchQuery, setSearchQuery] = useState('');
+  const [searchResults, setSearchResults] = useState<any[]>([]);
+  const [searchOpen, setSearchOpen] = useState(false);
+  const searchTimerRef = useRef<NodeJS.Timeout>(undefined);
 
-  async function handleBlast() {
-    if (!sequence.trim()) return;
-    setBlastLoading(true);
-    setBlastResults(null);
+  // DB 검색 자동완성
+  useEffect(() => {
+    if (searchQuery.length < 2) { setSearchResults([]); setSearchOpen(false); return; }
+    clearTimeout(searchTimerRef.current);
+    searchTimerRef.current = setTimeout(async () => {
+      try {
+        const res = await fetch(`/api/suggest?q=${encodeURIComponent(searchQuery)}`);
+        const data = await res.json();
+        setSearchResults(data);
+        setSearchOpen(data.length > 0);
+      } catch { setSearchResults([]); }
+    }, 300);
+    return () => clearTimeout(searchTimerRef.current);
+  }, [searchQuery]);
+
+  async function handleDbSelect(proteinId: number, name: string) {
+    setSearchOpen(false);
+    setSearchQuery(name);
+    setLoading(true);
     setError('');
+    setResult(null);
     try {
-      const res = await fetch('/api/blast', {
+      const res = await fetch('/api/copilot', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ sequence: sequence.replace(/[^A-Za-z]/g, '') }),
+        body: JSON.stringify({ protein_id: proteinId }),
       });
       const data = await res.json();
-      if (data.error) setError(`BLAST: ${data.error}`);
-      else setBlastResults(data);
+      if (data.error && !data.analysis) setError(data.error);
+      else setResult(data);
     } catch {
-      setError('BLAST 검색 중 오류');
+      setError('분석 중 오류가 발생했습니다.');
     } finally {
-      setBlastLoading(false);
+      setLoading(false);
     }
   }
 
@@ -98,36 +117,89 @@ export default function CopilotPage() {
           Crystallization Copilot
         </h2>
         <p className="text-muted-foreground">
-          단백질 서열을 입력하면 유사 단백질 분석을 기반으로 최적의 실험 전략을 추천합니다.
+          단백질을 선택하거나 서열을 입력하면 결정화 조건을 분석하고 최적의 실험 전략을 추천합니다.
         </p>
       </div>
 
       {/* Input */}
       <Card>
-        <CardHeader><CardTitle className="text-base">Step 1. 단백질 서열 입력</CardTitle></CardHeader>
-        <CardContent className="space-y-3">
-          <textarea
-            value={sequence}
-            onChange={(e) => setSequence(e.target.value)}
-            placeholder="아미노산 서열을 입력하세요 (FASTA 형식 또는 단순 서열)..."
-            className="w-full h-32 rounded-lg border bg-muted/50 px-3 py-2 text-sm font-mono placeholder:text-muted-foreground focus:outline-none focus:ring-2 focus:ring-primary/30"
-          />
-          <div className="flex items-center gap-3 flex-wrap">
-            <Button onClick={handleSubmit} disabled={loading || blastLoading || !sequence.trim()}>
-              {loading ? (
-                <span className="flex items-center gap-2"><Loader2 className="h-4 w-4 animate-spin" />k-mer 분석 중...</span>
-              ) : 'k-mer 분석 (빠름)'}
+        <CardHeader>
+          <CardTitle className="text-base">Step 1. 단백질 선택</CardTitle>
+        </CardHeader>
+        <CardContent className="space-y-4">
+          {/* Mode tabs */}
+          <div className="flex gap-2 border-b pb-2">
+            <Button variant={mode === 'db' ? 'default' : 'ghost'} size="sm" onClick={() => setMode('db')}>
+              DB에서 검색 (정확)
             </Button>
-            <Button disabled variant="outline" className="opacity-50">
-              NCBI BLAST (추후개발)
+            <Button variant={mode === 'sequence' ? 'default' : 'ghost'} size="sm" onClick={() => setMode('sequence')}>
+              서열 입력 (참고용)
             </Button>
-            <Button variant="ghost" size="sm" onClick={() => setSequence(EXAMPLE_SEQUENCE)}>
-              예시 (KRAS)
-            </Button>
-            <span className="text-xs text-muted-foreground">
-              {sequence.replace(/[^A-Za-z]/g, '').length} residues
-            </span>
           </div>
+
+          {mode === 'db' ? (
+            <div className="space-y-3">
+              <div className="relative">
+                <input
+                  value={searchQuery}
+                  onChange={e => setSearchQuery(e.target.value)}
+                  onFocus={() => searchResults.length > 0 && setSearchOpen(true)}
+                  placeholder="단백질 이름, 유전자명 검색 (예: KRAS, EGFR, lysozyme)..."
+                  className="w-full rounded-lg border bg-muted/50 px-3 py-2 text-sm placeholder:text-muted-foreground focus:outline-none focus:ring-2 focus:ring-primary/30"
+                />
+                {searchOpen && searchResults.length > 0 && (
+                  <div className="absolute top-full mt-1 w-full rounded-lg border bg-popover shadow-lg z-50 overflow-hidden max-h-60 overflow-y-auto">
+                    {searchResults.map((s: any) => (
+                      <button
+                        key={s.id}
+                        type="button"
+                        onClick={() => handleDbSelect(s.id, s.label)}
+                        className="w-full text-left px-3 py-2 text-sm hover:bg-muted/50"
+                      >
+                        <span className="font-medium">{s.label}</span>
+                        {s.sub && <span className="text-xs text-muted-foreground ml-2">{s.sub}</span>}
+                      </button>
+                    ))}
+                  </div>
+                )}
+              </div>
+              {loading && (
+                <div className="flex items-center gap-2 text-sm text-muted-foreground">
+                  <Loader2 className="h-4 w-4 animate-spin" />분석 중...
+                </div>
+              )}
+            </div>
+          ) : (
+            <div className="space-y-3">
+              <div className="rounded-lg bg-amber-50 dark:bg-amber-950 border border-amber-200 dark:border-amber-800 p-2">
+                <p className="text-xs text-amber-800 dark:text-amber-200">
+                  ⚠ k-mer 기반 유사도는 참고용입니다. 정확한 분석은 &quot;DB에서 검색&quot;을 사용하세요.
+                </p>
+              </div>
+              <textarea
+                value={sequence}
+                onChange={(e) => setSequence(e.target.value)}
+                placeholder="아미노산 서열을 입력하세요 (FASTA 형식 또는 단순 서열)..."
+                className="w-full h-28 rounded-lg border bg-muted/50 px-3 py-2 text-sm font-mono placeholder:text-muted-foreground focus:outline-none focus:ring-2 focus:ring-primary/30"
+              />
+              <div className="flex items-center gap-3 flex-wrap">
+                <Button onClick={handleSubmit} disabled={loading || !sequence.trim()} size="sm">
+                  {loading ? (
+                    <span className="flex items-center gap-2"><Loader2 className="h-4 w-4 animate-spin" />분석 중...</span>
+                  ) : 'k-mer 분석 (참고용)'}
+                </Button>
+                <Button disabled variant="outline" size="sm" className="opacity-50">
+                  NCBI BLAST (추후개발)
+                </Button>
+                <Button variant="ghost" size="sm" onClick={() => setSequence(EXAMPLE_SEQUENCE)}>
+                  예시 (KRAS)
+                </Button>
+                <span className="text-xs text-muted-foreground">
+                  {sequence.replace(/[^A-Za-z]/g, '').length} residues
+                </span>
+              </div>
+            </div>
+          )}
           {error && <p className="text-sm text-destructive">{error}</p>}
         </CardContent>
       </Card>
