@@ -100,13 +100,13 @@ export default async function ConstructDetailPage({
           <CardHeader><CardTitle className="text-base">Construct Info</CardTitle></CardHeader>
           <CardContent className="space-y-3 text-sm">
             <Row label="Residues" value={construct.residues} />
-            <Row label="Expression System" value={construct.expression_system} />
-            <Row label="Vector" value={construct.vector} />
-            <Row label="Tag" value={construct.tag_name ? `${construct.tag_name} (${construct.tag_position})` : null} />
-            <Row label="Cleavage Site" value={construct.cleavage_site} />
-            <Row label="MW (theoretical)" value={construct.theoretical_mw ? `${construct.theoretical_mw} Da` : null} />
+            <Row label="Expression System" value={construct.expression_system} source="PDB" />
+            <Row label="Vector" value={construct.vector} source="LLM" />
+            <Row label="Tag" value={construct.tag_name ? `${construct.tag_name}${construct.tag_position ? ` (${construct.tag_position})` : ''}` : null} source="LLM" />
+            <Row label="Cleavage Site" value={construct.cleavage_site} source="LLM" />
+            <Row label="MW (theoretical)" value={construct.theoretical_mw ? `${Math.round(construct.theoretical_mw).toLocaleString()} Da` : null} />
             <Row label="pI (theoretical)" value={construct.theoretical_pi?.toString()} />
-            <Row label="Codon Optimized" value={construct.codon_optimized === null ? null : construct.codon_optimized ? 'Yes' : 'No'} />
+            <Row label="Codon Optimized" value={construct.codon_optimized === null ? null : construct.codon_optimized ? 'Yes' : 'No'} source="LLM" />
           </CardContent>
         </Card>
 
@@ -205,11 +205,19 @@ export default async function ConstructDetailPage({
   );
 }
 
-function Row({ label, value }: { label: string; value?: string | null }) {
+function Row({ label, value, source }: { label: string; value?: string | null; source?: 'LLM' | 'PDB' }) {
   return (
-    <div className="flex justify-between">
+    <div className="flex justify-between items-center">
       <span className="text-muted-foreground">{label}</span>
-      <span>{value || '-'}</span>
+      <span className="flex items-center gap-1.5">
+        {value || '-'}
+        {value && source === 'LLM' && (
+          <span className="text-[9px] px-1 py-0.5 rounded bg-amber-100 dark:bg-amber-900 text-amber-700 dark:text-amber-300" title="논문에서 AI 추출">AI</span>
+        )}
+        {value && source === 'PDB' && (
+          <span className="text-[9px] px-1 py-0.5 rounded bg-blue-100 dark:bg-blue-900 text-blue-700 dark:text-blue-300" title="PDB에서 수집">PDB</span>
+        )}
+      </span>
     </div>
   );
 }
