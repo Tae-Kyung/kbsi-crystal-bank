@@ -894,6 +894,60 @@ PDB DOI → Unpaywall API → OA 버전 URL 발견
 - 프리프린트에 상세 Methods 섹션 포함
 - bioRxiv API로 검색 가능
 
+### 데이터 수집 확장 — Crystallization/Diffraction/Ligand/Binding 추가 확보
+
+#### Ligand & Binding (가장 큰 규모)
+
+**BindingDB (+100K~ bindings)**
+- 세계 최대 바인딩 DB (2.8M data points)
+- TSV 다운로드 + REST API
+- 우리 59K 단백질의 UniProt/gene_name으로 매칭
+- Kd, Ki, IC50, EC50 전부 수집
+- 무료
+
+**DrugBank (+2K ligands, 승인 약물)**
+- FDA 승인 약물-타겟 매핑
+- "이 단백질을 타겟으로 하는 승인된 약물" 즉시 조회
+- Academic 라이선스 무료
+- 약물 재창출(Drug repurposing) 연구 지원
+
+**PubChem BioAssay (+10~50K bindings)**
+- NCBI PubChem의 bioassay 데이터
+- REST API로 타겟 단백질별 활성 데이터 검색
+- 무료
+
+**PDSP Ki Database (+5~10K bindings)**
+- NIMH의 Ki 데이터베이스
+- 신경계 약물 위주이지만 Ki 값 풍부
+
+#### Crystallization
+
+**논문 결정화 실패 사례 (세계 유일 실제 실패 데이터)**
+```
+gene_name + "crystallization failed" OR "no crystals" OR "precipitated"
+  → PMC/PubMed 검색
+  → 논문에서 실패 조건 LLM 추출
+  → 현재 합성 NC 927K → 실제 실패 데이터로 보강
+```
+- PDB에 절대 없는 데이터 = 최고 차별점
+- 실패 데이터가 많을수록 AI 예측 정확도 상승
+
+**Cambridge Structural Database (CSD)**
+- 소분자 결정 구조 DB (110만+)
+- 단백질-소분자 공결정화 조건 참고 가능
+- 라이선스 필요 (학술 무료)
+
+#### Diffraction
+
+**SBGrid Databank (raw diffraction data)**
+- 원시 회절 데이터셋 (DOI 기반)
+- 파생 메타데이터 (completeness, Rmerge 등) 추출 가능
+- 소규모 (~5K 데이터셋)
+
+**싱크로트론 시설 DB**
+- 각 빔라인의 실험 로그 (비공개가 대부분)
+- ESRF, APS, SPring-8 등 → 공개 데이터만 활용
+
 ---
 
 ## 5-6. Phase 8 — 검색 고도화
