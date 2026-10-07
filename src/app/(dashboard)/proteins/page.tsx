@@ -1,8 +1,8 @@
 import Link from 'next/link';
 import { createServiceClient } from '@/lib/supabase/service';
 import { Button } from '@/components/ui/button';
-import { Badge } from '@/components/ui/badge';
 import { Plus } from 'lucide-react';
+import { ProteinSearchForm } from '@/components/forms/protein-search-form';
 
 export const dynamic = 'force-dynamic';
 
@@ -70,24 +70,7 @@ export default async function ProteinsPage({
       </div>
 
       {/* Filters */}
-      <form className="flex flex-wrap gap-2" action="/proteins">
-        <input
-          name="search"
-          defaultValue={search}
-          placeholder="이름, 유전자명, 약어 검색..."
-          className="flex-1 min-w-[200px] max-w-sm rounded-lg border bg-muted/50 px-3 py-2 text-sm placeholder:text-muted-foreground focus:outline-none focus:ring-2 focus:ring-primary/30"
-        />
-        <input
-          name="organism"
-          defaultValue={organism}
-          placeholder="생물종 필터 (예: Homo sapiens)"
-          className="w-48 rounded-lg border bg-muted/50 px-3 py-2 text-sm placeholder:text-muted-foreground focus:outline-none focus:ring-2 focus:ring-primary/30"
-        />
-        <Button type="submit" variant="outline" size="sm">검색</Button>
-        {(search || organism) && (
-          <Link href="/proteins"><Button variant="ghost" size="sm">초기화</Button></Link>
-        )}
-      </form>
+      <ProteinSearchForm defaultSearch={search} defaultOrganism={organism} />
 
       {/* Table */}
       <div className="rounded-md border overflow-hidden">
