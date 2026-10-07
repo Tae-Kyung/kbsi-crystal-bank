@@ -395,6 +395,86 @@ KBSI 생태계:
 
 ---
 
-## 9. 한 문장 요약
+## 9. ESM-2 단백질 언어 모델 기반 서열 검색
+
+### 9.1 기존 방법의 한계
+
+| 방법 | 원리 | 한계 |
+|------|------|------|
+| k-mer Jaccard | 3글자 부분 문자열 공유 비율 | 갭/치환 미고려, 정확도 낮음 |
+| BLAST | 최적 부분 서열 정렬 | 30초+, 서열 <20% 유사도에서 못 찾음 |
+
+**근본적 문제**: 두 방법 모두 "글자가 얼마나 같은가"를 봄. 하지만 결정화에 중요한 건 "이 단백질이 **구조적/기능적으로** 얼마나 비슷한가".
+
+### 9.2 ESM-2 + pgvector 접근
+
+Meta의 ESM-2 (Evolutionary Scale Modeling)는 단백질 서열을 640차원 벡터로 변환하는 언어 모델. 이 벡터 공간에서 가까운 단백질은 구조적/기능적으로 유사.
+
+```
+사전 계산 (H200 GPU, 1회, ~30분):
+  286K seq_final → ESM-2 (650M) → 286K × 640차원 벡터
+  → Supabase pgvector (IVFFlat 인덱스)
+
+실시간 검색 (~0.6초):
+  입력 서열 → ESM-2 → 벡터 1개
+  → pgvector: cosine similarity KNN
+  → 유사 단백질 50개 → 결정화 조건 분석
+```
+
+### 9.3 BLAST vs ESM-2 비교
+
+| 시나리오 | BLAST | ESM-2 | 승자 |
+|---------|-------|-------|------|
+| 서열 80%+ 동일 (가까운 상동체) | 99% | 95% | **BLAST** |
+| 서열 30-60% 유사 (같은 family) | 90% | 93% | 비슷 |
+| 서열 <20% (먼 상동체) | **못 찾음** | **찾음** | **ESM-2** |
+| 서열 다르지만 구조 유사 | **못 찾음** | **찾음** | **ESM-2** |
+| 검색 속도 (286K DB) | 30-60초+ | **0.6초** | **ESM-2** |
+| 정확한 정렬 위치 | **제공** | 못 함 | **BLAST** |
+
+**결정화 조건 추천에는 ESM-2가 더 적합**: "서열이 비슷한 단백질"보다 "구조적으로 비슷한 단백질"의 결정화 조건이 더 유용.
+
+### 9.4 최적 조합 전략
+
+```
+1단계: ESM-2 벡터 검색 (0.1초) → 후보 50개
+2단계: 후보 50개에 대해 BLAST 정렬 (정확한 identity% 확인)
+3단계: 결정화 데이터 분석 → 조건 추천
+```
+- ESM-2의 속도 + BLAST의 정밀도 = 최적 조합
+- ESM-2만으로도 충분하지만, 논문에 identity%를 쓰려면 BLAST 보조
+
+### 9.5 GPU 인프라 활용 (H200)
+
+| 작업 | H200 예상 시간 |
+|------|--------------|
+| ESM-2 650M × 286K 서열 | ~30분 |
+| ESM-2 3B × 286K 서열 (더 정확) | 3-4시간 |
+| 임베딩 pgvector 업로드 | 5분 |
+
+H200 80GB VRAM → ESM-2 3B 배치 처리 가능 (650M보다 정확).
+
+### 9.6 추가 연구 기회
+
+**논문 1: ESM-2 vs BLAST 비교 연구**
+> "ESM-2 Embedding vs BLAST for Crystallization Condition Prediction: A Comparative Study on 286K Protein Structures"
+- 286K 구조에서 ESM-2 vs BLAST의 유사 단백질 검색 정확도 비교
+- 결정화 성공률 예측에 어떤 유사도가 더 유용한지 통계 검증
+- 저널: Bioinformatics 또는 Proteins: Structure, Function, and Bioinformatics
+
+**논문 2: 임베딩 기반 결정화 예측**
+> "Protein Language Model Embeddings as Features for Crystallization Outcome Prediction"
+- 기존 k-NN (pH, temperature, precipitant) + ESM-2 임베딩 feature 추가
+- 벤치마크 v3 (91.9%) → v5 (임베딩 포함) 개선 측정
+- 저널: Acta Crystallographica Section D
+
+**논문 3: 임베딩 공간 클러스터링**
+> "Protein Clustering by ESM-2 Embeddings Reveals Novel Crystallization Condition Patterns"
+- 286K 벡터 K-means → 단백질 군집별 최적 결정화 조건 패턴 자동 발견
+- AI Scientist 자율 발견과 연결
+
+---
+
+## 10. 한 문장 요약
 
 > **KBSI 단백질 결정화은행 + AI Scientist = 전 세계 최초로 단백질 실험의 "성공과 실패"를 학습하여 자율적으로 가설을 생성하고, 실험을 설계하고, 과학적 발견을 논문으로 생산하는 AI 기반 연구 플랫폼.**
