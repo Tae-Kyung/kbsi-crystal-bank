@@ -95,8 +95,14 @@ export default async function ExperimentTypePage({
     .select('*, kbsi_construct(name, protein_id, kbsi_protein(full_name, abbreviation))');
 
   if (constructFilter) {
-    countQuery = countQuery.eq('construct_id', parseInt(constructFilter));
-    dataQuery = dataQuery.eq('construct_id', parseInt(constructFilter));
+    const cIds = constructFilter.split(',').map(Number).filter(n => !isNaN(n));
+    if (cIds.length === 1) {
+      countQuery = countQuery.eq('construct_id', cIds[0]);
+      dataQuery = dataQuery.eq('construct_id', cIds[0]);
+    } else if (cIds.length > 1) {
+      countQuery = countQuery.in('construct_id', cIds);
+      dataQuery = dataQuery.in('construct_id', cIds);
+    }
   } else if (filterConstructIds !== null) {
     if (filterConstructIds.length === 0) {
       // 매칭 없음 → 빈 결과

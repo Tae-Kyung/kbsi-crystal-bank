@@ -216,10 +216,10 @@ export default async function ProteinDetailPage({
               { label: 'Diffraction', slug: 'diffraction', icon: '📡', count: diffrCount },
               { label: 'Structure', slug: 'structure', icon: '🏗️', count: structCount },
             ].map(exp => {
-              // construct가 1개면 construct_id로 정확 필터, 여러 개면 protein 이름으로
+              // construct_id로 정확 필터 (이름 검색은 동명 단백질 포함 위험)
               const filterParam = constructs.length === 1
                 ? `construct_id=${constructs[0].id}`
-                : `protein=${encodeURIComponent(protein.abbreviation || protein.gene_name || protein.full_name)}`;
+                : `construct_id=${constructs.map((c: any) => c.id).join(',')}`;
               return (
                 <Link key={exp.slug} href={`/experiments/${exp.slug}?${filterParam}`}>
                   <Button variant={exp.count > 0 ? 'outline' : 'ghost'} size="sm" className={`gap-1.5 ${exp.count === 0 ? 'opacity-50' : ''}`}>
