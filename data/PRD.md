@@ -752,6 +752,49 @@ UniProt 월간 릴리즈
 - 실행 이력 → "언제 마지막으로 돌렸지?" 해결
 - 품질 모니터링 → 문제 조기 발견
 
+## 5-6. Phase 8 — 검색 고도화
+
+### F22. 통합 키워드 테이블 + 검색 로그
+
+현재 검색은 kbsi_protein 테이블을 직접 ilike 쿼리. 통합 키워드 테이블로 전환하여 속도 향상 + 다중 엔티티 검색 + 검색 분석.
+
+**테이블: `kbsi_search_keywords`**
+```sql
+CREATE TABLE kbsi_search_keywords (
+  id         BIGINT GENERATED ALWAYS AS IDENTITY PRIMARY KEY,
+  keyword    TEXT NOT NULL,
+  type       TEXT NOT NULL,    -- gene_name, organism, precipitant, host, pdb_id, ...
+  entity_id  BIGINT,           -- 연결된 protein/construct ID (nullable)
+  frequency  INTEGER DEFAULT 0 -- 검색 빈도
+);
+CREATE INDEX idx_keywords_keyword ON kbsi_search_keywords USING gin(keyword gin_trgm_ops);
+```
+
+**테이블: `kbsi_search_log`**
+```sql
+CREATE TABLE kbsi_search_log (
+  id         BIGINT GENERATED ALWAYS AS IDENTITY PRIMARY KEY,
+  query      TEXT NOT NULL,
+  user_id    UUID,
+  result_count INTEGER,
+  created_at TIMESTAMPTZ DEFAULT now()
+);
+```
+
+**키워드 소스:**
+- gene_name (9.7K) → type='gene_name'
+- abbreviation (13K) → type='abbreviation'
+- organism (고유값 ~5K) → type='organism'
+- precipitant_type (고유값 ~100) → type='precipitant'
+- expression_system (고유값 ~50) → type='host'
+- pdb_id (286K) → type='pdb_id'
+
+**활용:**
+- 검색 시 키워드 테이블에서 빠른 매칭 (trigram index)
+- 빈도 기반 정렬 (많이 검색된 것 상위)
+- 인기 검색어 대시보드 (관리자)
+- 검색 패턴 분석 → 데이터 수집 우선순위
+
 ---
 
 ## 6. Technical Constraints
