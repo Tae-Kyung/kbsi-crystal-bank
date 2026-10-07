@@ -28,7 +28,7 @@ export default async function ConstructDetailPage({
   const mutations = construct.kbsi_mutation ?? [];
 
   // Fetch experiment counts + ligand bindings
-  const [expr, puri, cryst, char, diffr, struct, { data: ligandBindings }] = await Promise.all([
+  const [expr, puri, cryst, char, diffr, struct, { data: ligandBindings }, { data: exprSources }] = await Promise.all([
     supabase.from('kbsi_expression').select('id', { count: 'exact', head: true }).eq('construct_id', parseInt(id)),
     supabase.from('kbsi_purification').select('id', { count: 'exact', head: true }).eq('construct_id', parseInt(id)),
     supabase.from('kbsi_crystallization').select('id', { count: 'exact', head: true }).eq('construct_id', parseInt(id)),
@@ -36,7 +36,11 @@ export default async function ConstructDetailPage({
     supabase.from('kbsi_diffraction').select('id', { count: 'exact', head: true }).eq('construct_id', parseInt(id)),
     supabase.from('kbsi_structure').select('id', { count: 'exact', head: true }).eq('construct_id', parseInt(id)),
     supabase.from('kbsi_construct_ligand').select('id, binding_kd, binding_ic50, source_db, kbsi_ligand(id, name, mw, source_db, source_id)').eq('construct_id', parseInt(id)).limit(50),
+    supabase.from('kbsi_expression').select('source_db, source_id').eq('construct_id', parseInt(id)).eq('source_db', 'PubMed').not('source_id', 'is', null).limit(1),
   ]);
+
+  // LLM 추출 논문 DOI
+  const paperDoi = exprSources?.[0]?.source_id || null;
 
   const stats = [
     { label: 'Expression', slug: 'expression', count: expr.count ?? 0, color: 'text-green-600' },
@@ -101,12 +105,12 @@ export default async function ConstructDetailPage({
           <CardContent className="space-y-3 text-sm">
             <Row label="Residues" value={construct.residues} />
             <Row label="Expression System" value={construct.expression_system} source="PDB" />
-            <Row label="Vector" value={construct.vector} source="LLM" />
-            <Row label="Tag" value={construct.tag_name ? `${construct.tag_name}${construct.tag_position ? ` (${construct.tag_position})` : ''}` : null} source="LLM" />
-            <Row label="Cleavage Site" value={construct.cleavage_site} source="LLM" />
+            <Row label="Vector" value={construct.vector} source="LLM" doi={paperDoi} />
+            <Row label="Tag" value={construct.tag_name ? `${construct.tag_name}${construct.tag_position ? ` (${construct.tag_position})` : ''}` : null} source="LLM" doi={paperDoi} />
+            <Row label="Cleavage Site" value={construct.cleavage_site} source="LLM" doi={paperDoi} />
             <Row label="MW (theoretical)" value={construct.theoretical_mw ? `${Math.round(construct.theoretical_mw).toLocaleString()} Da` : null} />
             <Row label="pI (theoretical)" value={construct.theoretical_pi?.toString()} />
-            <Row label="Codon Optimized" value={construct.codon_optimized === null ? null : construct.codon_optimized ? 'Yes' : 'No'} source="LLM" />
+            <Row label="Codon Optimized" value={construct.codon_optimized === null ? null : construct.codon_optimized ? 'Yes' : 'No'} source="LLM" doi={paperDoi} />
           </CardContent>
         </Card>
 
@@ -205,13 +209,18 @@ export default async function ConstructDetailPage({
   );
 }
 
-function Row({ label, value, source }: { label: string; value?: string | null; source?: 'LLM' | 'PDB' }) {
+function Row({ label, value, source, doi }: { label: string; value?: string | null; source?: 'LLM' | 'PDB'; doi?: string | null }) {
   return (
     <div className="flex justify-between items-center">
       <span className="text-muted-foreground">{label}</span>
       <span className="flex items-center gap-1.5">
         {value || '-'}
-        {value && source === 'LLM' && (
+        {value && source === 'LLM' && doi && (
+          <a href={`https://doi.org/${doi}`} target="_blank" rel="noopener noreferrer" title={`논문에서 AI 추출 (${doi})`}>
+            <span className="text-[9px] px-1 py-0.5 rounded bg-amber-100 dark:bg-amber-900 text-amber-700 dark:text-amber-300 cursor-pointer hover:bg-amber-200 dark:hover:bg-amber-800">AI 📄</span>
+          </a>
+        )}
+        {value && source === 'LLM' && !doi && (
           <span className="text-[9px] px-1 py-0.5 rounded bg-amber-100 dark:bg-amber-900 text-amber-700 dark:text-amber-300" title="논문에서 AI 추출">AI</span>
         )}
         {value && source === 'PDB' && (
