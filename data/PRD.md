@@ -563,6 +563,79 @@ KBSI 데이터를 다양한 AI Agent에서 접근할 수 있는 개방형 생태
 - 도구 간 체이닝 지원 (서열 검색 → 유사 조건 → 예측 → 스크린 설계)
 - 벌크 데이터 접근 도구 (CSV/JSON export, 벤치마크 데이터셋)
 
+## 5-5. Phase 7 — 데이터 관리 어드민 시스템
+
+### F21. 데이터 관리 어드민 대시보드 (/admin)
+
+24개 수집/정제 스크립트를 웹 UI에서 관리하고, 데이터 품질을 실시간 모니터링하는 관리자 전용 시스템.
+
+**현재 문제:**
+- 스크립트 실행에 SSH/CLI 접속 필요
+- 진행 상황 확인이 어려움 (tail 로그 수동 확인)
+- 마지막 실행 시점, 결과 이력 관리 안 됨
+- 새 세션에서 "진행 상황 확인해줘" 반복
+
+**구성:**
+
+```
+/admin (관리자 전용, 인증 필수)
+├── 데이터 현황 대시보드
+│   ├── 테이블별 건수 (실시간)
+│   ├── 필드 커버리지 (%) — pH, precipitant_type, gene_name 등
+│   ├── 소스별 분포 (PDB, ChEMBL, PubMed, KBSI)
+│   └── 최근 변동 (어제 대비 증감)
+│
+├── 스크립트 관리
+│   ├── 24개 스크립트 목록 (수집 10, 정제 11, 합성 2, 운영 1)
+│   ├── 각 스크립트: 마지막 실행일, 결과, 소요시간, 에러 수
+│   ├── 실행 버튼 (--limit, --offset, --dry-run 파라미터 UI)
+│   ├── 진행률 바 (실행 중인 스크립트)
+│   └── 실행 이력 로그 (최근 10회)
+│
+├── 데이터 품질 모니터링
+│   ├── LLM 추출 정확도 (81.4% — 자동 검증)
+│   ├── 이상치 탐지 (pH < 2, temp > 50 등)
+│   ├── 중복 서열 현황 (seq_hash 기반)
+│   ├── Enrichment 진행률 (precipitant_type 커버리지)
+│   └── 알림: 품질 기준 미달 시 경고
+│
+└── 수집 일정 관리
+    ├── 정기 실행 스케줄 (주 1회 PDB sweep, 일 1회 Enrichment 등)
+    ├── 자동 실행 이력
+    └── 실패 시 재시도 정책
+```
+
+**스크립트 카탈로그 (24개):**
+
+| # | 스크립트 | 유형 | 자동화 가능 | 정기 실행 |
+|---|---------|------|-----------|----------|
+| 1 | bulk-pdb-sweep | 수집 | ✅ | 주 1회 (신규 PDB 엔트리) |
+| 2 | harvest-papers-extended | 수집 | ✅ | 주 1회 |
+| 3 | harvest-pdb-ligands | 수집 | ✅ | 주 1회 |
+| 4 | harvest-diffraction-from-pdb | 수집 | ✅ | 주 1회 |
+| 5 | harvest-chembl-expanded | 수집 | ✅ | 월 1회 |
+| 6 | bulk-enrich-conditions | 정제 | ✅ | 일 1회 |
+| 7 | backfill-protein-metadata | 정제 | ✅ | 주 1회 |
+| 8 | backfill-theoretical-mw | 정제 | ✅ | 주 1회 |
+| 9 | backfill-space-group | 정제 | ✅ | 주 1회 |
+| 10 | backfill-references | 정제 | ✅ | 주 1회 |
+| 11 | backfill-ncbi-gene | 정제 | ✅ | 월 1회 |
+| 12 | validate-llm-extraction | 검증 | ✅ | 주 1회 |
+| 13 | dedupe-proteins | 정제 | ⚠ (수동 확인) | 월 1회 |
+| 14 | ops-harness | 운영 | ✅ | 일 1회 |
+
+**기술 구현:**
+- Next.js API Routes로 스크립트 실행 (child_process 또는 Edge Function)
+- 실행 이력/상태를 kbsi_admin_log 테이블에 저장
+- WebSocket 또는 SSE로 진행률 실시간 표시
+- 관리자 인증: Supabase Auth role='admin' 체크
+
+**기대 효과:**
+- CLI 없이 브라우저에서 데이터 관리
+- 실행 이력 자동 기록 → "언제 마지막으로 돌렸지?" 해결
+- 품질 모니터링 자동화 → 문제 조기 발견
+- 정기 실행 스케줄 → 수동 개입 최소화
+
 ---
 
 ## 6. Technical Constraints
