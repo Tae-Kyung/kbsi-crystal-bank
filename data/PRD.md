@@ -902,6 +902,33 @@ PDB DOI → Unpaywall API → OA 버전 URL 발견
 - 프리프린트에 상세 Methods 섹션 포함
 - bioRxiv API로 검색 가능
 
+### 데이터 수집 확장 — Construct 설계 정보 보강
+
+Construct의 vector, tag, cleavage_site 등이 전부 NULL (PDB에 미저장).
+논문 Methods에서 LLM 추출로 보강 가능.
+
+**LLM 프롬프트 확장 (harvest-papers-extended.ts):**
+```json
+"construct": {
+  "vector": "string or null (e.g. pET-28a, pGEX-6P, pFastBac)",
+  "tag": "string or null (e.g. His6, GST, MBP, SUMO, Strep)",
+  "tag_position": "N-terminal | C-terminal | null",
+  "cleavage_site": "string or null (e.g. TEV, PreScission, Thrombin)",
+  "codon_optimized": "boolean or null"
+}
+```
+
+**construct_type 자동 분류 (서열/이름 기반):**
+- full_name에 "domain", "truncation", "fragment" → truncation/domain
+- full_name에 "mutant", "variant" → mutant
+- full_name에 "fusion", "chimera" → fusion
+- 나머지 → full-length
+
+**예상 효과:**
+- vector: 논문에 기술된 것만 (~30% 예상)
+- tag: 논문에 "His-tagged" 등 자주 기술 (~50% 예상)
+- construct_type: 이름 분석으로 ~80% 자동 분류 가능
+
 ### 데이터 수집 확장 — Crystallization/Diffraction/Ligand/Binding 추가 확보
 
 #### Ligand & Binding (가장 큰 규모)
