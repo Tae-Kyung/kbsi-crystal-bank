@@ -6,6 +6,7 @@ import { Sheet, SheetContent, SheetTrigger } from '@/components/ui/sheet';
 import { Button } from '@/components/ui/button';
 import { Menu, LogOut, Moon, Sun, Globe } from 'lucide-react';
 import { Sidebar } from './sidebar';
+import { SearchSuggest } from '@/components/ui/search-suggest';
 import { createClient } from '@/lib/supabase/client';
 import { useLocale } from '@/lib/locale-context';
 import { t, LOCALE_LABELS, type Locale } from '@/lib/i18n';
@@ -16,8 +17,6 @@ export function Header() {
   const { locale, setLocale } = useLocale();
   const title = pathname.split('/').filter(Boolean)[0] ?? 'Dashboard';
   const [loggingOut, setLoggingOut] = useState(false);
-  const [searchValue, setSearchValue] = useState('');
-
   function toggleDark() {
     document.documentElement.classList.toggle('dark');
     const isDark = document.documentElement.classList.contains('dark');
@@ -51,26 +50,8 @@ export function Header() {
 
       <h1 className="text-lg font-semibold capitalize">{title}</h1>
 
-      <div className="flex-1 flex justify-center">
-        <form
-          onSubmit={(e) => {
-            e.preventDefault();
-            const value = searchValue.trim();
-            if (value) {
-              router.push(`/proteins?search=${encodeURIComponent(value)}`);
-              setSearchValue('');
-            }
-          }}
-          className="hidden sm:block"
-        >
-          <input
-            type="text"
-            value={searchValue}
-            onChange={(e) => setSearchValue(e.target.value)}
-            placeholder="단백질, PDB ID, 유전자명 검색... (⌘K)"
-            className="rounded-xl bg-muted/50 px-4 py-2 w-[400px] text-sm border-none outline-none focus:ring-2 focus:ring-primary/30"
-          />
-        </form>
+      <div className="flex-1 flex justify-center hidden sm:flex">
+        <SearchSuggest />
       </div>
 
       <div className="flex items-center gap-2">
