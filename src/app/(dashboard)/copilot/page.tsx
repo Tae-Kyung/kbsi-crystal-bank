@@ -204,58 +204,6 @@ export default function CopilotPage() {
         </CardContent>
       </Card>
 
-      {/* BLAST Results */}
-      {blastResults && (
-        <Card>
-          <CardHeader>
-            <CardTitle className="text-base">
-              NCBI BLAST Results
-              <span className="text-xs font-normal text-muted-foreground ml-2">
-                ({blastResults.matches?.length} hits, query {blastResults.query_length} residues)
-              </span>
-            </CardTitle>
-          </CardHeader>
-          <CardContent>
-            <div className="rounded-md border overflow-hidden">
-              <table className="w-full text-sm">
-                <thead className="bg-muted/50">
-                  <tr>
-                    <th className="px-3 py-2 text-left text-xs font-medium">PDB</th>
-                    <th className="px-3 py-2 text-left text-xs font-medium">Protein</th>
-                    <th className="px-3 py-2 text-left text-xs font-medium">Organism</th>
-                    <th className="px-3 py-2 text-right text-xs font-medium">Identity</th>
-                    <th className="px-3 py-2 text-right text-xs font-medium">E-value</th>
-                    <th className="px-3 py-2 text-right text-xs font-medium">Resolution</th>
-                    <th className="px-3 py-2 text-left text-xs font-medium">In KBSI</th>
-                  </tr>
-                </thead>
-                <tbody className="divide-y">
-                  {(blastResults.matches || []).map((m: any, i: number) => (
-                    <tr key={i} className="hover:bg-muted/30">
-                      <td className="px-3 py-1.5 text-xs">
-                        <a href={`https://www.rcsb.org/structure/${m.pdb_id}`} target="_blank" rel="noopener noreferrer" className="text-primary hover:underline font-mono">{m.pdb_id}</a>
-                      </td>
-                      <td className="px-3 py-1.5 text-xs">{m.protein || m.title?.slice(0, 30) || '-'}</td>
-                      <td className="px-3 py-1.5 text-xs italic">{m.organism?.slice(0, 20) || '-'}</td>
-                      <td className="px-3 py-1.5 text-xs text-right font-mono font-bold">{m.identity}%</td>
-                      <td className="px-3 py-1.5 text-xs text-right font-mono">{m.evalue?.toExponential(1)}</td>
-                      <td className="px-3 py-1.5 text-xs text-right">{m.resolution ? `${m.resolution}Å` : '-'}</td>
-                      <td className="px-3 py-1.5 text-xs">
-                        {m.in_kbsi ? (
-                          <Badge variant="default" className="text-[10px] bg-green-600">DB</Badge>
-                        ) : (
-                          <Badge variant="outline" className="text-[10px]">외부</Badge>
-                        )}
-                      </td>
-                    </tr>
-                  ))}
-                </tbody>
-              </table>
-            </div>
-          </CardContent>
-        </Card>
-      )}
-
       {/* Results */}
       {result && (
         <>
