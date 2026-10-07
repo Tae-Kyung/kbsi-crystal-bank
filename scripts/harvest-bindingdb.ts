@@ -15,7 +15,7 @@ const supabase = createClient(
   process.env.SUPABASE_SERVICE_ROLE_KEY!
 );
 
-const BINDINGDB_API = 'https://bindingdb.org/axis2/services/BDBService';
+const BINDINGDB_API = 'https://bindingdb.org/rest';
 
 function sleep(ms: number) { return new Promise(r => setTimeout(r, ms)); }
 
@@ -31,46 +31,48 @@ interface BindingEntry {
 
 async function fetchBindingDB(uniprotId: string): Promise<BindingEntry[]> {
   try {
-    const url = `${BINDINGDB_API}/getLigandsByUniprot?uniprot=${uniprotId}&response=json`;
+    const url = `${BINDINGDB_API}/getLigandsByUniprot?uniprot=${uniprotId};10000&response=application/json`;
     const res = await fetch(url, {
       headers: { 'User-Agent': 'KBSI-CrystalBank/1.0' },
     });
     if (!res.ok) return [];
     const text = await res.text();
-    if (!text || text.trim() === '' || text.includes('error')) return [];
+    if (!text || text.trim() === '' || text.length < 10) return [];
 
-    // BindingDB JSON 파싱
     let data: any;
     try { data = JSON.parse(text); } catch { return []; }
 
     const entries: BindingEntry[] = [];
-    const affinities = data?.affinities?.affinity;
+    // 응답 구조: getLindsByUniprotResponse.bdb.affinities
+    const affinities = data?.getLindsByUniprotResponse?.['bdb.affinities'];
     if (!affinities) return [];
 
     const list = Array.isArray(affinities) ? affinities : [affinities];
     for (const a of list) {
-      const smiles = a?.smiles_string || a?.smiles;
+      const smiles = a?.['bdb.smile'] || a?.smile;
       if (!smiles) continue;
 
       const entry: BindingEntry = {
-        monomerid: a?.monomerid || a?.zinc_id || '',
+        monomerid: String(a?.['bdb.monomerid'] || a?.monomerid || ''),
         smiles,
-        name: a?.ligand_name || a?.monomerid || 'Unknown',
+        name: a?.['bdb.compound_name'] || a?.['bdb.monomerid'] || 'Unknown',
       };
 
-      // 친화도 파싱 (nM 단위로 통일)
       const parseAffinity = (val: string | number | undefined): number | undefined => {
-        if (val === undefined || val === null || val === '') return undefined;
+        if (val === undefined || val === null || val === '' || val === 'NA') return undefined;
         const num = typeof val === 'string' ? parseFloat(val.replace(/[<>~=]/g, '')) : val;
         return isNaN(num) ? undefined : num;
       };
 
-      entry.ki = parseAffinity(a?.ki);
-      entry.kd = parseAffinity(a?.kd);
-      entry.ic50 = parseAffinity(a?.ic50);
-      entry.ec50 = parseAffinity(a?.ec50);
+      // 친화도 타입별 파싱
+      const affType = a?.['bdb.affinity_type'] || a?.affinity_type || '';
+      const affVal = parseAffinity(a?.['bdb.affinity'] || a?.affinity);
 
-      // 최소한 하나의 친화도 값이 있어야
+      if (affType.includes('Ki')) entry.ki = affVal;
+      else if (affType.includes('Kd')) entry.kd = affVal;
+      else if (affType.includes('IC50')) entry.ic50 = affVal;
+      else if (affType.includes('EC50')) entry.ec50 = affVal;
+
       if (entry.ki || entry.kd || entry.ic50 || entry.ec50) {
         entries.push(entry);
       }
