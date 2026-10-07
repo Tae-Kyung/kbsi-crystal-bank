@@ -4,7 +4,6 @@ import { Button } from '@/components/ui/button';
 import { Dna, FlaskConical, Gem, Pill, Beaker, Link2, Microscope, Radiation } from 'lucide-react';
 import { CrystallizationHeatmap } from '@/components/charts/crystallization-heatmap';
 import { OutcomeDistribution } from '@/components/charts/outcome-distribution';
-import { SourceDistribution } from '@/components/charts/source-distribution';
 import { DataInsights } from '@/components/charts/data-insights';
 import { PipelineSankey } from '@/components/charts/pipeline-sankey';
 import Link from 'next/link';
@@ -98,18 +97,7 @@ export default async function DashboardPage() {
   const failureTotal = oClear + oPrecip;
   const syntheticTotal = sClear + sPrecip + sPhase + sMicro + sSingle + sDiffr;
 
-  // Source 분포는 간소화 (총 건수로 대체, 개별 source 쿼리 제거)
   const experimentalCryst = crystCount - syntheticTotal;
-  const sourceDbCryst = [
-    { source_db: 'Experimental', count: experimentalCryst },
-    { source_db: 'Synthetic', count: syntheticTotal },
-  ];
-  const sourceDbStruct = [
-    { source_db: 'PDB', count: structCount },
-  ];
-  const sourceDbLigand = [
-    { source_db: 'PDB + ChEMBL', count: ligandCount },
-  ];
 
   return (
     <div className="space-y-6">
@@ -221,27 +209,43 @@ export default async function DashboardPage() {
       {/* Cross-Analysis Insights */}
       <DataInsights />
 
-      {/* Data Source Distribution */}
-      <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
-        <Card>
-          <CardHeader><CardTitle className="text-sm">Crystallization by Source</CardTitle></CardHeader>
-          <CardContent>
-            <SourceDistribution data={sourceDbCryst} />
-          </CardContent>
-        </Card>
-        <Card>
-          <CardHeader><CardTitle className="text-sm">Structures by Source</CardTitle></CardHeader>
-          <CardContent>
-            <SourceDistribution data={sourceDbStruct} />
-          </CardContent>
-        </Card>
-        <Card>
-          <CardHeader><CardTitle className="text-sm">Ligands by Source</CardTitle></CardHeader>
-          <CardContent>
-            <SourceDistribution data={sourceDbLigand} />
-          </CardContent>
-        </Card>
-      </div>
+      {/* Data Source Summary */}
+      <Card>
+        <CardHeader><CardTitle className="text-base">Data Source Summary</CardTitle></CardHeader>
+        <CardContent>
+          <div className="rounded-md border overflow-hidden">
+            <table className="w-full text-sm">
+              <thead className="bg-muted/50">
+                <tr>
+                  <th className="px-4 py-2 text-left font-medium">Data Type</th>
+                  <th className="px-4 py-2 text-right font-medium">Count</th>
+                  <th className="px-4 py-2 text-left font-medium">Source</th>
+                </tr>
+              </thead>
+              <tbody className="divide-y">
+                {[
+                  { type: 'Proteins', count: stats[0].value, source: 'PDB, TargetTrack' },
+                  { type: 'Constructs', count: stats[1].value, source: 'PDB, TargetTrack' },
+                  { type: 'Expression', count: exprCount, source: 'PubMed (LLM extraction)' },
+                  { type: 'Purification', count: purifCount, source: 'PubMed (LLM extraction)' },
+                  { type: 'Characterization', count: charCount, source: 'PubMed (LLM extraction)' },
+                  { type: 'Crystallization', count: crystCount, source: `Experimental ${experimentalCryst.toLocaleString()} + Synthetic ${syntheticTotal.toLocaleString()}` },
+                  { type: 'Diffraction', count: diffrCount, source: 'PDB API + PubMed' },
+                  { type: 'Structures', count: structCount, source: 'PDB (X-ray + Cryo-EM + NMR)' },
+                  { type: 'Ligands', count: ligandCount, source: 'PDB HET + ChEMBL' },
+                  { type: 'Bindings', count: bindingCount, source: 'PDB co-crystal + ChEMBL IC50/Kd' },
+                ].map(row => (
+                  <tr key={row.type} className="hover:bg-muted/30">
+                    <td className="px-4 py-2 font-medium text-xs">{row.type}</td>
+                    <td className="px-4 py-2 text-right font-mono text-xs">{row.count.toLocaleString()}</td>
+                    <td className="px-4 py-2 text-xs text-muted-foreground">{row.source}</td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+        </CardContent>
+      </Card>
     </div>
   );
 }
