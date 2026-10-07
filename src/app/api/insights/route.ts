@@ -25,7 +25,7 @@ export async function GET() {
     PH_RANGES.map(async (range) => {
       const [{ count: total }, { count: success }] = await Promise.all([
         supabase.from('kbsi_crystallization').select('id', { count: 'exact', head: true })
-          .gte('ph', range.min).lt('ph', range.max).not('outcome', 'is', null),
+          .gte('ph', range.min).lt('ph', range.max),
         supabase.from('kbsi_crystallization').select('id', { count: 'exact', head: true })
           .gte('ph', range.min).lt('ph', range.max)
           .or('outcome.eq.diffraction_quality,outcome.eq.single_crystal'),
@@ -49,7 +49,7 @@ export async function GET() {
     TEMP_RANGES.map(async (range) => {
       const [{ count: total }, { count: success }] = await Promise.all([
         supabase.from('kbsi_crystallization').select('id', { count: 'exact', head: true })
-          .gte('temperature', range.min).lt('temperature', range.max).not('outcome', 'is', null),
+          .gte('temperature', range.min).lt('temperature', range.max),
         supabase.from('kbsi_crystallization').select('id', { count: 'exact', head: true })
           .gte('temperature', range.min).lt('temperature', range.max)
           .or('outcome.eq.diffraction_quality,outcome.eq.single_crystal'),
@@ -67,7 +67,7 @@ export async function GET() {
     TOP_PRECIPITANTS.map(async (precip) => {
       const [{ count: total }, { count: success }] = await Promise.all([
         supabase.from('kbsi_crystallization').select('id', { count: 'exact', head: true })
-          .eq('precipitant_type', precip).not('outcome', 'is', null),
+          .eq('precipitant_type', precip),
         supabase.from('kbsi_crystallization').select('id', { count: 'exact', head: true })
           .eq('precipitant_type', precip)
           .or('outcome.eq.diffraction_quality,outcome.eq.single_crystal'),
