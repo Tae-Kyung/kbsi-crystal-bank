@@ -7,7 +7,6 @@ import { OutcomeDistribution } from '@/components/charts/outcome-distribution';
 import { SourceDistribution } from '@/components/charts/source-distribution';
 import { DataInsights } from '@/components/charts/data-insights';
 import { PipelineSankey } from '@/components/charts/pipeline-sankey';
-import { TimelineChart } from '@/components/charts/timeline-chart';
 import Link from 'next/link';
 
 // ISR: 10초 캐시 (RPC 2.4초 + 클라이언트 네비게이션 대응)
@@ -218,9 +217,6 @@ export default async function DashboardPage() {
           <CrystallizationHeatmap data={heatmapData ?? []} />
         </CardContent>
       </Card>
-
-      {/* Timeline */}
-      <TimelineChart />
 
       {/* Cross-Analysis Insights */}
       <DataInsights />
