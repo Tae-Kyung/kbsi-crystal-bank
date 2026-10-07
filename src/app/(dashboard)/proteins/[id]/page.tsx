@@ -267,9 +267,14 @@ export default async function ProteinDetailPage({
                       <tr key={b.id} className="hover:bg-muted/30">
                         <td className="px-3 py-2 text-xs">
                           {lUrl ? (
-                            <a href={lUrl} target="_blank" rel="noopener noreferrer" className="text-primary hover:underline">{ligand?.name}</a>
+                            <a href={lUrl} target="_blank" rel="noopener noreferrer" className="text-primary hover:underline font-mono font-bold">{lId}</a>
                           ) : (
-                            ligand?.name || '-'
+                            <span className="font-mono font-bold">{lId || '-'}</span>
+                          )}
+                          {ligand?.name && lId !== ligand.name && (
+                            <span className="text-muted-foreground ml-1 text-[10px]" title={ligand.name}>
+                              {ligand.name.length > 30 ? ligand.name.slice(0, 30) + '...' : ligand.name}
+                            </span>
                           )}
                           {ligand?.mw && <span className="text-muted-foreground ml-1">({ligand.mw.toFixed(0)} Da)</span>}
                         </td>
