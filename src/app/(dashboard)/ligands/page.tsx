@@ -150,7 +150,12 @@ export default async function LigandsPage({
                     <td className="px-3 py-2 text-xs">{lig?.mw ? `${lig.mw.toFixed(0)}` : '-'}</td>
                     <td className="px-3 py-2 text-xs font-mono">{b.binding_kd ? b.binding_kd.toLocaleString() : '-'}</td>
                     <td className="px-3 py-2 text-xs font-mono">{b.binding_ic50 ? b.binding_ic50.toLocaleString() : '-'}</td>
-                    <td className="px-3 py-2 text-xs">{b.source_db ? <Badge variant="outline" className="text-[10px]">{b.source_db}</Badge> : '-'}</td>
+                    <td className="px-3 py-2 text-xs">
+                      <div className="flex gap-1">
+                        {lUrl && <a href={lUrl} target="_blank" rel="noopener noreferrer"><Badge variant="outline" className="text-[10px] cursor-pointer hover:bg-blue-50 dark:hover:bg-blue-950">{lig?.source_db}</Badge></a>}
+                        {!lUrl && b.source_db && <Badge variant="outline" className="text-[10px]">{b.source_db}</Badge>}
+                      </div>
+                    </td>
                   </tr>
                 );
               })}

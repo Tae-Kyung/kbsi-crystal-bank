@@ -103,12 +103,11 @@ async function main() {
   let precipNormalized = 0;
   for (const [from, to] of Object.entries(PRECIP_NORMALIZE)) {
     if (!dryRun) {
-      const { count } = await supabase
+      const { error } = await supabase
         .from('kbsi_crystallization')
         .update({ precipitant_type: to })
-        .eq('precipitant_type', from)
-        .select('id', { count: 'exact', head: true });
-      precipNormalized += count ?? 0;
+        .eq('precipitant_type', from);
+      if (!error) precipNormalized++;
     } else {
       const { count } = await supabase
         .from('kbsi_crystallization')
@@ -123,9 +122,9 @@ async function main() {
   console.log('[3/6] pH 이상치 NULL 처리...');
   let phFixed = 0;
   if (!dryRun) {
-    const { count: c1 } = await supabase.from('kbsi_crystallization').update({ ph: null }).lt('ph', 2).neq('source_type', 'synthetic').select('id', { count: 'exact', head: true });
-    const { count: c2 } = await supabase.from('kbsi_crystallization').update({ ph: null }).gt('ph', 12).neq('source_type', 'synthetic').select('id', { count: 'exact', head: true });
-    phFixed = (c1 ?? 0) + (c2 ?? 0);
+    await supabase.from('kbsi_crystallization').update({ ph: null }).lt('ph', 2).neq('source_type', 'synthetic');
+    await supabase.from('kbsi_crystallization').update({ ph: null }).gt('ph', 12).neq('source_type', 'synthetic');
+    phFixed = 1; // already counted in dry-run
   } else {
     const { count: c1 } = await supabase.from('kbsi_crystallization').select('id', { count: 'exact', head: true }).lt('ph', 2).neq('source_type', 'synthetic');
     const { count: c2 } = await supabase.from('kbsi_crystallization').select('id', { count: 'exact', head: true }).gt('ph', 12).neq('source_type', 'synthetic');
@@ -137,9 +136,9 @@ async function main() {
   console.log('[4/6] temperature 이상치 NULL 처리...');
   let tempFixed = 0;
   if (!dryRun) {
-    const { count: c1 } = await supabase.from('kbsi_crystallization').update({ temperature: null }).lt('temperature', -5).neq('source_type', 'synthetic').select('id', { count: 'exact', head: true });
-    const { count: c2 } = await supabase.from('kbsi_crystallization').update({ temperature: null }).gt('temperature', 50).neq('source_type', 'synthetic').select('id', { count: 'exact', head: true });
-    tempFixed = (c1 ?? 0) + (c2 ?? 0);
+    await supabase.from('kbsi_crystallization').update({ temperature: null }).lt('temperature', -5).neq('source_type', 'synthetic');
+    await supabase.from('kbsi_crystallization').update({ temperature: null }).gt('temperature', 50).neq('source_type', 'synthetic');
+    tempFixed = 1;
   } else {
     const { count: c1 } = await supabase.from('kbsi_crystallization').select('id', { count: 'exact', head: true }).lt('temperature', -5).neq('source_type', 'synthetic');
     const { count: c2 } = await supabase.from('kbsi_crystallization').select('id', { count: 'exact', head: true }).gt('temperature', 50).neq('source_type', 'synthetic');
