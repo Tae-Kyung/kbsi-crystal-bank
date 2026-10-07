@@ -409,6 +409,47 @@ Outcome 분포: precipitate 63.8%, diffraction_quality 22.9%, clear 6.7%, phase_
 - 세계 유일: 실패 데이터 기반 "하지 말아야 할 조건" 추천
 - 논문에서 찾을 수 없는 실패 패턴의 체계적 분석
 
+### F15-1a. 서열 유사도 검색 고도화
+
+현재 k-mer Jaccard는 갭/치환 미고려로 과학적으로 약함. Proper alignment로 교체 필요.
+
+**현재 (k-mer Jaccard):**
+- 3글자 부분 문자열 공유 비율
+- 갭 불가, 치환 행렬 없음 (I→L도 다른 것으로 처리)
+- 50K construct에서 300ms로 빠르지만 정확도 낮음
+
+**개선 단계:**
+
+| 단계 | 방법 | 정확도 | 속도 | 구현 |
+|------|------|--------|------|------|
+| 1단계 | **NCBI BLAST API** | 최고 | 30초+ (외부) | 쉬움 |
+| 2단계 | **MMseqs2 사전 클러스터링** | 높음 | 즉시 (사전 계산) | 중간 |
+| 3단계 | **자체 Smith-Waterman + BLOSUM62** | 높음 | 서버 계산 | 높음 |
+
+**1단계: NCBI BLAST API (프로토타입)**
+```
+입력 서열 → NCBI BLAST REST API (blastp, nr/pdb DB)
+  → E-value < 0.001 매칭
+  → PDB ID 추출 → KBSI DB에서 construct 검색
+  → 유사 단백질의 결정화 데이터 분석
+```
+- 장점: 정확한 alignment, 검증된 알고리즘
+- 단점: 30초+ 지연, 외부 의존, rate limit
+
+**2단계: MMseqs2 클러스터링 (운영)**
+```
+사전 계산 (오프라인):
+  286K seq_final → MMseqs2 cluster (--min-seq-id 0.3)
+  → kbsi_sequence_cluster 테이블 (construct_id, cluster_id, rep_id)
+
+검색 (온라인):
+  입력 서열 → MMseqs2 search (사전 구축 DB)
+  → cluster_id → 같은 클러스터의 모든 construct
+  → 결정화 데이터 분석
+```
+- 장점: 즉시 결과, 정확, 외부 의존 없음
+- 단점: MMseqs2 바이너리 + 사전 계산 필요
+
 ### F15-2. Crystallization Copilot (킬러 기능 #1)
 
 단백질 서열 하나를 입력하면 Construct 설계 → 발현 조건 → 결정화 조건 → 실패 시 대안까지 엔드투엔드 실험 전략을 생성합니다.
