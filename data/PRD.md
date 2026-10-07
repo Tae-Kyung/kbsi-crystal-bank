@@ -179,6 +179,14 @@ PDB 공개 데이터를 활용하여 결정화 조건 데이터를 체계적으�
 - Scatter SVG: outcome별 균등 샘플 6K + Cache-Control 30분 (162초→3초)
 - Proteins 목록: count 분리 (JOIN+count 동시 타임아웃 방지) + 50건/페이지
 
+### F17a. 추가 데이터 수집 (구현 완료/진행 중)
+
+| 스크립트 | 소스 | 상태 | 예상 |
+|---------|------|------|------|
+| `backfill-sifts-uniprot.ts` | EBI SIFTS (PDB→UniProt 포괄 매핑) | **진행 중** | UniProt 13K→42K, gene_name 16%→66% |
+| `harvest-bindingdb.ts` | BindingDB REST API | **진행 중** | +수만 bindings (Kd/Ki/IC50/EC50) |
+| `harvest-pdb-ligands.ts` 2차 | PDB HET 나머지 236K | **진행 중** (33%) | ligand +15K, binding +60K |
+
 ### F17. 공개 DB 대규모 데이터 수집 파이프라인
 - **PDB Bulk Harvest** (`scripts/bulk-pdb-harvest.ts`)
   - RCSB Search API 기반 22개 카테고리별 자동 수집
