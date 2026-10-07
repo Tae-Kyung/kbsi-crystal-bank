@@ -1,34 +1,41 @@
 import Link from 'next/link';
-import { createClient } from '@/lib/supabase/server';
+import { createServiceClient } from '@/lib/supabase/service';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
 import { Plus } from 'lucide-react';
-import { ProteinTable } from '@/components/tables/protein-table';
+
+export const dynamic = 'force-dynamic';
 
 export default async function ProteinsPage({
   searchParams,
 }: {
-  searchParams: Promise<{ search?: string; page?: string }>;
+  searchParams: Promise<{ search?: string; page?: string; organism?: string }>;
 }) {
   const params = await searchParams;
-  const supabase = await createClient();
+  const supabase = createServiceClient();
   const page = parseInt(params.page || '1');
   const limit = 50;
   const offset = (page - 1) * limit;
+  const search = params.search || '';
+  const organism = params.organism || '';
 
-  // count와 데이터를 분리 조회 (대용량 테이블에서 JOIN+count 동시 시 타임아웃 방지)
   let countQuery = supabase
     .from('kbsi_protein')
-    .select('id', { count: 'exact', head: true });
+    .select('id', { count: 'exact', head: true }) as any;
 
   let dataQuery = supabase
     .from('kbsi_protein')
-    .select('*, kbsi_construct(count)');
+    .select('id, full_name, abbreviation, gene_name, organism, updated_at') as any;
 
-  if (params.search) {
-    const filter = `full_name.ilike.%${params.search}%,abbreviation.ilike.%${params.search}%,gene_name.ilike.%${params.search}%`;
+  if (search) {
+    const filter = `full_name.ilike.%${search}%,abbreviation.ilike.%${search}%,gene_name.ilike.%${search}%`;
     countQuery = countQuery.or(filter);
     dataQuery = dataQuery.or(filter);
+  }
+
+  if (organism) {
+    countQuery = countQuery.ilike('organism', `%${organism}%`);
+    dataQuery = dataQuery.ilike('organism', `%${organism}%`);
   }
 
   const [{ count }, { data: proteins }] = await Promise.all([
@@ -36,30 +43,103 @@ export default async function ProteinsPage({
     dataQuery.order('updated_at', { ascending: false }).range(offset, offset + limit - 1),
   ]);
 
+  const totalPages = Math.ceil((count ?? 0) / limit);
+  const filterStr = [
+    search ? `search=${encodeURIComponent(search)}` : '',
+    organism ? `organism=${encodeURIComponent(organism)}` : '',
+  ].filter(Boolean).join('&');
+  const filterParam = filterStr ? `&${filterStr}` : '';
+
   return (
     <div className="space-y-4">
       <div className="flex items-center justify-between">
         <div>
           <h2 className="text-2xl font-bold">Proteins</h2>
           <p className="text-muted-foreground">
-            {(count ?? 0).toLocaleString()}개의 단백질이 등록되어 있습니다. (PDB, TargetTrack, KBSI)
+            {(count ?? 0).toLocaleString()}개의 단백질
           </p>
         </div>
-        <Link href="/proteins/new">
-          <Button>
-            <Plus className="h-4 w-4 mr-2" />
-            New Protein
-          </Button>
-        </Link>
+        <div className="flex gap-2">
+          <a href={`/api/export/proteins?${filterStr}`} target="_blank" rel="noopener noreferrer">
+            <Button variant="outline" size="sm">CSV Export</Button>
+          </a>
+          <Link href="/proteins/new">
+            <Button><Plus className="h-4 w-4 mr-2" />New Protein</Button>
+          </Link>
+        </div>
       </div>
 
-      <ProteinTable
-        proteins={proteins ?? []}
-        total={count ?? 0}
-        page={page}
-        limit={limit}
-        search={params.search}
-      />
+      {/* Filters */}
+      <form className="flex flex-wrap gap-2" action="/proteins">
+        <input
+          name="search"
+          defaultValue={search}
+          placeholder="이름, 유전자명, 약어 검색..."
+          className="flex-1 min-w-[200px] max-w-sm rounded-lg border bg-muted/50 px-3 py-2 text-sm placeholder:text-muted-foreground focus:outline-none focus:ring-2 focus:ring-primary/30"
+        />
+        <input
+          name="organism"
+          defaultValue={organism}
+          placeholder="생물종 필터 (예: Homo sapiens)"
+          className="w-48 rounded-lg border bg-muted/50 px-3 py-2 text-sm placeholder:text-muted-foreground focus:outline-none focus:ring-2 focus:ring-primary/30"
+        />
+        <Button type="submit" variant="outline" size="sm">검색</Button>
+        {(search || organism) && (
+          <Link href="/proteins"><Button variant="ghost" size="sm">초기화</Button></Link>
+        )}
+      </form>
+
+      {/* Table */}
+      <div className="rounded-md border overflow-hidden">
+        <table className="w-full text-sm">
+          <thead className="bg-muted/50">
+            <tr>
+              <th className="px-3 py-2 text-left font-medium">Name</th>
+              <th className="px-3 py-2 text-left font-medium">Gene</th>
+              <th className="px-3 py-2 text-left font-medium">Organism</th>
+              <th className="px-3 py-2 text-left font-medium">Updated</th>
+            </tr>
+          </thead>
+          <tbody className="divide-y">
+            {(proteins || []).map((p: any) => (
+              <tr key={p.id} className="hover:bg-muted/30">
+                <td className="px-3 py-2">
+                  <Link href={`/proteins/${p.id}`} className="text-primary hover:underline text-xs font-medium">
+                    {p.abbreviation || p.full_name?.slice(0, 40) || `#${p.id}`}
+                  </Link>
+                  {p.abbreviation && p.full_name && (
+                    <span className="text-[10px] text-muted-foreground ml-1" title={p.full_name}>
+                      ({p.full_name.slice(0, 25)}{p.full_name.length > 25 ? '...' : ''})
+                    </span>
+                  )}
+                </td>
+                <td className="px-3 py-2 text-xs font-mono">{p.gene_name || '-'}</td>
+                <td className="px-3 py-2 text-xs italic">{p.organism?.slice(0, 25) || '-'}</td>
+                <td className="px-3 py-2 text-xs text-muted-foreground">{new Date(p.updated_at).toLocaleDateString('ko-KR')}</td>
+              </tr>
+            ))}
+            {(!proteins || proteins.length === 0) && (
+              <tr><td colSpan={4} className="px-3 py-8 text-center text-muted-foreground">데이터가 없습니다.</td></tr>
+            )}
+          </tbody>
+        </table>
+      </div>
+
+      {/* Pagination */}
+      {totalPages > 1 && (
+        <div className="flex items-center justify-between">
+          <p className="text-sm text-muted-foreground">
+            총 {(count ?? 0).toLocaleString()}건 (페이지 {page} / {totalPages.toLocaleString()})
+          </p>
+          <div className="flex items-center gap-2">
+            <Link href={`/proteins?page=1${filterParam}`}><Button variant="outline" size="sm" disabled={page <= 1}>처음</Button></Link>
+            <Link href={`/proteins?page=${page - 1}${filterParam}`}><Button variant="outline" size="sm" disabled={page <= 1}>이전</Button></Link>
+            <span className="text-sm px-2">{page} / {totalPages.toLocaleString()}</span>
+            <Link href={`/proteins?page=${page + 1}${filterParam}`}><Button variant="outline" size="sm" disabled={page >= totalPages}>다음</Button></Link>
+            <Link href={`/proteins?page=${totalPages}${filterParam}`}><Button variant="outline" size="sm" disabled={page >= totalPages}>마지막</Button></Link>
+          </div>
+        </div>
+      )}
     </div>
   );
 }
