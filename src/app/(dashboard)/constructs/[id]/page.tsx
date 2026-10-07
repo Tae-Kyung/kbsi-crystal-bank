@@ -40,7 +40,7 @@ export default async function ConstructDetailPage({
   ]);
 
   // LLM 추출 논문 DOI
-  const paperDoi = exprSources?.[0]?.source_id || null;
+  const paperDoi = (exprSources as any)?.[0]?.source_id || null;
 
   const stats = [
     { label: 'Expression', slug: 'expression', count: expr.count ?? 0, color: 'text-green-600' },
