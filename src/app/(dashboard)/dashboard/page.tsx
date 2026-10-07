@@ -18,9 +18,46 @@ export default async function DashboardPage() {
   const OUTCOMES = ['clear', 'precipitate', 'phase_separation', 'microcrystal', 'single_crystal', 'diffraction_quality'] as const;
   const SAMPLE_PER_OUTCOME = 400;
 
-  // ─── 1개 RPC + scatter/recent만 병렬 ───
-  const [rpcResult, heatmapPages, recentProteinsRes] = await Promise.all([
-    supabase.rpc('dashboard_stats'),
+  // ─── Stats: 개별 경량 쿼리 (RPC 타임아웃 대비) ───
+  const countTable = async (table: string, filter?: { col: string; val: string }) => {
+    let q = supabase.from(table).select('id', { count: 'exact', head: true }) as any;
+    if (filter) q = q.eq(filter.col, filter.val);
+    const { count } = await q;
+    return count ?? 0;
+  };
+
+  // 배치 1: 기본 stats (가벼운 테이블 우선)
+  const [proteinCount, constructCount, exprCount, purifCount, charCount, crystCount, diffrCount, structCount, ligandCount, bindingCount] = await Promise.all([
+    countTable('kbsi_protein'),
+    countTable('kbsi_construct'),
+    countTable('kbsi_expression'),
+    countTable('kbsi_purification'),
+    countTable('kbsi_characterization'),
+    countTable('kbsi_crystallization'),
+    countTable('kbsi_diffraction'),
+    countTable('kbsi_structure'),
+    countTable('kbsi_ligand'),
+    countTable('kbsi_construct_ligand'),
+  ]);
+
+  // 배치 2: outcome + source + scatter + recent
+  const [
+    oClear, oPrecip, oPhase, oMicro, oSingle, oDiffr,
+    sClear, sPrecip, sPhase, sMicro, sSingle, sDiffr,
+    heatmapPages, recentProteinsRes,
+  ] = await Promise.all([
+    countTable('kbsi_crystallization', { col: 'outcome', val: 'clear' }),
+    countTable('kbsi_crystallization', { col: 'outcome', val: 'precipitate' }),
+    countTable('kbsi_crystallization', { col: 'outcome', val: 'phase_separation' }),
+    countTable('kbsi_crystallization', { col: 'outcome', val: 'microcrystal' }),
+    countTable('kbsi_crystallization', { col: 'outcome', val: 'single_crystal' }),
+    countTable('kbsi_crystallization', { col: 'outcome', val: 'diffraction_quality' }),
+    supabase.from('kbsi_crystallization').select('id', { count: 'exact', head: true }).eq('outcome', 'clear').eq('source_type', 'synthetic').then(r => r.count ?? 0),
+    supabase.from('kbsi_crystallization').select('id', { count: 'exact', head: true }).eq('outcome', 'precipitate').eq('source_type', 'synthetic').then(r => r.count ?? 0),
+    supabase.from('kbsi_crystallization').select('id', { count: 'exact', head: true }).eq('outcome', 'phase_separation').eq('source_type', 'synthetic').then(r => r.count ?? 0),
+    supabase.from('kbsi_crystallization').select('id', { count: 'exact', head: true }).eq('outcome', 'microcrystal').eq('source_type', 'synthetic').then(r => r.count ?? 0),
+    supabase.from('kbsi_crystallization').select('id', { count: 'exact', head: true }).eq('outcome', 'single_crystal').eq('source_type', 'synthetic').then(r => r.count ?? 0),
+    supabase.from('kbsi_crystallization').select('id', { count: 'exact', head: true }).eq('outcome', 'diffraction_quality').eq('source_type', 'synthetic').then(r => r.count ?? 0),
     // Scatter 샘플
     Promise.all(OUTCOMES.map(async (outcome) => {
       const { data } = await supabase
@@ -34,49 +71,44 @@ export default async function DashboardPage() {
     supabase.from('kbsi_protein').select('id, full_name, abbreviation, organism, updated_at, kbsi_construct(count)').order('updated_at', { ascending: false }).limit(5),
   ]);
 
-  const d = (rpcResult.data || {}) as any;
-
   const stats = [
-    { label: 'Proteins', value: d.proteins ?? 0, icon: Dna },
-    { label: 'Constructs', value: d.constructs ?? 0, icon: FlaskConical },
-    { label: 'Crystallizations', value: d.crystallizations ?? 0, icon: Gem },
-    { label: 'Diffractions', value: d.diffractions ?? 0, icon: Radiation },
-    { label: 'Structures', value: d.structures ?? 0, icon: Pill },
-    { label: 'Characterizations', value: d.characterizations ?? 0, icon: Microscope },
-    { label: 'Ligands', value: d.ligands ?? 0, icon: Beaker },
-    { label: 'Bindings', value: d.bindings ?? 0, icon: Link2 },
+    { label: 'Proteins', value: proteinCount, icon: Dna },
+    { label: 'Constructs', value: constructCount, icon: FlaskConical },
+    { label: 'Crystallizations', value: crystCount, icon: Gem },
+    { label: 'Diffractions', value: diffrCount, icon: Radiation },
+    { label: 'Structures', value: structCount, icon: Pill },
+    { label: 'Characterizations', value: charCount, icon: Microscope },
+    { label: 'Ligands', value: ligandCount, icon: Beaker },
+    { label: 'Bindings', value: bindingCount, icon: Link2 },
   ];
 
   // Outcome 분포
+  const outcomeMap = { clear: oClear, precipitate: oPrecip, phase_separation: oPhase, microcrystal: oMicro, single_crystal: oSingle, diffraction_quality: oDiffr };
+  const syntheticMap = { clear: sClear, precipitate: sPrecip, phase_separation: sPhase, microcrystal: sMicro, single_crystal: sSingle, diffraction_quality: sDiffr };
   const outcomeDistData = OUTCOMES.map((outcome) => {
-    const total = d[`outcome_${outcome}`] ?? 0;
-    const synthetic = d[`synthetic_${outcome}`] ?? 0;
+    const total = outcomeMap[outcome] ?? 0;
+    const synthetic = syntheticMap[outcome] ?? 0;
     return { outcome, real: total - synthetic, synthetic };
   }).filter(dd => dd.real + dd.synthetic > 0);
 
   const heatmapData = heatmapPages.flat();
   const recentProteins = recentProteinsRes.data;
 
-  const successTotal = (d.outcome_single_crystal ?? 0) + (d.outcome_diffraction_quality ?? 0);
-  const failureTotal = (d.outcome_clear ?? 0) + (d.outcome_precipitate ?? 0);
-  const syntheticTotal = OUTCOMES.reduce((sum, o) => sum + (d[`synthetic_${o}`] ?? 0), 0);
+  const successTotal = oSingle + oDiffr;
+  const failureTotal = oClear + oPrecip;
+  const syntheticTotal = sClear + sPrecip + sPhase + sMicro + sSingle + sDiffr;
 
+  // Source 분포는 간소화 (총 건수로 대체, 개별 source 쿼리 제거)
+  const experimentalCryst = crystCount - syntheticTotal;
   const sourceDbCryst = [
-    { source_db: 'PDB', count: d.source_cryst_pdb ?? 0 },
-    { source_db: 'TargetTrack', count: d.source_cryst_targettrack ?? 0 },
-    { source_db: 'ChEMBL', count: d.source_cryst_chembl ?? 0 },
-    { source_db: 'KBSI', count: d.source_cryst_kbsi ?? 0 },
-    { source_db: 'synthetic', count: d.source_cryst_synthetic ?? 0 },
-    ...((d.source_cryst_unknown ?? 0) > 0 ? [{ source_db: 'unknown', count: d.source_cryst_unknown }] : []),
+    { source_db: 'Experimental', count: experimentalCryst },
+    { source_db: 'Synthetic', count: syntheticTotal },
   ];
   const sourceDbStruct = [
-    { source_db: 'PDB', count: d.source_struct_pdb ?? 0 },
-    { source_db: 'TargetTrack', count: d.source_struct_targettrack ?? 0 },
-    { source_db: 'ChEMBL', count: d.source_struct_chembl ?? 0 },
-    { source_db: 'KBSI', count: d.source_struct_kbsi ?? 0 },
+    { source_db: 'PDB', count: structCount },
   ];
   const sourceDbLigand = [
-    { source_db: 'ChEMBL', count: d.source_ligand_chembl ?? 0 },
+    { source_db: 'PDB + ChEMBL', count: ligandCount },
   ];
 
   return (
@@ -127,14 +159,14 @@ export default async function DashboardPage() {
           <CardHeader><CardTitle className="text-base">Data Pipeline Flow</CardTitle></CardHeader>
           <CardContent>
             <PipelineSankey data={{
-              expression: d.expressions ?? 0,
-              purification: d.purifications ?? 0,
-              characterization: d.characterizations ?? 0,
-              crystallization: d.crystallizations ?? 0,
-              diffraction: d.diffractions ?? 0,
-              structure: d.structures ?? 0,
-              ligands: d.ligands ?? 0,
-              bindings: d.bindings ?? 0,
+              expression: exprCount,
+              purification: purifCount,
+              characterization: charCount,
+              crystallization: crystCount,
+              diffraction: diffrCount,
+              structure: structCount,
+              ligands: ligandCount,
+              bindings: bindingCount,
             }} />
           </CardContent>
         </Card>
@@ -153,7 +185,7 @@ export default async function DashboardPage() {
         <CardContent>
           <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
             <div className="text-center p-3 rounded-lg bg-blue-50 dark:bg-blue-950">
-              <div className="text-2xl font-bold">{(d.crystallizations ?? 0).toLocaleString()}</div>
+              <div className="text-2xl font-bold">{crystCount.toLocaleString()}</div>
               <div className="text-xs text-muted-foreground">전체 데이터</div>
             </div>
             <div className="text-center p-3 rounded-lg bg-green-50 dark:bg-green-950">
