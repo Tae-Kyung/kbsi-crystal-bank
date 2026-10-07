@@ -624,17 +624,133 @@ KBSI 데이터를 다양한 AI Agent에서 접근할 수 있는 개방형 생태
 | 13 | dedupe-proteins | 정제 | ⚠ (수동 확인) | 월 1회 |
 | 14 | ops-harness | 운영 | ✅ | 일 1회 |
 
+### F21-1. 수집 레지스트리 (Harvest Registry)
+
+외부 데이터 수집 이력을 테이블로 관리하여 중복 수집 방지 + 증분 수집 + 이력 추적.
+
+**테이블: `kbsi_harvest_log`**
+```sql
+CREATE TABLE kbsi_harvest_log (
+  id            BIGINT GENERATED ALWAYS AS IDENTITY PRIMARY KEY,
+  source_db     TEXT NOT NULL,          -- PDB, ChEMBL, UniProt, AlphaFold, PubMed
+  script_name   TEXT NOT NULL,          -- bulk-pdb-sweep.ts
+  started_at    TIMESTAMPTZ NOT NULL,
+  completed_at  TIMESTAMPTZ,
+  status        TEXT DEFAULT 'running', -- running, completed, failed
+  total_scanned BIGINT DEFAULT 0,       -- 스캔한 총 건수
+  new_inserted  BIGINT DEFAULT 0,       -- 신규 삽입
+  skipped_dup   BIGINT DEFAULT 0,       -- 중복 스킵
+  failed        BIGINT DEFAULT 0,       -- 실패
+  last_offset   BIGINT,                 -- 이어하기용 오프셋
+  last_id       TEXT,                   -- 마지막 처리 ID
+  params        JSONB,                  -- 실행 파라미터 (limit, offset 등)
+  error_log     TEXT,                   -- 에러 메시지
+  notes         TEXT
+);
+```
+
+**활용:**
+- 다음 실행 시: `SELECT last_offset FROM kbsi_harvest_log WHERE source_db='PDB' ORDER BY id DESC LIMIT 1` → 이어서 수집
+- 중복 방지: offset 기반으로 신규분만 처리 (전체 재스캔 불필요)
+- 관리자 UI: 소스별 수집 이력 타임라인 + 건수 변화 그래프
+
+### F21-2. 외부 DB 변경 감지 + 증분 수집
+
+외부 데이터베이스의 신규 데이터를 자동 감지하고 증분 수집.
+
+**감지 메커니즘:**
+
+| 소스 | 변경 감지 방법 | 주기 |
+|------|-------------|------|
+| RCSB PDB | Search API `audit_author.revision_date > last_harvest` | 주 1회 |
+| ChEMBL | 릴리즈 버전 비교 (API) | 월 1회 |
+| UniProt | 릴리즈 날짜 비교 | 월 1회 |
+| AlphaFold | UniProt 신규 accession 대비 | 월 1회 |
+| Europe PMC | 신규 DOI 기반 논문 | 주 1회 |
+
+**증분 수집 흐름:**
+```
+정기 체크 (cron/스케줄):
+  PDB 현재 엔트리 수 조회 → 220,000개
+  DB 기록: 마지막 수집 시 220,000개
+  → 차이 0 → 스킵
+
+1주 후:
+  PDB 현재 엔트리 수 → 221,500개
+  → 차이 1,500개 감지
+  → 신규 1,500건만 수집 시작
+```
+
+### F21-3. 연쇄 실행 (Chain Execution)
+
+신규 데이터 수집 완료 시 관련 backfill 스크립트를 자동 연쇄 실행.
+
+**연쇄 체인 정의:**
+```
+PDB 신규 수집 완료
+  → [자동] harvest-diffraction-from-pdb (신규 construct만)
+  → [자동] harvest-pdb-ligands (신규 construct만)
+  → [자동] backfill-structure-metadata (신규 structure만)
+  → [자동] backfill-references (신규 structure만)
+  → [자동] bulk-enrich-conditions (신규 crystallization만)
+  → [자동] backfill-theoretical-mw (신규 construct만)
+  → [자동] backfill-seq-hash (신규 construct만)
+  → [자동] backfill-protein-metadata (신규 protein만)
+  → 모두 완료 → validate-llm-extraction 실행
+  → 대시보드 stats 자동 갱신
+
+ChEMBL 신규 릴리즈 감지
+  → [자동] harvest-chembl-expanded (기존 gene_name 대상)
+  → 완료 → 대시보드 갱신
+
+UniProt 월간 릴리즈
+  → [자동] backfill-uniprot-ids (미연결 protein 대상)
+  → [자동] backfill-ncbi-gene (신규 UniProt 대상)
+  → [자동] harvest-alphafold (신규 UniProt 대상)
+```
+
+**체인 설정 UI:**
+```
+관리자가 체인을 정의:
+  체인명: "PDB 신규 수집 풀 체인"
+  트리거: bulk-pdb-sweep 완료
+  순서:
+    1. harvest-diffraction (filter: new constructs)
+    2. harvest-pdb-ligands (filter: new constructs)
+    3. backfill-structure-metadata (filter: new structures)
+    ...
+  알림: 완료/실패 시 이메일 또는 Slack
+```
+
+### F21-4. Backfill 재실행 관리
+
+기존 데이터에 대한 backfill을 주기적으로 또는 조건부로 재실행.
+
+**재실행 시나리오:**
+- 스크립트 버그 수정 후: "space_group backfill 재실행 (이전 결과 NULL인 것만)"
+- 외부 API 변경: "UniProt API 응답 형식 변경 → gene_name 재추출"
+- 데이터 품질 개선: "LLM 프롬프트 개선 후 Characterization 재추출"
+- 새 필드 추가: "새 컬럼 추가 → 기존 데이터 backfill"
+
+**재실행 안전장치:**
+- 모든 스크립트가 `WHERE field IS NULL` 또는 중복 체크 → 안전하게 재실행
+- 재실행 전 dry-run 강제 (UI에서 먼저 미리보기)
+- 재실행 이력 기록 (이전 결과와 비교)
+
 **기술 구현:**
 - Next.js API Routes로 스크립트 실행 (child_process 또는 Edge Function)
-- 실행 이력/상태를 kbsi_admin_log 테이블에 저장
+- kbsi_harvest_log 테이블로 실행 이력/상태 관리
 - WebSocket 또는 SSE로 진행률 실시간 표시
+- 체인 실행 엔진 (선행 스크립트 완료 감지 → 후속 자동 시작)
 - 관리자 인증: Supabase Auth role='admin' 체크
 
 **기대 효과:**
 - CLI 없이 브라우저에서 데이터 관리
-- 실행 이력 자동 기록 → "언제 마지막으로 돌렸지?" 해결
-- 품질 모니터링 자동화 → 문제 조기 발견
-- 정기 실행 스케줄 → 수동 개입 최소화
+- 중복 수집 방지 → 비용/시간 절감
+- 증분 수집 → 항상 최신 데이터 유지
+- 연쇄 실행 → 수동 개입 최소화
+- 실행 이력 → "언제 마지막으로 돌렸지?" 해결
+- 품질 모니터링 → 문제 조기 발견
 
 ---
 
