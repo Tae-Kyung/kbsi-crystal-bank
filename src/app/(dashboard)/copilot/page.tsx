@@ -41,6 +41,29 @@ export default function CopilotPage() {
   const [loading, setLoading] = useState(false);
   const [result, setResult] = useState<CopilotResult | null>(null);
   const [error, setError] = useState('');
+  const [blastResults, setBlastResults] = useState<any>(null);
+  const [blastLoading, setBlastLoading] = useState(false);
+
+  async function handleBlast() {
+    if (!sequence.trim()) return;
+    setBlastLoading(true);
+    setBlastResults(null);
+    setError('');
+    try {
+      const res = await fetch('/api/blast', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ sequence: sequence.replace(/[^A-Za-z]/g, '') }),
+      });
+      const data = await res.json();
+      if (data.error) setError(`BLAST: ${data.error}`);
+      else setBlastResults(data);
+    } catch {
+      setError('BLAST 검색 중 오류');
+    } finally {
+      setBlastLoading(false);
+    }
+  }
 
   async function handleSubmit() {
     if (!sequence.trim()) return;
@@ -89,11 +112,16 @@ export default function CopilotPage() {
             placeholder="아미노산 서열을 입력하세요 (FASTA 형식 또는 단순 서열)..."
             className="w-full h-32 rounded-lg border bg-muted/50 px-3 py-2 text-sm font-mono placeholder:text-muted-foreground focus:outline-none focus:ring-2 focus:ring-primary/30"
           />
-          <div className="flex items-center gap-3">
-            <Button onClick={handleSubmit} disabled={loading || !sequence.trim()}>
+          <div className="flex items-center gap-3 flex-wrap">
+            <Button onClick={handleSubmit} disabled={loading || blastLoading || !sequence.trim()}>
               {loading ? (
-                <span className="flex items-center gap-2"><Loader2 className="h-4 w-4 animate-spin" />분석 중...</span>
-              ) : '분석 시작'}
+                <span className="flex items-center gap-2"><Loader2 className="h-4 w-4 animate-spin" />k-mer 분석 중...</span>
+              ) : 'k-mer 분석 (빠름)'}
+            </Button>
+            <Button onClick={handleBlast} disabled={loading || blastLoading || !sequence.trim()} variant="outline">
+              {blastLoading ? (
+                <span className="flex items-center gap-2"><Loader2 className="h-4 w-4 animate-spin" />BLAST 검색 중 (~30초)...</span>
+              ) : 'NCBI BLAST (정확)'}
             </Button>
             <Button variant="ghost" size="sm" onClick={() => setSequence(EXAMPLE_SEQUENCE)}>
               예시 (KRAS)
@@ -105,6 +133,58 @@ export default function CopilotPage() {
           {error && <p className="text-sm text-destructive">{error}</p>}
         </CardContent>
       </Card>
+
+      {/* BLAST Results */}
+      {blastResults && (
+        <Card>
+          <CardHeader>
+            <CardTitle className="text-base">
+              NCBI BLAST Results
+              <span className="text-xs font-normal text-muted-foreground ml-2">
+                ({blastResults.matches?.length} hits, query {blastResults.query_length} residues)
+              </span>
+            </CardTitle>
+          </CardHeader>
+          <CardContent>
+            <div className="rounded-md border overflow-hidden">
+              <table className="w-full text-sm">
+                <thead className="bg-muted/50">
+                  <tr>
+                    <th className="px-3 py-2 text-left text-xs font-medium">PDB</th>
+                    <th className="px-3 py-2 text-left text-xs font-medium">Protein</th>
+                    <th className="px-3 py-2 text-left text-xs font-medium">Organism</th>
+                    <th className="px-3 py-2 text-right text-xs font-medium">Identity</th>
+                    <th className="px-3 py-2 text-right text-xs font-medium">E-value</th>
+                    <th className="px-3 py-2 text-right text-xs font-medium">Resolution</th>
+                    <th className="px-3 py-2 text-left text-xs font-medium">In KBSI</th>
+                  </tr>
+                </thead>
+                <tbody className="divide-y">
+                  {(blastResults.matches || []).map((m: any, i: number) => (
+                    <tr key={i} className="hover:bg-muted/30">
+                      <td className="px-3 py-1.5 text-xs">
+                        <a href={`https://www.rcsb.org/structure/${m.pdb_id}`} target="_blank" rel="noopener noreferrer" className="text-primary hover:underline font-mono">{m.pdb_id}</a>
+                      </td>
+                      <td className="px-3 py-1.5 text-xs">{m.protein || m.title?.slice(0, 30) || '-'}</td>
+                      <td className="px-3 py-1.5 text-xs italic">{m.organism?.slice(0, 20) || '-'}</td>
+                      <td className="px-3 py-1.5 text-xs text-right font-mono font-bold">{m.identity}%</td>
+                      <td className="px-3 py-1.5 text-xs text-right font-mono">{m.evalue?.toExponential(1)}</td>
+                      <td className="px-3 py-1.5 text-xs text-right">{m.resolution ? `${m.resolution}Å` : '-'}</td>
+                      <td className="px-3 py-1.5 text-xs">
+                        {m.in_kbsi ? (
+                          <Badge variant="default" className="text-[10px] bg-green-600">DB</Badge>
+                        ) : (
+                          <Badge variant="outline" className="text-[10px]">외부</Badge>
+                        )}
+                      </td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+          </CardContent>
+        </Card>
+      )}
 
       {/* Results */}
       {result && (
