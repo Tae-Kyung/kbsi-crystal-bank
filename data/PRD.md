@@ -853,6 +853,49 @@ UniProt 월간 릴리즈
 - 실행 이력 → "언제 마지막으로 돌렸지?" 해결
 - 품질 모니터링 → 문제 조기 발견
 
+## 5-5a. 데이터 수집 확장 — Expression/Purification/Characterization 추가 확보
+
+현재 Expression 29K는 PDB DOI → Europe PMC full text (~10% Open Access)에서만 추출. 나머지 90%의 논문에서 추가 수집 가능.
+
+### 방법 1: PubMed 초록 LLM 추출 (가장 큰 규모, +10~20K 예상)
+```
+PDB DOI → PubMed abstract (90%+ 접근 가능)
+→ 초록에서 "expressed in E. coli BL21", "purified by Ni-NTA" 추출
+→ full text보다 짧아 정확도 낮지만 커버리지 대폭 증가
+→ 286K 중 full text 없었던 ~200K에서 추가 추출
+```
+
+### 방법 2: UniProt 문헌 참조 (+3~5K 예상)
+```
+UniProt 13K accession → 각 accession에 PubMed references 5~20개
+→ PDB에 직접 연결되지 않은 논문에서도 추출
+→ 실험 프로토콜 논문, 리뷰 논문 등 다양한 소스
+```
+
+### 방법 3: gene_name PMC 직접 검색 (+5~10K 예상)
+```
+gene_name + "crystallization" OR "expression" → PMC 검색
+→ PDB에 없는 실패 사례 논문도 발견 가능
+→ 결정화 실패 보고 논문 = 세계 유일 실패 데이터
+```
+
+### 방법 4: Unpaywall API — OA 버전 탐색 (+5~10K 예상)
+```
+PDB DOI → Unpaywall API → OA 버전 URL 발견
+→ 기존 PMC에 없던 OA 논문 full text 확보
+→ 기존 harvest-papers-extended.ts와 동일 파이프라인
+```
+
+### 방법 5: DNASU/Addgene 플라스미드 DB (+2~3K 예상)
+- DNASU: 구조생물학 타겟 플라스미드 + 발현 조건
+- Addgene: 공개 플라스미드 + construct 정보 + 발현 프로토콜
+
+### 방법 6: bioRxiv/medRxiv 프리프린트 (+1~2K 예상)
+- 프리프린트에 상세 Methods 섹션 포함
+- bioRxiv API로 검색 가능
+
+---
+
 ## 5-6. Phase 8 — 검색 고도화
 
 ### F22. 통합 키워드 테이블 + 검색 로그
