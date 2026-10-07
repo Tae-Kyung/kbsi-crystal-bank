@@ -118,10 +118,8 @@ export default function CopilotPage() {
                 <span className="flex items-center gap-2"><Loader2 className="h-4 w-4 animate-spin" />k-mer 분석 중...</span>
               ) : 'k-mer 분석 (빠름)'}
             </Button>
-            <Button onClick={handleBlast} disabled={loading || blastLoading || !sequence.trim()} variant="outline">
-              {blastLoading ? (
-                <span className="flex items-center gap-2"><Loader2 className="h-4 w-4 animate-spin" />BLAST 검색 중 (~30초)...</span>
-              ) : 'NCBI BLAST (정확)'}
+            <Button disabled variant="outline" className="opacity-50">
+              NCBI BLAST (추후개발)
             </Button>
             <Button variant="ghost" size="sm" onClick={() => setSequence(EXAMPLE_SEQUENCE)}>
               예시 (KRAS)
