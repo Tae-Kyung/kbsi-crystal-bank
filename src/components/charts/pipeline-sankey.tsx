@@ -22,7 +22,6 @@ const STAGES = [
   { key: 'structure', label: 'Structure', color: '#22c55e' },
 ] as const;
 
-// Log scale: makes large differences visible without hiding small values
 function logScale(val: number, maxVal: number, barMaxW: number): number {
   if (val <= 0) return 4;
   const logMax = Math.log10(maxVal + 1);
@@ -38,11 +37,9 @@ export function PipelineSankey({ data }: PipelineSankeyProps) {
   return (
     <div className="space-y-4">
       <div className="space-y-1.5">
-        {STAGES.map((stage, i) => {
+        {STAGES.map((stage) => {
           const val = data[stage.key as keyof typeof data] as number;
           const w = logScale(val, maxVal, barMaxW);
-          const prevVal = i > 0 ? data[STAGES[i - 1].key as keyof typeof data] as number : val;
-          const convRate = prevVal > 0 && i > 0 ? Math.round((val / prevVal) * 100) : null;
 
           return (
             <div key={stage.key} className="flex items-center gap-3">
@@ -56,11 +53,6 @@ export function PipelineSankey({ data }: PipelineSankeyProps) {
                     {val.toLocaleString()}
                   </span>
                 </div>
-                {convRate !== null && val > 0 && prevVal > 0 && convRate <= 100 && (
-                  <span className="text-[10px] text-muted-foreground whitespace-nowrap">
-                    {convRate}%
-                  </span>
-                )}
               </div>
             </div>
           );
