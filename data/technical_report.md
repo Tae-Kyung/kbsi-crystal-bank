@@ -51,18 +51,20 @@ KBSI 단백질 결정화은행(Crystallization Bank)은 **단백질의 발현 �
 
 | 항목 | 건수 | 소스 |
 |------|------|------|
-| 단백질 | 70,023 | PDB, TargetTrack |
+| 단백질 | 59,349 | PDB, TargetTrack (Dedupe 완료) |
 | Construct | 286,580 | PDB, TargetTrack |
 | 결정화 데이터 | 1,161,043 (실험 234K + NC 927K) | PDB, TargetTrack, 합성 |
 | 구조 | 286,454 | PDB (X-ray + Cryo-EM + NMR) |
-| Expression | 2,260+ | 논문 LLM 추출 (수집 중) |
-| Purification | 900+ | 논문 LLM 추출 (수집 중) |
-| Characterization | 412+ | 논문 LLM 추출 (수집 중) |
-| Diffraction | 11,334+ | PDB API + 논문 LLM (수집 중) |
-| 리간드 | 7,300+ | PDB HET + ChEMBL (수집 중) |
-| 바인딩 데이터 | 8,600+ | ChEMBL IC50/Kd/Ki + PDB co-crystal |
-| UniProt 연결 | 13,574 | PDB polymer entity |
+| Expression | 29,153 | 논문 LLM 추출 (완료) |
+| Purification | 13,356 | 논문 LLM 추출 (완료) |
+| Characterization | 7,195 | 논문 LLM 추출 (완료) |
+| Diffraction | 478,202 | PDB API + 논문 LLM (완료) |
+| 리간드 | 31,219 | PDB HET + ChEMBL (수집 중) |
+| 바인딩 데이터 | 112,551 | ChEMBL IC50/Kd/Ki + PDB co-crystal |
+| References | 125,706 | PDB primary citation |
+| UniProt 연결 | 13,259 | PDB polymer entity |
 | AlphaFold 연결 | 12,748 | UniProt → AlphaFold API |
+| 벤치마크 | v4: 92.4% | k-NN (F1 91.2%) |
 
 ---
 
@@ -1012,23 +1014,25 @@ PDB: "20% PEG 3350, 0.1 M Bis-Tris pH 6.5, 0.2 M ammonium acetate"
 
 ## 10. 데이터 현황
 
-### 10.1 전체 규모 (2026-10-06 기준, 수집 진행 중)
+### 10.1 전체 규모 (2026-10-08 기준)
 
 | 항목 | 건수 | 소스 | 비고 |
 |------|------|------|------|
-| 단백질 | 70,023 | PDB + TargetTrack | |
+| 단백질 | 59,349 | PDB + TargetTrack | Dedupe 완료 |
 | Construct | 286,580 | PDB + TargetTrack | 각 PDB entry → 1 Construct |
 | 결정화 | 1,161,043 | PDB + TargetTrack + 합성 | 실험 234K + NC 927K |
-| 구조 | 286,454 | PDB | X-ray 226K + Cryo-EM 4.4K + NMR 2.7K |
-| Expression | 5,200+ | 논문 LLM 추출 | 수집 중 (5병렬) |
-| Purification | 2,300+ | 논문 LLM 추출 | 수집 중 |
-| Characterization | 2,700+ | 논문 LLM 추출 | DLS, SEC-MALS, SDS-PAGE, Tm 등 |
-| Diffraction | 95,000+ | PDB API 92K + 논문 3K | 수집 중 (34%) |
-| 리간드 | 9,100+ | PDB HET + ChEMBL | 수집 중 (38%) |
-| 바인딩 | 27,000+ | PDB co-crystal + ChEMBL IC50/Kd/Ki | 수집 중 |
-| UniProt 연결 | 13,574 | PDB polymer entity | 88.5% 발견율 |
-| AlphaFold 연결 | 12,748 | UniProt → AlphaFold API | 93.7% 발견율 |
-| Enrichment | 141K / 234K | condition_detail → 구조화 | 60% 완료, 진행 중 |
+| 구조 | 286,454 | PDB | X-ray + Cryo-EM + NMR |
+| Expression | 29,153 | 논문 LLM 추출 | 완료 |
+| Purification | 13,356 | 논문 LLM 추출 | 완료 |
+| Characterization | 7,195 | 논문 LLM 추출 | 완료 |
+| Diffraction | 478,202 | PDB API + 논문 LLM | 완료 |
+| 리간드 | 31,219 | PDB HET + ChEMBL | 2차 진행 중 |
+| 바인딩 | 112,551 | PDB co-crystal + ChEMBL IC50/Kd/Ki | 2차 진행 중 |
+| References | 125,706 | PDB primary citation | 완료 |
+| Database IDs | 232,448 | PDB + UniProt + AlphaFold + NCBI Gene | |
+| Enrichment | 230K / 234K | condition_detail → 구조화 | **98% 완료** |
+| EMDB | 36,732 | PDB database_related | Cryo-EM 연결 |
+| 벤치마크 | v4: 92.4% | k-NN | F1 91.2% |
 
 ### 10.2 데이터 품질
 

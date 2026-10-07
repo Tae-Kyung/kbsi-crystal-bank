@@ -73,11 +73,11 @@ export default function HomePage() {
         <div className="mx-auto max-w-6xl">
           <div className="grid grid-cols-2 md:grid-cols-5 gap-3 rounded-2xl border bg-white dark:bg-gray-900 shadow-xl p-6">
             {[
-              { value: '70,023', label: 'Proteins', color: 'text-blue-600' },
+              { value: '59,349', label: 'Proteins', color: 'text-blue-600' },
               { value: '286,454', label: 'Structures', color: 'text-violet-600' },
               { value: '1,161,043', label: 'Crystallizations', color: 'text-emerald-600' },
-              { value: '91.9%', label: 'AI Accuracy', color: 'text-purple-600' },
-              { value: '6,313', label: 'Drug Compounds', color: 'text-pink-600' },
+              { value: '92.4%', label: 'AI Accuracy', color: 'text-purple-600' },
+              { value: '31,219', label: 'Drug Compounds', color: 'text-pink-600' },
             ].map((stat) => (
               <div key={stat.label} className="text-center">
                 <div className={`text-2xl md:text-3xl font-bold ${stat.color}`}>{stat.value}</div>
