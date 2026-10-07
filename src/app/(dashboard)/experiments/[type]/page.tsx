@@ -191,8 +191,20 @@ export default async function ExperimentTypePage({
                 </td>
                 {config.fields.map(f => (
                   <td key={f} className="px-3 py-2 text-xs">
-                    {f === 'outcome' || f === 'result_level' || f === 'method' || f === 'source_type' || f === 'source_db' ? (
+                    {f === 'outcome' || f === 'result_level' || f === 'method' || f === 'source_type' ? (
                       r[f] ? <Badge variant="outline" className="text-[10px]">{r[f]}</Badge> : '-'
+                    ) : f === 'source_db' ? (
+                      r[f] === 'PubMed' ? (
+                        r.source_id ? (
+                          <a href={`https://doi.org/${r.source_id}`} target="_blank" rel="noopener noreferrer" title={`논문에서 AI 추출 (${r.source_id})`}>
+                            <Badge className="text-[10px] bg-amber-100 text-amber-700 dark:bg-amber-900 dark:text-amber-300 cursor-pointer hover:bg-amber-200">AI 📄</Badge>
+                          </a>
+                        ) : (
+                          <Badge className="text-[10px] bg-amber-100 text-amber-700 dark:bg-amber-900 dark:text-amber-300">AI</Badge>
+                        )
+                      ) : r[f] === 'PDB' ? (
+                        <Badge className="text-[10px] bg-blue-100 text-blue-700 dark:bg-blue-900 dark:text-blue-300">PDB</Badge>
+                      ) : r[f] ? <Badge variant="outline" className="text-[10px]">{r[f]}</Badge> : '-'
                     ) : f === 'source_id' && r[f] ? (
                       r.source_db === 'PubMed' || r[f]?.startsWith('10.') ? (
                         <a href={`https://doi.org/${r[f]}`} target="_blank" rel="noopener noreferrer" className="text-primary hover:underline font-mono text-[10px]">
