@@ -14,6 +14,7 @@ import {
   BarChart3,
   PenLine,
   Sparkles,
+  Settings,
 } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { useLocale } from '@/lib/locale-context';
@@ -38,6 +39,7 @@ const NAV_GROUPS = [
       { href: '/staging', labelKey: 'nav.staging' as TranslationKey, icon: ClipboardCheck },
       { href: '/pdb-import', labelKey: 'nav.data-management' as TranslationKey, icon: DatabaseZap },
       { href: '/benchmark', labelKey: 'nav.benchmark' as TranslationKey, icon: BarChart3 },
+      { href: '/admin', labelKey: 'nav.admin' as TranslationKey, icon: Settings },
     ],
   },
   {

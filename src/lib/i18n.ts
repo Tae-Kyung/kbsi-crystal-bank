@@ -166,6 +166,7 @@ const translations = {
   'nav.benchmark': { ko: 'ML 벤치마크', en: 'ML Benchmark', zh: 'ML 基准测试' },
   'nav.copilot': { ko: 'AI Copilot', en: 'AI Copilot', zh: 'AI Copilot' },
   'nav.quick-entry': { ko: '빠른 입력', en: 'Quick Entry', zh: '快速录入' },
+  'nav.admin': { ko: '관리자', en: 'Admin', zh: '管理' },
   'nav.api-docs': { ko: 'API 문서', en: 'API Docs', zh: 'API 文档' },
   'common.logout': { ko: '로그아웃', en: 'Logout', zh: '退出' },
   'common.nodata': { ko: '데이터가 없습니다.', en: 'No data available.', zh: '暂无数据。' },
