@@ -291,7 +291,6 @@ export default async function LigandsPage({
               <th className="px-3 py-2 text-left font-medium">Name</th>
               <th className="px-3 py-2 text-left font-medium">MW</th>
               <th className="px-3 py-2 text-left font-medium">SMILES</th>
-              <th className="px-3 py-2 text-left font-medium">Source</th>
               <th className="px-3 py-2 text-left font-medium">Links</th>
             </tr>
           </thead>
@@ -311,18 +310,17 @@ export default async function LigandsPage({
                   </td>
                   <td className="px-3 py-2 text-xs">{l.mw ? l.mw.toFixed(0) : '-'}</td>
                   <td className="px-3 py-2 text-xs font-mono max-w-[200px] truncate" title={l.smiles || ''}>{l.smiles ? (l.smiles.length > 30 ? l.smiles.slice(0, 30) + '...' : l.smiles) : '-'}</td>
-                  <td className="px-3 py-2 text-xs">{l.source_db ? <Badge variant="outline" className="text-[10px]">{l.source_db}</Badge> : '-'}</td>
                   <td className="px-3 py-2 text-xs">
                     <div className="flex gap-1">
-                      {lUrl && <a href={lUrl} target="_blank" rel="noopener noreferrer"><Badge variant="outline" className="text-[10px] cursor-pointer hover:bg-blue-50">{l.source_db}</Badge></a>}
-                      {l.smiles && <a href={`https://pubchem.ncbi.nlm.nih.gov/#query=${encodeURIComponent(l.smiles)}&input_type=smiles`} target="_blank" rel="noopener noreferrer"><Badge variant="outline" className="text-[10px] cursor-pointer hover:bg-green-50">PubChem</Badge></a>}
+                      {lUrl && <a href={lUrl} target="_blank" rel="noopener noreferrer"><Badge variant="outline" className="text-[10px] cursor-pointer hover:bg-blue-50 dark:hover:bg-blue-950">{l.source_db}</Badge></a>}
+                      {l.smiles && <a href={`https://pubchem.ncbi.nlm.nih.gov/#query=${encodeURIComponent(l.smiles)}&input_type=smiles`} target="_blank" rel="noopener noreferrer"><Badge variant="outline" className="text-[10px] cursor-pointer hover:bg-green-50 dark:hover:bg-green-950">PubChem</Badge></a>}
                     </div>
                   </td>
                 </tr>
               );
             })}
             {filteredLigands.length === 0 && (
-              <tr><td colSpan={6} className="px-3 py-8 text-center text-muted-foreground">데이터가 없습니다.</td></tr>
+              <tr><td colSpan={4} className="px-3 py-8 text-center text-muted-foreground">데이터가 없습니다.</td></tr>
             )}
           </tbody>
         </table>
