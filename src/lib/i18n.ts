@@ -139,7 +139,7 @@ const translations = {
   'landing.compare.nlp.kbsi': { ko: 'MCP + AI 챗봇', en: 'MCP + AI Chatbot', zh: 'MCP + AI聊天机器人' },
   'landing.compare.drug': { ko: '약물 바인딩', en: 'Drug Binding', zh: '药物结合' },
   'landing.compare.drug.pdb': { ko: '별도 DB', en: 'Separate DB', zh: '独立数据库' },
-  'landing.compare.drug.kbsi': { ko: '55K건 통합 조회', en: '55K integrated records', zh: '55K条综合查询' },
+  'landing.compare.drug.kbsi': { ko: '400K+ 통합 조회', en: '400K+ integrated records', zh: '40万+综合查询' },
   'landing.compare.ext': { ko: '외부 DB 연동', en: 'External DB', zh: '外部数据库' },
   'landing.compare.ext.pdb': { ko: 'PDB만', en: 'PDB only', zh: '仅PDB' },
   'landing.compare.ext.kbsi': { ko: '12개 DB 원클릭 연결', en: '12 DBs one-click', zh: '12个数据库一键连接' },
