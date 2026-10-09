@@ -902,6 +902,24 @@ PDB DOI → Unpaywall API → OA 버전 URL 발견
 - 프리프린트에 상세 Methods 섹션 포함
 - bioRxiv API로 검색 가능
 
+### 데이터 정제 — Construct 중복 병합
+
+PDB sweep 시 동일 PDB entry에서 여러 construct가 생성되는 경우 발생.
+예: 4NXH-chain이 4개 → 같은 protein, 같은 이름, 다른 실험 데이터.
+
+**원인**: PDB entry에 여러 결정화 조건이 있을 때 각각 별도 construct 생성
+
+**해결 방안:**
+1. 같은 protein_id + 같은 name → 대표 1개로 병합
+2. 실험 데이터(crystallization, structure 등)의 construct_id → 대표 ID로 재지정
+3. 빈 construct 삭제
+4. PDB sweep 스크립트 수정 — 동일 PDB entry는 1개 construct만 생성
+
+**주의:**
+- 병합 전 실험 데이터 누락 확인 필수
+- seq_final이 다른 경우 병합하면 안 됨 (다른 chain)
+- dry-run 먼저 실행
+
 ### 데이터 수집 확장 — Construct 설계 정보 보강
 
 Construct의 vector, tag, cleavage_site 등이 전부 NULL (PDB에 미저장).
