@@ -5,18 +5,23 @@ export async function GET() {
   const supabase = createServiceClient();
 
   // 상위 100 종 (단백질 수 기준)
+  // organism_normalized 우선, 없으면 organism
   const organisms: Record<string, number> = {};
   let offset = 0;
   while (true) {
     const { data } = await supabase
       .from('kbsi_protein')
-      .select('organism')
+      .select('organism, organism_normalized')
       .not('organism', 'is', null)
-      .range(offset, offset + 4999);
+      .order('id')
+      .range(offset, offset + 999);
     if (!data || data.length === 0) break;
-    data.forEach((p: any) => { organisms[p.organism] = (organisms[p.organism] || 0) + 1; });
-    if (data.length < 5000) break;
-    offset += 5000;
+    data.forEach((p: any) => {
+      const org = p.organism_normalized || p.organism;
+      organisms[org] = (organisms[org] || 0) + 1;
+    });
+    if (data.length < 1000) break;
+    offset += 1000;
   }
 
   const sorted = Object.entries(organisms)
