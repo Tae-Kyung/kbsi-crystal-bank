@@ -129,8 +129,6 @@ async function main() {
   console.log(`\n업데이트 실행 (organism_normalized)...`);
   let updated = 0;
 
-  // 먼저 변경 없는 것도 organism_normalized에 복사
-  const { error: copyErr } = await supabase.rpc('', undefined).then(() => ({})).catch(() => ({})) as any;
   // 모든 protein에 대해 organism_normalized 설정
   let updateOffset = 0;
   while (true) {
