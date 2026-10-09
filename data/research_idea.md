@@ -13,19 +13,24 @@ KBSI 단백질 결정화은행의 1.16M 실험 데이터를 기반으로, Sakana
 | 자산 | 규모 | 차별점 |
 |------|------|--------|
 | 결정화 데이터 | 1,161,043건 | **성공+실패 모두 포함** (세계 유일) |
-| 단백질 | 59,349종 | Dedupe 완료, gene_name 9.7K |
-| Expression | 26,201건 | 논문 LLM 추출 (host, strain, temp, yield) |
-| Purification | 12,014건 | 논문 LLM 추출 |
-| Characterization | 8,373건 | DLS, SEC-MALS, Tm 등 |
-| Diffraction | 476,186건 | resolution, space_group, beamline |
-| Ligands | 19,072종 | PDB HET + ChEMBL |
-| Bindings | 62,624건 | IC50, Kd, Ki |
-| References | 42,046 논문 | DOI, 저자, 저널 연결 |
-| Construct MW/pI | 279,772건 | 서열 기반 자동 계산 |
-| expression_system | 241,592건 | PDB API backfill |
+| 단백질 | 59,349종 | Dedupe 완료, gene_name 29.4K (51%) |
+| Expression | 29,153건 | 논문 LLM 추출 (host, strain, temp, yield) |
+| Purification | 13,356건 | 논문 LLM 추출 |
+| Characterization | 7,195건 | DLS, SEC-MALS, Tm 등 |
+| Diffraction | 478,202건 | resolution, space_group, beamline |
+| Ligands | 177,759종 | PDB HET + ChEMBL + BindingDB |
+| Bindings | 451,800건 | IC50, Kd, Ki, EC50 |
+| References | 126,331 논문 | DOI, 저자, 저널 (98.7% 연결) |
+| UniProt 연결 | 40,808건 | PDB + SIFTS 매핑 (69%) |
+| Database IDs | 260,259건 | PDB + UniProt + AlphaFold + NCBI Gene |
+| Construct Design | 3,223건 | vector, tag, cleavage (LLM 추출) |
+| construct_type | mutant 58K, domain 7K | 이름 패턴 자동 분류 |
+| 검색 키워드 | 306,981건 | pg_trgm 통합 검색 |
 | MCP 도구 | 15개 | AI Agent 즉시 접근 가능 |
-| Copilot 프로토타입 | 동작 중 | 서열→실험 전략 추천 |
-| ML 벤치마크 | 91.9% | k-NN 기반 |
+| Copilot | DB 검색 + k-mer | 실험 전략 추천 |
+| Explorer | 4컬럼 | 종→Protein→Construct→실험 탐색 |
+| ML 벤치마크 | v4: 92.4% | k-NN (F1 91.2%, Precision 92.5%) |
+| 교차 검증 | PDB 100%, Enrichment 98.5% | 데이터 정확성 검증 완료 |
 
 ---
 

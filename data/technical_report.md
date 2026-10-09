@@ -55,16 +55,20 @@ KBSI 단백질 결정화은행(Crystallization Bank)은 **단백질의 발현 �
 | Construct | 286,580 | PDB, TargetTrack |
 | 결정화 데이터 | 1,161,043 (실험 234K + NC 927K) | PDB, TargetTrack, 합성 |
 | 구조 | 286,454 | PDB (X-ray + Cryo-EM + NMR) |
-| Expression | 29,153 | 논문 LLM 추출 (완료) |
-| Purification | 13,356 | 논문 LLM 추출 (완료) |
-| Characterization | 7,195 | 논문 LLM 추출 (완료) |
-| Diffraction | 478,202 | PDB API + 논문 LLM (완료) |
-| 리간드 | 31,219 | PDB HET + ChEMBL (수집 중) |
-| 바인딩 데이터 | 112,551 | ChEMBL IC50/Kd/Ki + PDB co-crystal |
-| References | 125,706 | PDB primary citation |
-| UniProt 연결 | 13,259 | PDB polymer entity |
+| Expression | 29,153 | 논문 LLM 추출 |
+| Purification | 13,356 | 논문 LLM 추출 |
+| Characterization | 7,195 | 논문 LLM 추출 |
+| Diffraction | 478,202 | PDB API + 논문 LLM |
+| 리간드 | 177,759 | PDB HET + ChEMBL + BindingDB |
+| 바인딩 데이터 | 451,800 | PDB co-crystal + ChEMBL + BindingDB |
+| References | 126,331 | PDB primary citation (98.7% 구조 연결) |
+| UniProt 연결 | 40,808 | PDB + SIFTS 매핑 |
 | AlphaFold 연결 | 12,748 | UniProt → AlphaFold API |
-| 벤치마크 | v4: 92.4% | k-NN (F1 91.2%) |
+| gene_name | 29,435 (51%) | UniProt + SIFTS |
+| Database IDs | 260,259 | PDB + UniProt + AlphaFold + NCBI Gene |
+| 검색 키워드 | 306,981 | 통합 키워드 (pg_trgm) |
+| 벤치마크 | v4: 92.4% | k-NN (F1 91.2%, Precision 92.5%) |
+| 교차 검증 | PDB 100%, Enrichment 98.5% | cross-validate.ts |
 
 ---
 
@@ -1014,7 +1018,7 @@ PDB: "20% PEG 3350, 0.1 M Bis-Tris pH 6.5, 0.2 M ammonium acetate"
 
 ## 10. 데이터 현황
 
-### 10.1 전체 규모 (2026-10-08 기준)
+### 10.1 전체 규모 (2026-10-09 기준, 교차 검증 완료)
 
 | 항목 | 건수 | 소스 | 비고 |
 |------|------|------|------|
@@ -1026,13 +1030,18 @@ PDB: "20% PEG 3350, 0.1 M Bis-Tris pH 6.5, 0.2 M ammonium acetate"
 | Purification | 13,356 | 논문 LLM 추출 | 완료 |
 | Characterization | 7,195 | 논문 LLM 추출 | 완료 |
 | Diffraction | 478,202 | PDB API + 논문 LLM | 완료 |
-| 리간드 | 31,219 | PDB HET + ChEMBL | 2차 진행 중 |
-| 바인딩 | 112,551 | PDB co-crystal + ChEMBL IC50/Kd/Ki | 2차 진행 중 |
-| References | 125,706 | PDB primary citation | 완료 |
-| Database IDs | 232,448 | PDB + UniProt + AlphaFold + NCBI Gene | |
-| Enrichment | 230K / 234K | condition_detail → 구조화 | **98% 완료** |
-| EMDB | 36,732 | PDB database_related | Cryo-EM 연결 |
+| 리간드 | 177,759 | PDB HET + ChEMBL + BindingDB | |
+| 바인딩 | 451,800 | PDB + ChEMBL + BindingDB | IC50/Kd/Ki/EC50 |
+| References | 126,331 | PDB primary citation | 98.7% 구조 연결 |
+| Database IDs | 260,259 | PDB + UniProt + AlphaFold + NCBI Gene | |
+| UniProt | 40,808 | PDB + SIFTS | 69% |
+| gene_name | 29,435 | UniProt + SIFTS | 51% |
+| Enrichment | 230K / 234K | condition_detail → 구조화 | 98% |
+| EMDB | 36,732 | PDB database_related | Cryo-EM |
+| 검색 키워드 | 306,981 | 통합 키워드 (pg_trgm) | |
+| construct_type | mutant 58K, domain 7K | 이름 패턴 분류 | |
 | 벤치마크 | v4: 92.4% | k-NN | F1 91.2% |
+| 교차 검증 | PDB 100%, Enrichment 98.5% | | 이상값 168건 |
 
 ### 10.2 데이터 품질
 
@@ -1040,17 +1049,24 @@ PDB: "20% PEG 3350, 0.1 M Bis-Tris pH 6.5, 0.2 M ammonium acetate"
 |------|----------|------|
 | pH | 98.9% | 우수 |
 | Temperature | 94.2% | 우수 |
-| precipitant_type | ~60% (141K건, Enrichment 진행 중) | 개선 중 |
+| precipitant_type | 54% (127K건, Enrichment 98%) | 양호 |
 | outcome | 98.7% | 우수 |
+| PDB 원본 대비 정확도 | 100% (100건 교차 검증) | 우수 |
+| Enrichment 파싱 정확도 | 98.5% (200건 검증) | 우수 |
+| LLM 추출 정확도 | 81.4% (Expression host 89.8%) | 양호 |
 
 ### 10.3 기획보고서 대비 달성률
 
 | 지표 | 목표 (1년차) | 현재 | 달성률 |
 |------|-------------|------|--------|
-| 단백질 수 | 250+ | 70,023 | 28,009% |
+| 단백질 수 | 250+ | 59,349 | 23,740% |
 | 실험 데이터 | 5,000+ | 1,161,043 | 23,221% |
-| 예측 정확도 | 70%+ | 91.9% | 131% |
-| Expression | 100+ | 5,200+ | 5,200% |
+| 예측 정확도 | 70%+ | 92.4% | 132% |
+| Expression | 100+ | 29,153 | 29,153% |
+| Diffraction | - | 478,202 | 신규 |
+| Characterization | - | 7,195 | 신규 |
+| Ligands | 1,000+ | 177,759 | 17,776% |
+| Bindings | 2,000+ | 451,800 | 22,590% |
 | Diffraction | - | 95,000+ | 신규 |
 | Characterization | - | 2,700+ | 신규 |
 | Ligands | 1,000+ | 9,100+ | 910% |

@@ -77,7 +77,7 @@ export default function HomePage() {
               { value: '286,454', label: 'Structures', color: 'text-violet-600' },
               { value: '1,161,043', label: 'Crystallizations', color: 'text-emerald-600' },
               { value: '92.4%', label: 'AI Accuracy', color: 'text-purple-600' },
-              { value: '172,545', label: 'Drug Compounds', color: 'text-pink-600' },
+              { value: '177,759', label: 'Drug Compounds', color: 'text-pink-600' },
             ].map((stat) => (
               <div key={stat.label} className="text-center">
                 <div className={`text-2xl md:text-3xl font-bold ${stat.color}`}>{stat.value}</div>
