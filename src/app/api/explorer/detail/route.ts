@@ -3,19 +3,19 @@ import { createServiceClient } from '@/lib/supabase/service';
 
 export async function GET(request: Request) {
   const { searchParams } = new URL(request.url);
+  const constructId = searchParams.get('construct_id');
   const proteinId = searchParams.get('protein_id');
-  if (!proteinId) return NextResponse.json(null);
 
   const supabase = createServiceClient();
 
-  // construct IDs
-  const { data: constructs } = await supabase
-    .from('kbsi_construct')
-    .select('id')
-    .eq('protein_id', parseInt(proteinId))
-    .limit(500);
+  let cIds: number[] = [];
+  if (constructId) {
+    cIds = [parseInt(constructId)];
+  } else if (proteinId) {
+    const { data } = await supabase.from('kbsi_construct').select('id').eq('protein_id', parseInt(proteinId)).limit(500);
+    cIds = (data || []).map((c: any) => c.id);
+  }
 
-  const cIds = (constructs || []).map((c: any) => c.id);
   if (cIds.length === 0) {
     return NextResponse.json({ expression: 0, purification: 0, characterization: 0, crystallization: 0, diffraction: 0, structure: 0, ligands: 0 });
   }
