@@ -164,6 +164,7 @@ const translations = {
   'nav.pdb-import': { ko: 'PDB 가져오기', en: 'PDB Import', zh: 'PDB 导入' },
   'nav.data-management': { ko: '데이터 관리', en: 'Data Management', zh: '数据管理' },
   'nav.benchmark': { ko: 'ML 벤치마크', en: 'ML Benchmark', zh: 'ML 基准测试' },
+  'nav.explorer': { ko: 'Explorer', en: 'Explorer', zh: '浏览器' },
   'nav.copilot': { ko: 'AI Copilot', en: 'AI Copilot', zh: 'AI Copilot' },
   'nav.quick-entry': { ko: '빠른 입력', en: 'Quick Entry', zh: '快速录入' },
   'nav.admin': { ko: '관리자', en: 'Admin', zh: '管理' },
