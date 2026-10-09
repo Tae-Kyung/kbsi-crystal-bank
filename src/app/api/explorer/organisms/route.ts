@@ -27,7 +27,7 @@ export async function GET() {
   const sorted = Object.entries(organisms)
     .map(([organism, count]) => ({ organism, count }))
     .sort((a, b) => b.count - a.count)
-    .slice(0, 200);
+    .slice(0, 500);
 
   return NextResponse.json(sorted, {
     headers: { 'Cache-Control': 'public, max-age=3600' },
