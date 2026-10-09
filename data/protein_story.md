@@ -218,9 +218,9 @@ diffraction_quality → 최고 품질 결정 (X선 가능!)
 ### 화면에 표시
 ```
 Diffraction:
-  빔라인: SPring-8 BL41XU     ← "어디서 촬영?"
-  해상도: 1.8 Å               ← "얼마나 선명하게?"
-  공간군: P212121              ← "결정의 대칭성"
+  빔라인: ESRF MASSIF-1        ← "어디서 촬영?"
+  해상도: 1.71 Å              ← "얼마나 선명하게?"
+  공간군: H 3                  ← "결정의 대칭성"
   위상 결정: Molecular Replacement ← "어떻게 해석?"
 ```
 
@@ -251,9 +251,9 @@ Diffraction:
 ```
 Structure:
   방법: X-ray Crystallography
-  해상도: 1.8 Å
+  해상도: 1.71 Å
   PDB ID: 6GOD               ← 전 세계 공유 ID
-  등록일: 2018-05-15
+  등록일: 2018-06-01
   EMDB ID: -                  ← (Cryo-EM일 때만)
 ```
 
@@ -286,9 +286,9 @@ Ligand: Sotorasib (AMG-510)
 
 Binding:
   타겟: KRAS G12C
-  IC50: 7.2 nM               ← "얼마나 강하게 붙나?"
-  Kd: 3.5 nM                 ← "결합 친화도"
-  출처: ChEMBL               ← "어디서 가져왔나?"
+  IC50: ~90 nM (nucleotide exchange assay) ← "얼마나 강하게 붙나?"
+  타입: 비가역적 공유결합 억제제           ← "한번 붙으면 떨어지지 않음"
+  출처: ChEMBL                            ← "어디서 가져왔나?"
 ```
 
 ### 비유
