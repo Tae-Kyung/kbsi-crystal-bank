@@ -1,63 +1,63 @@
-# GPU 서버 세팅 가이드 — ESM-2 임베딩 + 서열 클러스터링
+# GPU Server Setup Guide — ESM-2 Embedding + Sequence Clustering
 
-## 개요
+## Overview
 
-연구실 GPU 서버에서 ESM-2 단백질 언어 모델을 실행하여 286K construct 서열의 임베딩 벡터를 생성하고, Supabase DB에 저장합니다. 생성된 벡터는 서열 유사도 검색, 결정화 성공 예측 모델, 단백질 dedupe 등에 활용됩니다.
+This guide explains how to set up a GPU server to run the ESM-2 protein language model for the KBSI Protein Crystallization Bank. The server computes embedding vectors for ~286K protein construct sequences and provides a real-time API for sequence similarity search.
 
-## 아키텍처
+## Architecture
 
-GPU 서버는 두 가지 역할을 합니다:
+The GPU server has two roles:
 
-1. **배치 처리**: 전체 286K 서열의 임베딩을 사전 계산하여 DB에 저장
-2. **실시간 API**: 사용자가 새 서열을 입력하면 즉시 임베딩 계산 + 유사 서열 검색
+1. **Batch processing**: Pre-compute embeddings for all 286K sequences and store them in the database
+2. **Real-time API**: When a user submits a new sequence, compute its embedding on-the-fly and search for similar proteins
 
 ```
-                    [배치 처리]
-                    GPU 서버 --> Supabase (kbsi_embedding 저장)
+                    [Batch — one time]
+                    GPU Server --> Supabase (store kbsi_embedding)
 
-                    [실시간 서비스]
-사용자 --> Vercel --> GPU API (/embed, /search) --> Supabase (pgvector 검색)
-                      :8000
-                    (FastAPI + ESM-2)
+                    [Real-time service]
+User --> Vercel --> GPU API (/embed, /search) --> Supabase (pgvector search)
+                     :8000
+                   (FastAPI + ESM-2)
 ```
 
-**GPU 서버 요구사항**:
-- 고정 IP 또는 도메인 (Vercel에서 접근 가능해야 함)
-- 방화벽에서 API 포트(8000) 오픈
-- HTTPS 권장 (nginx reverse proxy + Let's Encrypt)
+**GPU server requirements**:
+- Static IP or domain (must be reachable from Vercel)
+- Firewall must allow API port (8000)
+- HTTPS recommended (nginx reverse proxy + Let's Encrypt)
 
 ---
 
-## 1. 환경 세팅
+## 1. Environment Setup
 
-### 1.1 Conda 환경 생성
+### 1.1 Create Conda environment
 
 ```bash
 conda create -n kbsi python=3.11 -y
 conda activate kbsi
 ```
 
-### 1.2 PyTorch (CUDA 버전에 맞게)
+### 1.2 Install PyTorch (match your CUDA version)
 
 ```bash
-# CUDA 12.1 기준
+# For CUDA 12.1
 pip install torch torchvision --index-url https://download.pytorch.org/whl/cu121
 
-# CUDA 11.8인 경우
+# For CUDA 11.8
 # pip install torch torchvision --index-url https://download.pytorch.org/whl/cu118
 ```
 
-### 1.3 ESM-2 + 의존성
+### 1.3 Install ESM-2 and dependencies
 
 ```bash
 pip install fair-esm
 pip install supabase python-dotenv tqdm
 
-# API 서버용
+# For the API server
 pip install fastapi uvicorn
 ```
 
-### 1.4 서열 클러스터링 도구 (dedupe용)
+### 1.4 Install sequence clustering tool (optional, for dedupe)
 
 ```bash
 conda install -c bioconda mmseqs2 -y
@@ -65,543 +65,44 @@ conda install -c bioconda mmseqs2 -y
 
 ---
 
-## 2. 환경변수 설정
+## 2. Environment Variables
+
+Create a `.env` file on the GPU server. **I will send you the credentials separately.**
 
 ```bash
-# GPU 서버에 .env 파일 생성
 cat > .env << 'EOF'
-SUPABASE_URL=https://yjmeolkuhcjpxuxmtkts.supabase.co
-SUPABASE_SERVICE_ROLE_KEY=여기에_서비스_롤_키_입력
+SUPABASE_URL=<will be provided>
+SUPABASE_SERVICE_ROLE_KEY=<will be provided>
+KBSI_API_KEY=<choose a secret key for API auth>
 EOF
 ```
 
-**주의**: Service Role Key는 RLS를 바이패스하므로 절대 외부에 노출하면 안 됩니다.
+**IMPORTANT**: The Service Role Key bypasses Row Level Security. Never expose it publicly or commit it to git.
 
 ---
 
-## 3. DB 마이그레이션 (임베딩 저장용)
+## 3. Database Migration (already done by admin)
 
-Supabase SQL Editor에서 실행:
+The following has already been applied to Supabase. No action needed from you.
 
 ```sql
--- pgvector 확장 활성화 (Supabase에 이미 설치되어 있음)
+-- pgvector extension
 CREATE EXTENSION IF NOT EXISTS vector;
 
--- 임베딩 저장 테이블
+-- Embedding storage table
 CREATE TABLE kbsi_embedding (
   construct_id BIGINT PRIMARY KEY REFERENCES kbsi_construct(id) ON DELETE CASCADE,
-  embedding    vector(1280),        -- ESM-2 650M 출력 차원
+  embedding    vector(1280),        -- ESM-2 650M output dimension
   model        TEXT DEFAULT 'esm2_t33_650M',
   created_at   TIMESTAMPTZ DEFAULT now()
 );
 
--- 유사도 검색 인덱스 (코사인 유사도)
+-- Similarity search index (cosine distance)
 CREATE INDEX idx_kbsi_embedding_ivfflat
   ON kbsi_embedding USING ivfflat (embedding vector_cosine_ops)
   WITH (lists = 100);
-```
 
----
-
-## 4. ESM-2 임베딩 스크립트
-
-`esm2_embed.py` 파일 생성:
-
-```python
-"""
-ESM-2 단백질 서열 임베딩 생성 + Supabase 저장
-
-Usage:
-  python esm2_embed.py                    # 전체 실행
-  python esm2_embed.py --limit 1000       # 테스트 (1000건)
-  python esm2_embed.py --model 3B         # 3B 모델 사용 (H200 권장)
-"""
-
-import os, sys, torch, esm, argparse
-from dotenv import load_dotenv
-from supabase import create_client
-from tqdm import tqdm
-
-load_dotenv()
-
-# ─── 인자 파싱 ───
-parser = argparse.ArgumentParser()
-parser.add_argument("--limit", type=int, default=0, help="처리할 최대 건수 (0=전체)")
-parser.add_argument("--batch-size", type=int, default=8, help="GPU 배치 크기")
-parser.add_argument("--model", choices=["650M", "3B"], default="650M", help="ESM-2 모델 크기")
-args = parser.parse_args()
-
-# ─── Supabase 연결 ───
-sb = create_client(os.environ["SUPABASE_URL"], os.environ["SUPABASE_SERVICE_ROLE_KEY"])
-
-# ─── ESM-2 모델 로드 ───
-device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
-print(f"Device: {device}")
-if device.type == "cuda":
-    print(f"GPU: {torch.cuda.get_device_name(0)}")
-    print(f"VRAM: {torch.cuda.get_device_properties(0).total_mem / 1e9:.1f} GB")
-
-MODEL_MAP = {
-    "650M": ("esm2_t33_650M_UR50D", 33, 1280),
-    "3B":   ("esm2_t36_3B_UR50D",   36, 2560),
-}
-model_name, repr_layer, embed_dim = MODEL_MAP[args.model]
-print(f"Loading {model_name}...")
-
-model, alphabet = esm.pretrained.__dict__[model_name]()
-model = model.eval().to(device)
-batch_converter = alphabet.get_batch_converter()
-
-BATCH_SIZE = args.batch_size
-MAX_SEQ_LEN = 1022  # ESM-2 최대 입력 길이
-
-print(f"Model: {model_name}, embed_dim: {embed_dim}, batch_size: {BATCH_SIZE}")
-
-# ─── 이미 처리된 construct ID 로드 ───
-print("Loading existing embeddings...")
-existing_ids = set()
-offset = 0
-while True:
-    res = sb.table("kbsi_embedding").select("construct_id").range(offset, offset + 999).execute()
-    if not res.data:
-        break
-    for r in res.data:
-        existing_ids.add(r["construct_id"])
-    if len(res.data) < 1000:
-        break
-    offset += 1000
-print(f"Already embedded: {len(existing_ids)}")
-
-# ─── DB에서 서열 로드 ───
-print("Loading sequences from DB...")
-constructs = []
-offset = 0
-while True:
-    res = sb.table("kbsi_construct") \
-        .select("id, seq_final") \
-        .not_.is_("seq_final", "null") \
-        .order("id") \
-        .range(offset, offset + 999) \
-        .execute()
-    if not res.data:
-        break
-    for c in res.data:
-        if c["id"] not in existing_ids:
-            constructs.append(c)
-    if args.limit and len(constructs) >= args.limit:
-        constructs = constructs[:args.limit]
-        break
-    if len(res.data) < 1000:
-        break
-    offset += 1000
-
-print(f"To process: {len(constructs)}")
-
-if not constructs:
-    print("Nothing to process!")
-    sys.exit(0)
-
-# ─── 배치 임베딩 함수 ───
-def embed_batch(sequences: list[tuple[str, str]]) -> list[list[float]]:
-    """(label, seq) 튜플 리스트 -> 평균 임베딩 리스트"""
-    _, _, tokens = batch_converter(sequences)
-    tokens = tokens.to(device)
-
-    with torch.no_grad():
-        results = model(tokens, repr_layers=[repr_layer])
-
-    embeddings = []
-    for i, (_, seq) in enumerate(sequences):
-        # 1~len(seq) 범위의 토큰 평균 (CLS, EOS 제외)
-        emb = results["representations"][repr_layer][i, 1:len(seq)+1].mean(dim=0)
-        embeddings.append(emb.cpu().tolist())
-
-    return embeddings
-
-# ─── 메인 루프 ───
-batch = []
-total_done = 0
-
-for c in tqdm(constructs, desc="Embedding"):
-    seq = c["seq_final"][:MAX_SEQ_LEN]
-    if len(seq) < 10:
-        continue
-    batch.append((str(c["id"]), seq))
-
-    if len(batch) >= BATCH_SIZE:
-        try:
-            embeddings = embed_batch(batch)
-            rows = [
-                {"construct_id": int(label), "embedding": emb, "model": model_name}
-                for (label, _), emb in zip(batch, embeddings)
-            ]
-            sb.table("kbsi_embedding").upsert(rows).execute()
-            total_done += len(batch)
-        except Exception as e:
-            print(f"\nError: {e}")
-            # 긴 서열 때문일 수 있으므로 배치 크기 줄여서 재시도
-            for item in batch:
-                try:
-                    embs = embed_batch([item])
-                    sb.table("kbsi_embedding").upsert([
-                        {"construct_id": int(item[0]), "embedding": embs[0], "model": model_name}
-                    ]).execute()
-                    total_done += 1
-                except Exception as e2:
-                    print(f"\n  Skip {item[0]}: {e2}")
-        batch = []
-
-# 남은 배치
-if batch:
-    embeddings = embed_batch(batch)
-    rows = [
-        {"construct_id": int(label), "embedding": emb, "model": model_name}
-        for (label, _), emb in zip(batch, embeddings)
-    ]
-    sb.table("kbsi_embedding").upsert(rows).execute()
-    total_done += len(batch)
-
-print(f"\nDone! Embedded {total_done} constructs.")
-```
-
----
-
-## 5. 서열 클러스터링 (dedupe용)
-
-### 5.1 FASTA 내보내기
-
-`export_fasta.py`:
-
-```python
-"""construct 서열을 FASTA 파일로 내보내기"""
-import os
-from dotenv import load_dotenv
-from supabase import create_client
-
-load_dotenv()
-sb = create_client(os.environ["SUPABASE_URL"], os.environ["SUPABASE_SERVICE_ROLE_KEY"])
-
-with open("sequences.fasta", "w") as f:
-    offset = 0
-    total = 0
-    while True:
-        res = sb.table("kbsi_construct") \
-            .select("id, protein_id, seq_final") \
-            .not_.is_("seq_final", "null") \
-            .order("id") \
-            .range(offset, offset + 999) \
-            .execute()
-        if not res.data:
-            break
-        for c in res.data:
-            seq = c["seq_final"]
-            if len(seq) >= 10:
-                f.write(f">construct_{c['id']}_protein_{c['protein_id']}\n")
-                # 80자 줄바꿈
-                for i in range(0, len(seq), 80):
-                    f.write(seq[i:i+80] + "\n")
-                total += 1
-        if len(res.data) < 1000:
-            break
-        offset += 1000
-
-print(f"Exported {total} sequences to sequences.fasta")
-```
-
-### 5.2 MMseqs2 클러스터링
-
-```bash
-# 95% identity, 80% coverage 기준 클러스터링
-mmseqs easy-cluster sequences.fasta clust tmp \
-  --min-seq-id 0.95 \
-  -c 0.8 \
-  --threads 16
-
-# 결과 파일:
-#   clust_cluster.tsv     — 대표서열 \t 멤버서열
-#   clust_rep_seq.fasta   — 대표 서열
-```
-
-### 5.3 클러스터 결과 확인
-
-```python
-"""클러스터 결과 분석 (병합은 수동 판단)"""
-from collections import defaultdict
-
-clusters = defaultdict(list)
-with open("clust_cluster.tsv") as f:
-    for line in f:
-        rep, member = line.strip().split("\t")
-        clusters[rep].append(member)
-
-# 같은 protein_id 내 클러스터만 dedupe 후보
-multi = {k: v for k, v in clusters.items() if len(v) > 1}
-print(f"Total clusters: {len(clusters)}")
-print(f"Multi-member clusters: {len(multi)}")
-
-# protein_id가 다른 construct끼리 묶인 클러스터 찾기
-cross_protein = 0
-for rep, members in multi.items():
-    pids = set()
-    for m in members:
-        pid = m.split("_protein_")[1] if "_protein_" in m else None
-        if pid:
-            pids.add(pid)
-    if len(pids) > 1:
-        cross_protein += 1
-        if cross_protein <= 10:
-            print(f"  Cross-protein cluster: {rep} -> {members[:3]}...")
-
-print(f"\nCross-protein clusters (dedupe candidates): {cross_protein}")
-```
-
----
-
-## 6. 실행 가이드
-
-### 6.1 GPU 확인
-
-```bash
-nvidia-smi
-# CUDA 버전, GPU 모델, VRAM 확인
-```
-
-### 6.2 테스트 실행
-
-```bash
-# 소량 테스트
-python esm2_embed.py --limit 100 --batch-size 4
-```
-
-### 6.3 전체 실행
-
-```bash
-# ESM-2 임베딩 (백그라운드)
-nohup python esm2_embed.py --batch-size 8 > embed.log 2>&1 &
-tail -f embed.log
-
-# 서열 클러스터링
-python export_fasta.py
-mmseqs easy-cluster sequences.fasta clust tmp --min-seq-id 0.95 -c 0.8 --threads 16
-python import_clusters.py
-```
-
-### 6.4 중단 후 재시작
-
-스크립트가 `existing_ids`를 먼저 로드하므로, 중단 후 같은 명령어로 재실행하면 이미 처리된 건은 자동 스킵됩니다.
-
----
-
-## 7. 예상 소요 시간
-
-| 작업 | H200 (80GB) | A100 (80GB) | RTX 4090 (24GB) |
-|------|-------------|-------------|-----------------|
-| ESM-2 650M 임베딩 (286K) | ~4시간 | ~8시간 | ~12시간 |
-| ESM-2 3B 임베딩 (286K) | ~8시간 | ~20시간 | OOM |
-| MMseqs2 클러스터링 | CPU 30분 | CPU 30분 | CPU 30분 |
-
-### 배치 크기 가이드
-
-| GPU VRAM | ESM-2 650M | ESM-2 3B |
-|----------|-----------|----------|
-| 24GB | batch_size=4 | 불가 |
-| 40GB | batch_size=8 | batch_size=2 |
-| 80GB | batch_size=16 | batch_size=4 |
-
----
-
-## 8. 실시간 API 서버 (FastAPI)
-
-### 8.1 API 서버 코드
-
-`api_server.py`:
-
-```python
-"""
-ESM-2 실시간 임베딩 API 서버
-
-GPU 서버에서 실행:
-  python api_server.py                     # 기본 (포트 8000)
-  python api_server.py --port 8080         # 포트 변경
-  python api_server.py --model 3B          # 3B 모델 사용
-
-Vercel에서 호출:
-  POST http://gpu-server:8000/embed   { "sequence": "MKTL..." }
-  POST http://gpu-server:8000/search  { "sequence": "MKTL...", "limit": 10 }
-  GET  http://gpu-server:8000/health
-"""
-
-import os, torch, esm, argparse
-from contextlib import asynccontextmanager
-from fastapi import FastAPI, HTTPException
-from fastapi.middleware.cors import CORSMiddleware
-from pydantic import BaseModel
-from dotenv import load_dotenv
-from supabase import create_client
-
-load_dotenv()
-
-# ─── 인자 ───
-parser = argparse.ArgumentParser()
-parser.add_argument("--port", type=int, default=8000)
-parser.add_argument("--model", choices=["650M", "3B"], default="650M")
-args, _ = parser.parse_known_args()
-
-MODEL_MAP = {
-    "650M": ("esm2_t33_650M_UR50D", 33, 1280),
-    "3B":   ("esm2_t36_3B_UR50D",   36, 2560),
-}
-model_name, repr_layer, embed_dim = MODEL_MAP[args.model]
-
-# ─── 글로벌 리소스 ───
-model = None
-alphabet = None
-batch_converter = None
-device = None
-sb = None
-
-API_KEY = os.environ.get("KBSI_API_KEY", "")  # 선택적 인증
-
-@asynccontextmanager
-async def lifespan(app: FastAPI):
-    global model, alphabet, batch_converter, device, sb
-
-    # 모델 로드
-    device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
-    print(f"Loading {model_name} on {device}...")
-    model_obj, alphabet = esm.pretrained.__dict__[model_name]()
-    model = model_obj.eval().to(device)
-    batch_converter = alphabet.get_batch_converter()
-
-    # Supabase 연결
-    sb = create_client(os.environ["SUPABASE_URL"], os.environ["SUPABASE_SERVICE_ROLE_KEY"])
-
-    print(f"API server ready on port {args.port}")
-    yield
-    print("Shutting down...")
-
-app = FastAPI(title="KBSI ESM-2 API", lifespan=lifespan)
-
-app.add_middleware(
-    CORSMiddleware,
-    allow_origins=[
-        "https://kbsi-crystal-bank.vercel.app",
-        "http://localhost:3000",
-    ],
-    allow_methods=["POST", "GET"],
-    allow_headers=["*"],
-)
-
-MAX_SEQ_LEN = 1022
-
-# ─── Request/Response 모델 ───
-class EmbedRequest(BaseModel):
-    sequence: str
-    api_key: str = ""
-
-class EmbedResponse(BaseModel):
-    embedding: list[float]
-    sequence_length: int
-    model: str
-
-class SearchRequest(BaseModel):
-    sequence: str
-    limit: int = 10
-    threshold: float = 0.7
-    api_key: str = ""
-
-class SearchResult(BaseModel):
-    construct_id: int
-    construct_name: str
-    protein_name: str
-    organism: str
-    similarity: float
-
-class SearchResponse(BaseModel):
-    results: list[SearchResult]
-    query_length: int
-    model: str
-
-# ─── 인증 체크 ───
-def check_auth(api_key: str):
-    if API_KEY and api_key != API_KEY:
-        raise HTTPException(status_code=401, detail="Invalid API key")
-
-# ─── 임베딩 계산 ───
-def compute_embedding(sequence: str) -> list[float]:
-    seq = sequence.upper().replace(" ", "")[:MAX_SEQ_LEN]
-    if len(seq) < 10:
-        raise HTTPException(status_code=400, detail="Sequence must be at least 10 residues")
-
-    _, _, tokens = batch_converter([("query", seq)])
-    tokens = tokens.to(device)
-
-    with torch.no_grad():
-        results = model(tokens, repr_layers=[repr_layer])
-
-    emb = results["representations"][repr_layer][0, 1:len(seq)+1].mean(dim=0)
-    return emb.cpu().tolist()
-
-# ─── 엔드포인트 ───
-@app.get("/health")
-async def health():
-    return {
-        "status": "ok",
-        "model": model_name,
-        "device": str(device),
-        "gpu": torch.cuda.get_device_name(0) if device.type == "cuda" else "cpu",
-    }
-
-@app.post("/embed", response_model=EmbedResponse)
-async def embed(req: EmbedRequest):
-    check_auth(req.api_key)
-    seq = req.sequence.upper().replace(" ", "")
-    embedding = compute_embedding(seq)
-    return EmbedResponse(
-        embedding=embedding,
-        sequence_length=len(seq[:MAX_SEQ_LEN]),
-        model=model_name,
-    )
-
-@app.post("/search", response_model=SearchResponse)
-async def search(req: SearchRequest):
-    check_auth(req.api_key)
-    seq = req.sequence.upper().replace(" ", "")
-    query_emb = compute_embedding(seq)
-
-    # pgvector 유사도 검색
-    result = sb.rpc("match_embeddings", {
-        "query_embedding": query_emb,
-        "match_threshold": req.threshold,
-        "match_count": req.limit,
-    }).execute()
-
-    results = []
-    for r in result.data or []:
-        results.append(SearchResult(
-            construct_id=r["construct_id"],
-            construct_name=r.get("construct_name", ""),
-            protein_name=r.get("protein_name", ""),
-            organism=r.get("organism", ""),
-            similarity=round(r["similarity"], 4),
-        ))
-
-    return SearchResponse(
-        results=results,
-        query_length=len(seq[:MAX_SEQ_LEN]),
-        model=model_name,
-    )
-
-if __name__ == "__main__":
-    import uvicorn
-    uvicorn.run(app, host="0.0.0.0", port=args.port)
-```
-
-### 8.2 Supabase RPC 함수 (유사도 검색)
-
-Supabase SQL Editor에서 실행:
-
-```sql
+-- Similarity search RPC function
 CREATE OR REPLACE FUNCTION match_embeddings(
   query_embedding vector(1280),
   match_threshold float DEFAULT 0.7,
@@ -634,23 +135,396 @@ END;
 $$;
 ```
 
-### 8.3 API 서버 실행
+---
+
+## 4. Batch Embedding Script
+
+Create `esm2_embed.py`:
+
+```python
+"""
+ESM-2 protein sequence embedding generator + Supabase storage
+
+Usage:
+  python esm2_embed.py                    # Run all
+  python esm2_embed.py --limit 1000       # Test with 1000 sequences
+  python esm2_embed.py --model 3B         # Use 3B model (H200 recommended)
+"""
+
+import os, sys, torch, esm, argparse
+from dotenv import load_dotenv
+from supabase import create_client
+from tqdm import tqdm
+
+load_dotenv()
+
+# --- Args ---
+parser = argparse.ArgumentParser()
+parser.add_argument("--limit", type=int, default=0, help="Max sequences to process (0=all)")
+parser.add_argument("--batch-size", type=int, default=8, help="GPU batch size")
+parser.add_argument("--model", choices=["650M", "3B"], default="650M", help="ESM-2 model size")
+args = parser.parse_args()
+
+# --- Supabase connection ---
+sb = create_client(os.environ["SUPABASE_URL"], os.environ["SUPABASE_SERVICE_ROLE_KEY"])
+
+# --- Load ESM-2 model ---
+device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
+print(f"Device: {device}")
+if device.type == "cuda":
+    print(f"GPU: {torch.cuda.get_device_name(0)}")
+    print(f"VRAM: {torch.cuda.get_device_properties(0).total_mem / 1e9:.1f} GB")
+
+MODEL_MAP = {
+    "650M": ("esm2_t33_650M_UR50D", 33, 1280),
+    "3B":   ("esm2_t36_3B_UR50D",   36, 2560),
+}
+model_name, repr_layer, embed_dim = MODEL_MAP[args.model]
+print(f"Loading {model_name}...")
+
+model, alphabet = esm.pretrained.__dict__[model_name]()
+model = model.eval().to(device)
+batch_converter = alphabet.get_batch_converter()
+
+BATCH_SIZE = args.batch_size
+MAX_SEQ_LEN = 1022  # ESM-2 max input length
+
+print(f"Model: {model_name}, embed_dim: {embed_dim}, batch_size: {BATCH_SIZE}")
+
+# --- Load already-processed construct IDs ---
+print("Loading existing embeddings...")
+existing_ids = set()
+offset = 0
+while True:
+    res = sb.table("kbsi_embedding").select("construct_id").range(offset, offset + 999).execute()
+    if not res.data:
+        break
+    for r in res.data:
+        existing_ids.add(r["construct_id"])
+    if len(res.data) < 1000:
+        break
+    offset += 1000
+print(f"Already embedded: {len(existing_ids)}")
+
+# --- Load sequences from DB ---
+print("Loading sequences from DB...")
+constructs = []
+offset = 0
+while True:
+    res = sb.table("kbsi_construct") \
+        .select("id, seq_final") \
+        .not_.is_("seq_final", "null") \
+        .order("id") \
+        .range(offset, offset + 999) \
+        .execute()
+    if not res.data:
+        break
+    for c in res.data:
+        if c["id"] not in existing_ids:
+            constructs.append(c)
+    if args.limit and len(constructs) >= args.limit:
+        constructs = constructs[:args.limit]
+        break
+    if len(res.data) < 1000:
+        break
+    offset += 1000
+
+print(f"To process: {len(constructs)}")
+
+if not constructs:
+    print("Nothing to process!")
+    sys.exit(0)
+
+# --- Batch embedding function ---
+def embed_batch(sequences: list[tuple[str, str]]) -> list[list[float]]:
+    """(label, seq) tuples -> list of mean embeddings"""
+    _, _, tokens = batch_converter(sequences)
+    tokens = tokens.to(device)
+
+    with torch.no_grad():
+        results = model(tokens, repr_layers=[repr_layer])
+
+    embeddings = []
+    for i, (_, seq) in enumerate(sequences):
+        # Mean of token representations (excluding CLS and EOS)
+        emb = results["representations"][repr_layer][i, 1:len(seq)+1].mean(dim=0)
+        embeddings.append(emb.cpu().tolist())
+
+    return embeddings
+
+# --- Main loop ---
+batch = []
+total_done = 0
+
+for c in tqdm(constructs, desc="Embedding"):
+    seq = c["seq_final"][:MAX_SEQ_LEN]
+    if len(seq) < 10:
+        continue
+    batch.append((str(c["id"]), seq))
+
+    if len(batch) >= BATCH_SIZE:
+        try:
+            embeddings = embed_batch(batch)
+            rows = [
+                {"construct_id": int(label), "embedding": emb, "model": model_name}
+                for (label, _), emb in zip(batch, embeddings)
+            ]
+            sb.table("kbsi_embedding").upsert(rows).execute()
+            total_done += len(batch)
+        except Exception as e:
+            print(f"\nError: {e}")
+            # Retry one by one (may fail on very long sequences)
+            for item in batch:
+                try:
+                    embs = embed_batch([item])
+                    sb.table("kbsi_embedding").upsert([
+                        {"construct_id": int(item[0]), "embedding": embs[0], "model": model_name}
+                    ]).execute()
+                    total_done += 1
+                except Exception as e2:
+                    print(f"\n  Skip {item[0]}: {e2}")
+        batch = []
+
+# Remaining batch
+if batch:
+    embeddings = embed_batch(batch)
+    rows = [
+        {"construct_id": int(label), "embedding": emb, "model": model_name}
+        for (label, _), emb in zip(batch, embeddings)
+    ]
+    sb.table("kbsi_embedding").upsert(rows).execute()
+    total_done += len(batch)
+
+print(f"\nDone! Embedded {total_done} constructs.")
+```
+
+---
+
+## 5. Real-time API Server (FastAPI)
+
+Create `api_server.py`:
+
+```python
+"""
+ESM-2 real-time embedding API server
+
+Run on GPU server:
+  python api_server.py                     # default (port 8000)
+  python api_server.py --port 8080         # custom port
+  python api_server.py --model 3B          # use 3B model
+
+Endpoints:
+  GET  /health                             # health check
+  POST /embed   { "sequence": "MKTL..." }  # get embedding vector
+  POST /search  { "sequence": "MKTL...", "limit": 10 }  # find similar proteins
+"""
+
+import os, torch, esm, argparse
+from contextlib import asynccontextmanager
+from fastapi import FastAPI, HTTPException
+from fastapi.middleware.cors import CORSMiddleware
+from pydantic import BaseModel
+from dotenv import load_dotenv
+from supabase import create_client
+
+load_dotenv()
+
+# --- Args ---
+parser = argparse.ArgumentParser()
+parser.add_argument("--port", type=int, default=8000)
+parser.add_argument("--model", choices=["650M", "3B"], default="650M")
+args, _ = parser.parse_known_args()
+
+MODEL_MAP = {
+    "650M": ("esm2_t33_650M_UR50D", 33, 1280),
+    "3B":   ("esm2_t36_3B_UR50D",   36, 2560),
+}
+model_name, repr_layer, embed_dim = MODEL_MAP[args.model]
+
+# --- Global resources ---
+model = None
+alphabet = None
+batch_converter = None
+device = None
+sb = None
+
+API_KEY = os.environ.get("KBSI_API_KEY", "")
+
+@asynccontextmanager
+async def lifespan(app: FastAPI):
+    global model, alphabet, batch_converter, device, sb
+
+    device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
+    print(f"Loading {model_name} on {device}...")
+    model_obj, alphabet = esm.pretrained.__dict__[model_name]()
+    model = model_obj.eval().to(device)
+    batch_converter = alphabet.get_batch_converter()
+
+    sb = create_client(os.environ["SUPABASE_URL"], os.environ["SUPABASE_SERVICE_ROLE_KEY"])
+
+    print(f"API server ready on port {args.port}")
+    yield
+    print("Shutting down...")
+
+app = FastAPI(title="KBSI ESM-2 API", lifespan=lifespan)
+
+app.add_middleware(
+    CORSMiddleware,
+    allow_origins=[
+        "https://kbsi-crystal-bank.vercel.app",
+        "http://localhost:3000",
+    ],
+    allow_methods=["POST", "GET"],
+    allow_headers=["*"],
+)
+
+MAX_SEQ_LEN = 1022
+
+# --- Request/Response models ---
+class EmbedRequest(BaseModel):
+    sequence: str
+    api_key: str = ""
+
+class EmbedResponse(BaseModel):
+    embedding: list[float]
+    sequence_length: int
+    model: str
+
+class SearchRequest(BaseModel):
+    sequence: str
+    limit: int = 10
+    threshold: float = 0.7
+    api_key: str = ""
+
+class SearchResult(BaseModel):
+    construct_id: int
+    construct_name: str
+    protein_name: str
+    organism: str
+    similarity: float
+
+class SearchResponse(BaseModel):
+    results: list[SearchResult]
+    query_length: int
+    model: str
+
+# --- Auth check ---
+def check_auth(api_key: str):
+    if API_KEY and api_key != API_KEY:
+        raise HTTPException(status_code=401, detail="Invalid API key")
+
+# --- Compute embedding ---
+def compute_embedding(sequence: str) -> list[float]:
+    seq = sequence.upper().replace(" ", "")[:MAX_SEQ_LEN]
+    if len(seq) < 10:
+        raise HTTPException(status_code=400, detail="Sequence must be at least 10 residues")
+
+    _, _, tokens = batch_converter([("query", seq)])
+    tokens = tokens.to(device)
+
+    with torch.no_grad():
+        results = model(tokens, repr_layers=[repr_layer])
+
+    emb = results["representations"][repr_layer][0, 1:len(seq)+1].mean(dim=0)
+    return emb.cpu().tolist()
+
+# --- Endpoints ---
+@app.get("/health")
+async def health():
+    return {
+        "status": "ok",
+        "model": model_name,
+        "device": str(device),
+        "gpu": torch.cuda.get_device_name(0) if device.type == "cuda" else "cpu",
+    }
+
+@app.post("/embed", response_model=EmbedResponse)
+async def embed(req: EmbedRequest):
+    check_auth(req.api_key)
+    seq = req.sequence.upper().replace(" ", "")
+    embedding = compute_embedding(seq)
+    return EmbedResponse(
+        embedding=embedding,
+        sequence_length=len(seq[:MAX_SEQ_LEN]),
+        model=model_name,
+    )
+
+@app.post("/search", response_model=SearchResponse)
+async def search(req: SearchRequest):
+    check_auth(req.api_key)
+    seq = req.sequence.upper().replace(" ", "")
+    query_emb = compute_embedding(seq)
+
+    result = sb.rpc("match_embeddings", {
+        "query_embedding": query_emb,
+        "match_threshold": req.threshold,
+        "match_count": req.limit,
+    }).execute()
+
+    results = []
+    for r in result.data or []:
+        results.append(SearchResult(
+            construct_id=r["construct_id"],
+            construct_name=r.get("construct_name", ""),
+            protein_name=r.get("protein_name", ""),
+            organism=r.get("organism", ""),
+            similarity=round(r["similarity"], 4),
+        ))
+
+    return SearchResponse(
+        results=results,
+        query_length=len(seq[:MAX_SEQ_LEN]),
+        model=model_name,
+    )
+
+if __name__ == "__main__":
+    import uvicorn
+    uvicorn.run(app, host="0.0.0.0", port=args.port)
+```
+
+---
+
+## 6. Running the Server
+
+### 6.1 Verify GPU
 
 ```bash
-# 직접 실행
+nvidia-smi
+# Check CUDA version, GPU model, VRAM
+```
+
+### 6.2 Test run (small batch)
+
+```bash
+# Test with 100 sequences first
+python esm2_embed.py --limit 100 --batch-size 4
+```
+
+### 6.3 Start API server
+
+```bash
+# Direct run
 python api_server.py --port 8000
 
-# 백그라운드 (systemd 서비스 권장)
-nohup python api_server.py --port 8000 > api.log 2>&1 &
-
-# 테스트
+# Test health endpoint
 curl http://localhost:8000/health
+
+# Test embedding
 curl -X POST http://localhost:8000/embed \
   -H "Content-Type: application/json" \
   -d '{"sequence": "MTEYKLVVVGAGGVGKSALTIQLIQ"}'
 ```
 
-### 8.4 systemd 서비스 등록 (자동 시작)
+### 6.4 Run full batch embedding (background)
+
+```bash
+nohup python esm2_embed.py --batch-size 8 > embed.log 2>&1 &
+tail -f embed.log
+```
+
+**Safe to restart**: The script loads already-processed IDs first, so if interrupted, just re-run the same command and it will skip completed sequences automatically.
+
+### 6.5 Register as systemd service (auto-start on reboot)
 
 ```bash
 sudo tee /etc/systemd/system/kbsi-esm2.service << 'EOF'
@@ -660,10 +534,10 @@ After=network.target
 
 [Service]
 Type=simple
-User=kbsi
-WorkingDirectory=/home/kbsi/kbsi-gpu
-Environment="PATH=/home/kbsi/miniconda3/envs/kbsi/bin:$PATH"
-ExecStart=/home/kbsi/miniconda3/envs/kbsi/bin/python api_server.py --port 8000
+User=<your_username>
+WorkingDirectory=/home/<your_username>/kbsi-gpu
+Environment="PATH=/home/<your_username>/miniconda3/envs/kbsi/bin:$PATH"
+ExecStart=/home/<your_username>/miniconda3/envs/kbsi/bin/python api_server.py --port 8000
 Restart=always
 RestartSec=10
 
@@ -676,16 +550,16 @@ sudo systemctl enable --now kbsi-esm2
 sudo systemctl status kbsi-esm2
 ```
 
-### 8.5 nginx reverse proxy (HTTPS)
+### 6.6 HTTPS with nginx (recommended for production)
 
 ```nginx
 # /etc/nginx/sites-available/kbsi-esm2
 server {
     listen 443 ssl;
-    server_name gpu.kbsi-lab.kr;  # 연구실 도메인
+    server_name <your_domain>;
 
-    ssl_certificate /etc/letsencrypt/live/gpu.kbsi-lab.kr/fullchain.pem;
-    ssl_certificate_key /etc/letsencrypt/live/gpu.kbsi-lab.kr/privkey.pem;
+    ssl_certificate /etc/letsencrypt/live/<your_domain>/fullchain.pem;
+    ssl_certificate_key /etc/letsencrypt/live/<your_domain>/privkey.pem;
 
     location / {
         proxy_pass http://127.0.0.1:8000;
@@ -698,103 +572,62 @@ server {
 
 ```bash
 sudo ln -s /etc/nginx/sites-available/kbsi-esm2 /etc/nginx/sites-enabled/
-sudo certbot --nginx -d gpu.kbsi-lab.kr
+sudo certbot --nginx -d <your_domain>
 sudo systemctl restart nginx
 ```
 
-### 8.6 Vercel에서 GPU API 호출
+---
 
-```typescript
-// src/lib/external/esm2-api.ts
-const ESM2_API_URL = process.env.ESM2_API_URL; // https://gpu.kbsi-lab.kr
-const ESM2_API_KEY = process.env.ESM2_API_KEY;
+## 7. Estimated Time
 
-export async function getEmbedding(sequence: string): Promise<number[]> {
-  const res = await fetch(`${ESM2_API_URL}/embed`, {
-    method: 'POST',
-    headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({ sequence, api_key: ESM2_API_KEY }),
-  });
-  if (!res.ok) throw new Error(`ESM-2 API error: ${res.status}`);
-  const data = await res.json();
-  return data.embedding;
-}
+| Task | H200 (80GB) | A100 (80GB) | RTX 4090 (24GB) |
+|------|-------------|-------------|-----------------|
+| ESM-2 650M embedding (286K seqs) | ~4 hours | ~8 hours | ~12 hours |
+| ESM-2 3B embedding (286K seqs) | ~8 hours | ~20 hours | OOM |
 
-export async function searchSimilar(
-  sequence: string,
-  limit = 10,
-  threshold = 0.7
-) {
-  const res = await fetch(`${ESM2_API_URL}/search`, {
-    method: 'POST',
-    headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({ sequence, limit, threshold, api_key: ESM2_API_KEY }),
-  });
-  if (!res.ok) throw new Error(`ESM-2 API error: ${res.status}`);
-  return res.json();
-}
-```
+### Batch size guide
 
-```bash
-# Vercel 환경변수 추가
-vercel env add ESM2_API_URL    # https://gpu.kbsi-lab.kr
-vercel env add ESM2_API_KEY    # 서버에 설정한 API 키
-```
+| GPU VRAM | ESM-2 650M | ESM-2 3B |
+|----------|-----------|----------|
+| 24GB | batch_size=4 | N/A |
+| 40GB | batch_size=8 | batch_size=2 |
+| 80GB | batch_size=16 | batch_size=4 |
 
 ---
 
-## 9. 임베딩 활용 요약
+## 8. Step-by-Step Checklist
 
-| 용도 | 방법 | 경로 |
-|------|------|------|
-| **실시간 유사 서열 검색** | 사용자 서열 → GPU API `/search` → pgvector | Vercel → GPU → Supabase |
-| **결정화 조건 추천** | 유사 단백질 → 성공 조건 조회 | GPU `/search` + Supabase 쿼리 |
-| **단백질 dedupe** | 전체 임베딩 → cosine similarity | 배치 스크립트 |
-| **ML 피처** | 임베딩 벡터를 예측 모델 입력으로 | Supabase kbsi_embedding |
-| **MCP 도구** | `sequence_search` 도구에서 k-mer 대신 ESM-2 사용 | Vercel API |
+### What you need from me
 
----
+| # | Item | How |
+|---|------|-----|
+| 1 | This document | Already in the repo: `data/gpu-setup-guide.md` |
+| 2 | `.env` credentials (Supabase URL + Key) | I will send separately (do NOT share) |
+| 3 | GPU server SSH access | Lab admin |
 
-## 10. 체크리스트 (학생에게 전달)
+**You do NOT need sequence data files** -- the scripts read directly from Supabase.
 
-### 필요한 것
+### Setup order
 
-| # | 항목 | 제공 방법 |
-|---|------|----------|
-| 1 | 이 문서 (`gpu-setup-guide.md`) | Git repo `data/` 폴더 |
-| 2 | `.env` 파일 (Supabase URL + Service Role Key) | 별도 전달 (보안) |
-| 3 | GPU 서버 접근 권한 (SSH) | 연구실 관리자 |
-| 4 | 도메인 또는 고정 IP | 연구실 네트워크 관리자 |
-
-**서열 데이터는 별도 전달 불필요** -- 스크립트가 Supabase에서 직접 읽습니다. `.env`만 있으면 됩니다.
-
-### 세팅 순서
-
-1. Conda 환경 생성 + 패키지 설치 (섹션 1)
-2. `.env` 파일 생성 (섹션 2)
-3. `python api_server.py` 로 테스트 (섹션 8.3)
-4. `curl http://localhost:8000/health` 확인
-5. `python esm2_embed.py --limit 100` 배치 테스트 (섹션 6.2)
-6. systemd 서비스 등록 (섹션 8.4)
-7. nginx + HTTPS 설정 (섹션 8.5)
-8. Vercel 환경변수 추가 (섹션 8.6)
-9. `python esm2_embed.py` 전체 배치 실행 (섹션 6.3)
-
-### Supabase 마이그레이션 (관리자가 사전에 실행)
-
-학생이 세팅하기 전에 Supabase에서 아래를 실행해야 합니다:
-- `CREATE EXTENSION vector;` (섹션 3)
-- `CREATE TABLE kbsi_embedding ...` (섹션 3)
-- `CREATE FUNCTION match_embeddings ...` (섹션 8.2)
+1. SSH into GPU server
+2. Create conda env + install packages (Section 1)
+3. Create `.env` file with the credentials I send you (Section 2)
+4. Run `python api_server.py` and test with `curl http://localhost:8000/health` (Section 6.3)
+5. Run `python esm2_embed.py --limit 100` to test batch processing (Section 6.2)
+6. If everything works, run full batch: `nohup python esm2_embed.py --batch-size 8 > embed.log 2>&1 &` (Section 6.4)
+7. Register systemd service for auto-restart (Section 6.5)
+8. Set up nginx + HTTPS if needed (Section 6.6)
+9. Tell me the server URL so I can configure Vercel
 
 ---
 
-## 11. 트러블슈팅
+## 9. Troubleshooting
 
-| 문제 | 해결 |
-|------|------|
-| CUDA out of memory | `--batch-size` 줄이기 (4 -> 2 -> 1) |
-| Supabase 연결 거부 | `.env` 파일의 URL/Key 확인, 방화벽 확인 |
-| ESM-2 다운로드 느림 | 첫 실행 시 모델 다운로드 (~2.5GB), 이후 캐시됨 |
-| 긴 서열 OOM | MAX_SEQ_LEN=1022로 자동 자름 (ESM-2 제한) |
-| pgvector 미설치 | Supabase Dashboard > SQL Editor > `CREATE EXTENSION vector;` |
+| Problem | Solution |
+|---------|----------|
+| CUDA out of memory | Reduce `--batch-size` (8 -> 4 -> 2 -> 1) |
+| Supabase connection refused | Check `.env` values, check firewall allows outbound HTTPS |
+| ESM-2 download slow | First run downloads ~2.5GB model, cached after that |
+| Long sequence OOM | Automatically truncated to 1022 residues (ESM-2 limit) |
+| `ModuleNotFoundError: fair-esm` | Make sure conda env is activated: `conda activate kbsi` |
+| API server won't start | Check port 8000 is not in use: `lsof -i :8000` |
