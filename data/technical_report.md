@@ -65,7 +65,7 @@ KBSI 단백질 결정화은행(Crystallization Bank)은 **단백질의 발현 �
 | References | 126,331 | PDB primary citation (98.7% 구조 연결) |
 | UniProt 연결 | 40,808 | PDB + SIFTS 매핑 |
 | AlphaFold 연결 | 12,748 | UniProt → AlphaFold API |
-| gene_name | ~44,800 (75.5%) | UniProt + SIFTS + PDB GraphQL |
+| gene_name | 37,151 (62.6%) | UniProt + SIFTS + PDB GraphQL (항체 오할당 1,375건 정리) |
 | Database IDs | 260,259 | PDB + UniProt + AlphaFold + NCBI Gene |
 | 검색 키워드 | 306,981 | 통합 키워드 (pg_trgm) |
 | tag_name | ~62,700 (21.9%) | 서열 패턴 + 이름 패턴 |
@@ -1048,7 +1048,7 @@ PDB: "20% PEG 3350, 0.1 M Bis-Tris pH 6.5, 0.2 M ammonium acetate"
 | References | 126,331 | PDB primary citation | 98.7% 구조 연결 |
 | Database IDs | 260,259 | PDB + UniProt + AlphaFold + NCBI Gene | |
 | UniProt | 40,808 | PDB + SIFTS | 69% |
-| gene_name | ~44,800 | UniProt + SIFTS + PDB GraphQL | 75.5% |
+| gene_name | 37,151 | UniProt + SIFTS + PDB GraphQL | 62.6% (항체 오할당 정리) |
 | tag_name | ~62,700 | 서열 패턴 + 이름 패턴 | 21.9% |
 | residues | ~286,500 | seq_final 길이 기반 | ~100% |
 | Enrichment | 230K / 234K | condition_detail → 구조화 | 98% |
