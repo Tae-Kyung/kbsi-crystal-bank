@@ -107,6 +107,18 @@ function createMcpServer() {
   );
 
   server.tool(
+    'search_mutations',
+    '단백질 변이(mutation) 정보를 검색합니다. 변이명(G12V), 단백질명(KRAS), construct ID로 검색 가능',
+    {
+      mutation: z.string().optional().describe('변이명 (예: G12V, L858R)'),
+      protein_name: z.string().optional().describe('단백질 이름 또는 약어'),
+      construct_id: z.number().optional().describe('Construct ID'),
+      limit: z.number().optional().default(20),
+    },
+    async (params) => toMcpResult(await queries.searchMutations(createServiceClient(), params)),
+  );
+
+  server.tool(
     'get_data_quality',
     '데이터 품질 요약 (필드 구조화율, outcome 분포, 합성/실험 비율)',
     {},

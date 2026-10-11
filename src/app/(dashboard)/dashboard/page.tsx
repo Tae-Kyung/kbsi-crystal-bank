@@ -1,7 +1,7 @@
 import { createServiceClient } from '@/lib/supabase/service';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
-import { Dna, FlaskConical, Gem, Pill, Beaker, Link2, Microscope, Radiation } from 'lucide-react';
+import { Dna, FlaskConical, Gem, Pill, Beaker, Link2, Microscope, Radiation, GitBranch } from 'lucide-react';
 import { CrystallizationHeatmap } from '@/components/charts/crystallization-heatmap';
 import { OutcomeDistribution } from '@/components/charts/outcome-distribution';
 import { DataInsights } from '@/components/charts/data-insights';
@@ -26,7 +26,7 @@ export default async function DashboardPage() {
   };
 
   // 배치 1: 기본 stats (가벼운 테이블 우선)
-  const [proteinCount, constructCount, exprCount, purifCount, charCount, crystCount, diffrCount, structCount, ligandCount, bindingCount] = await Promise.all([
+  const [proteinCount, constructCount, exprCount, purifCount, charCount, crystCount, diffrCount, structCount, ligandCount, bindingCount, mutationCount] = await Promise.all([
     countTable('kbsi_protein'),
     countTable('kbsi_construct'),
     countTable('kbsi_expression'),
@@ -37,6 +37,7 @@ export default async function DashboardPage() {
     countTable('kbsi_structure'),
     countTable('kbsi_ligand'),
     countTable('kbsi_construct_ligand'),
+    countTable('kbsi_mutation'),
   ]);
 
   // 배치 2: outcome + source + scatter + recent
@@ -79,6 +80,7 @@ export default async function DashboardPage() {
     { label: 'Characterizations', value: charCount, icon: Microscope },
     { label: 'Ligands', value: ligandCount, icon: Beaker },
     { label: 'Bindings', value: bindingCount, icon: Link2 },
+    { label: 'Mutations', value: mutationCount, icon: GitBranch },
   ];
 
   // Outcome 분포
@@ -104,7 +106,7 @@ export default async function DashboardPage() {
       <h2 className="text-2xl font-bold">Dashboard</h2>
 
       {/* Stats Cards */}
-      <div className="grid grid-cols-2 md:grid-cols-4 lg:grid-cols-8 gap-4">
+      <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-9 gap-4">
         {stats.map(({ label, value, icon: Icon }) => (
           <Card key={label}>
             <CardContent className="p-4">
@@ -234,6 +236,7 @@ export default async function DashboardPage() {
                   { type: 'Structures', count: structCount, source: 'PDB (X-ray + Cryo-EM + NMR)' },
                   { type: 'Ligands', count: ligandCount, source: 'PDB HET + ChEMBL' },
                   { type: 'Bindings', count: bindingCount, source: 'PDB co-crystal + ChEMBL IC50/Kd' },
+                  { type: 'Mutations', count: mutationCount, source: 'PDB pdbx_mutation (point mutations)' },
                 ].map(row => (
                   <tr key={row.type} className="hover:bg-muted/30">
                     <td className="px-4 py-2 font-medium text-xs">{row.type}</td>

@@ -45,7 +45,7 @@ export async function getExperiments(supabase: SupabaseClient, construct_id: num
 }
 
 export async function getStatistics(supabase: SupabaseClient) {
-  const tables = ['kbsi_protein', 'kbsi_construct', 'kbsi_expression', 'kbsi_purification', 'kbsi_crystallization', 'kbsi_structure'];
+  const tables = ['kbsi_protein', 'kbsi_construct', 'kbsi_expression', 'kbsi_purification', 'kbsi_crystallization', 'kbsi_structure', 'kbsi_ligand', 'kbsi_mutation'];
   const results: Record<string, number> = {};
   for (const table of tables) {
     const { count } = await supabase.from(table).select('*', { count: 'exact', head: true });
@@ -286,6 +286,36 @@ export async function getLigandBindingNetwork(
     results = results.filter((r: any) => r.kbsi_ligand?.name?.toLowerCase().includes(ligand_name.toLowerCase()));
   }
   return { bindings: results, count: results.length };
+}
+
+export async function searchMutations(
+  supabase: SupabaseClient,
+  params: { mutation?: string; protein_name?: string; construct_id?: number; limit?: number }
+) {
+  const { mutation, protein_name, construct_id, limit = 20 } = params;
+  let q = supabase
+    .from('kbsi_mutation')
+    .select('id, mutation, construct_id, kbsi_construct(id, name, construct_type, kbsi_protein(id, full_name, abbreviation, organism))')
+    .limit(limit);
+
+  if (mutation) q = q.ilike('mutation', `%${mutation}%`);
+  if (construct_id) q = q.eq('construct_id', construct_id);
+
+  const { data, error } = await q;
+  if (error) return { error: error.message };
+
+  let results = data || [];
+  if (protein_name) {
+    results = results.filter((r: any) => {
+      const p = r.kbsi_construct?.kbsi_protein;
+      return p && (
+        p.full_name?.toLowerCase().includes(protein_name.toLowerCase()) ||
+        p.abbreviation?.toLowerCase().includes(protein_name.toLowerCase())
+      );
+    });
+  }
+
+  return { mutations: results, count: results.length };
 }
 
 export async function getDataQualitySummary(supabase: SupabaseClient) {
