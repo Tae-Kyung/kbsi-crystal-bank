@@ -5,7 +5,7 @@
 ---
 
 **버전**: 1.0
-**작성일**: 2026-10-05
+**작성일**: 2026-10-11
 **시스템 URL**: https://kbsi-crystal-bank.vercel.app
 **GitHub**: https://github.com/Tae-Kyung/kbsi-crystal-bank
 **MCP 서버**: https://kbsi-crystal-bank.vercel.app/api/mcp
@@ -59,14 +59,17 @@ KBSI 단백질 결정화은행(Crystallization Bank)은 **단백질의 발현 �
 | Purification | 13,356 | 논문 LLM 추출 |
 | Characterization | 7,195 | 논문 LLM 추출 |
 | Diffraction | 478,202 | PDB API + 논문 LLM |
-| 리간드 | 177,759 | PDB HET + ChEMBL + BindingDB |
-| 바인딩 데이터 | 451,800 | PDB co-crystal + ChEMBL + BindingDB |
+| 리간드 | ~182,000 | PDB HET + ChEMBL + BindingDB |
+| 바인딩 데이터 | ~520,000 | PDB co-crystal + ChEMBL + BindingDB |
+| Mutations | 10,922 | PDB pdbx_mutation |
 | References | 126,331 | PDB primary citation (98.7% 구조 연결) |
 | UniProt 연결 | 40,808 | PDB + SIFTS 매핑 |
 | AlphaFold 연결 | 12,748 | UniProt → AlphaFold API |
-| gene_name | 29,435 (51%) | UniProt + SIFTS |
+| gene_name | ~44,800 (75.5%) | UniProt + SIFTS + PDB GraphQL |
 | Database IDs | 260,259 | PDB + UniProt + AlphaFold + NCBI Gene |
 | 검색 키워드 | 306,981 | 통합 키워드 (pg_trgm) |
+| tag_name | ~62,700 (21.9%) | 서열 패턴 + 이름 패턴 |
+| residues | ~286,500 (~100%) | seq_final 길이 기반 |
 | 벤치마크 | v4: 92.4% | k-NN (F1 91.2%, Precision 92.5%) |
 | 교차 검증 | PDB 100%, Enrichment 98.5% | cross-validate.ts |
 
@@ -228,7 +231,7 @@ src/
     ml/                         — ML Feature Engineering
     supabase/                   — Supabase 클라이언트 (server/client/service)
     external/                   — 외부 API 클라이언트 (PDB, UniProt, AlphaFold)
-scripts/                        — 데이터 수집/운영 스크립트 (14개)
+scripts/                        — 데이터 수집/운영 스크립트 (37개)
 supabase/migrations/            — DB 마이그레이션 (8개)
 sdk/python/                     — Python SDK
 ```
@@ -797,6 +800,11 @@ PDB의 `condition_detail` 자유 텍스트를 GPT-4o-mini로 파싱하여 구조
 | 20 | `backfill-structure-metadata.ts` | 정제 | structure date/EMDB | RCSB PDB |
 | 21 | `backfill-references.ts` | 정제 | reference + structure 연결 | RCSB PDB |
 | 22 | `backfill-pdb-database-ids.ts` | 정제 | database_id (PDB/NCBI Gene) | RCSB PDB |
+| 23 | `backfill-mutations.ts` | 수집 | mutation (PDB pdbx_mutation) | PDB GraphQL |
+| 24 | `harvest-pdb-ligands-v2.ts` | 수집 | ligand, binding (GraphQL 배치) | PDB GraphQL |
+| 25 | `backfill-gene-name-pdb.ts` | 정제 | protein gene_name | PDB GraphQL |
+| 26 | `backfill-residues-pdb.ts` | 정제 | construct residues | seq_final 길이 |
+| 27 | `backfill-tag-name.ts` | 정제 | construct tag_name | 서열+이름 패턴 |
 
 **운영 도구** (별도):
 - `ops-harness.ts` — 상태/헬스/품질/보고서/유지보수
@@ -872,14 +880,14 @@ features = [
 3. Name: "KBSI ProteinDB"
 4. 새 대화에서 바로 사용
 
-### 7.2 MCP 도구 (15개)
+### 7.2 MCP 도구 (16개)
 
 | # | 도구 | 설명 |
 |---|------|------|
 | 1 | `search_proteins` | 단백질 검색 (이름/유전자) |
 | 2 | `search_constructs` | Construct 검색 |
 | 3 | `get_experiments` | 실험 데이터 조회 (6종) |
-| 4 | `get_statistics` | DB 통계 |
+| 4 | `get_statistics` | DB 통계 (ligand, mutation 포함) |
 | 5 | `recommend_crystallization` | k-NN 조건 추천 |
 | 6 | `predict_success` | 성공 확률 예측 |
 | 7 | `search_crystallization_conditions` | 조건별 검색 (pH, 온도, 침전제, outcome) |
@@ -888,10 +896,14 @@ features = [
 | 10 | `get_bindings` | 약물-타겟 바인딩 (IC50/Kd/Ki) |
 | 11 | `search_structures` | 구조 검색 (PDB ID/방법) |
 | 12 | `get_data_quality` | 데이터 품질 요약 |
+| 13 | `search_mutations` | 변이 검색 (변이명/단백질/construct) |
+| 14 | `search_characterizations` | 특성분석 검색 (DLS, SEC-MALS 등) |
+| 15 | `search_diffractions` | 회절 데이터 검색 (해상도, 공간군) |
+| 16 | `get_ligand_binding_network` | 단백질-리간드 바인딩 네트워크 |
 
 ### 7.3 공통 쿼리 모듈
 
-12개 도구의 비즈니스 로직은 `src/lib/tools/crystallization-queries.ts`에 통합되어 있으며, AI 챗봇(`chat-tools.ts`)과 MCP 서버(`mcp/route.ts`)가 동일 모듈을 공유합니다. DB 클라이언트만 주입 방식이 다릅니다:
+16개 도구의 비즈니스 로직은 `src/lib/tools/crystallization-queries.ts`에 통합되어 있으며, AI 챗봇(`chat-tools.ts`)과 MCP 서버(`mcp/route.ts`)가 동일 모듈을 공유합니다. DB 클라이언트만 주입 방식이 다릅니다:
 
 - **챗봇**: `createClient()` (쿠키 기반 인증)
 - **MCP**: `createServiceClient()` (Service Role, RLS 바이패스)
@@ -934,7 +946,7 @@ Claude: search_ligands("Sotorasib") → get_bindings(ligand_id=...) → IC50: 7.
 | 페이지 | 경로 | 주요 기능 |
 |--------|------|-----------|
 | **랜딩** | `/` | 딥블루 Hero + 실시간 통계 + AI 프리뷰 + PDB 비교표 |
-| **대시보드** | `/dashboard` | 6 Stats + Recent Proteins + 차트 + Source 분포 |
+| **대시보드** | `/dashboard` | 9 Stats (Mutations 포함) + Recent Proteins + 차트 + Source 분포 |
 | **빠른 입력** | `/quick-entry` | 3단계 30초 입력 (실패 데이터 유도) |
 | **단백질 목록** | `/proteins` | 70K 검색 + U/P 외부 링크 + pagination |
 | **단백질 상세** | `/proteins/[id]` | 외부 6링크 + Crystallization Overview + Explore Data |
@@ -1018,7 +1030,7 @@ PDB: "20% PEG 3350, 0.1 M Bis-Tris pH 6.5, 0.2 M ammonium acetate"
 
 ## 10. 데이터 현황
 
-### 10.1 전체 규모 (2026-10-09 기준, 교차 검증 완료)
+### 10.1 전체 규모 (2026-10-11 기준, 교차 검증 완료)
 
 | 항목 | 건수 | 소스 | 비고 |
 |------|------|------|------|
@@ -1030,16 +1042,19 @@ PDB: "20% PEG 3350, 0.1 M Bis-Tris pH 6.5, 0.2 M ammonium acetate"
 | Purification | 13,356 | 논문 LLM 추출 | 완료 |
 | Characterization | 7,195 | 논문 LLM 추출 | 완료 |
 | Diffraction | 478,202 | PDB API + 논문 LLM | 완료 |
-| 리간드 | 177,759 | PDB HET + ChEMBL + BindingDB | |
-| 바인딩 | 451,800 | PDB + ChEMBL + BindingDB | IC50/Kd/Ki/EC50 |
+| 리간드 | ~182,000 | PDB HET + ChEMBL + BindingDB | 2차 완료 |
+| 바인딩 | ~520,000 | PDB + ChEMBL + BindingDB | IC50/Kd/Ki/EC50 |
+| Mutations | 10,922 | PDB pdbx_mutation | 신규 |
 | References | 126,331 | PDB primary citation | 98.7% 구조 연결 |
 | Database IDs | 260,259 | PDB + UniProt + AlphaFold + NCBI Gene | |
 | UniProt | 40,808 | PDB + SIFTS | 69% |
-| gene_name | 29,435 | UniProt + SIFTS | 51% |
+| gene_name | ~44,800 | UniProt + SIFTS + PDB GraphQL | 75.5% |
+| tag_name | ~62,700 | 서열 패턴 + 이름 패턴 | 21.9% |
+| residues | ~286,500 | seq_final 길이 기반 | ~100% |
 | Enrichment | 230K / 234K | condition_detail → 구조화 | 98% |
 | EMDB | 36,732 | PDB database_related | Cryo-EM |
 | 검색 키워드 | 306,981 | 통합 키워드 (pg_trgm) | |
-| construct_type | mutant 58K, domain 7K | 이름 패턴 분류 | |
+| construct_type | mutant 39K, domain 7K | 이름 패턴 분류 | |
 | 벤치마크 | v4: 92.4% | k-NN | F1 91.2% |
 | 교차 검증 | PDB 100%, Enrichment 98.5% | | 이상값 168건 |
 
@@ -1065,12 +1080,9 @@ PDB: "20% PEG 3350, 0.1 M Bis-Tris pH 6.5, 0.2 M ammonium acetate"
 | Expression | 100+ | 29,153 | 29,153% |
 | Diffraction | - | 478,202 | 신규 |
 | Characterization | - | 7,195 | 신규 |
-| Ligands | 1,000+ | 177,759 | 17,776% |
-| Bindings | 2,000+ | 451,800 | 22,590% |
-| Diffraction | - | 95,000+ | 신규 |
-| Characterization | - | 2,700+ | 신규 |
-| Ligands | 1,000+ | 9,100+ | 910% |
-| Bindings | 2,000+ | 27,000+ | 1,350% |
+| Ligands | 1,000+ | ~182,000 | 18,200% |
+| Bindings | 2,000+ | ~520,000 | 26,000% |
+| Mutations | - | 10,922 | 신규 |
 
 ---
 
@@ -1255,7 +1267,7 @@ csv = client.export_benchmark_dataset(format="csv")
 | `/api/recommend` | GET | k-NN 조건 추천 |
 | `/api/predict` | POST | 성공 확률 예측 |
 | `/api/chat` | POST | AI 챗봇 (스트리밍) |
-| `/api/mcp` | POST/GET | MCP 서버 (12 tools) |
+| `/api/mcp` | POST/GET | MCP 서버 (16 tools) |
 | `/api/sequence-search` | GET | 서열 유사도 검색 |
 | `/api/api-keys` | GET/POST | API Key 관리 |
 | `/api/export` | GET | 데이터 Export (CSV/JSON) |
@@ -1290,4 +1302,4 @@ csv = client.export_benchmark_dataset(format="csv")
 
 ---
 
-*본 기술 보고서는 KBSI 단백질 결정화은행 시스템의 현재 상태(2026-10-05)를 기준으로 작성되었습니다.*
+*본 기술 보고서는 KBSI 단백질 결정화은행 시스템의 현재 상태(2026-10-11)를 기준으로 작성되었습니다.*
