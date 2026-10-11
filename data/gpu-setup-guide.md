@@ -6,14 +6,25 @@
 
 ## 아키텍처
 
+GPU 서버는 두 가지 역할을 합니다:
+
+1. **배치 처리**: 전체 286K 서열의 임베딩을 사전 계산하여 DB에 저장
+2. **실시간 API**: 사용자가 새 서열을 입력하면 즉시 임베딩 계산 + 유사 서열 검색
+
 ```
-Vercel (웹앱) <--> Supabase (DB) <--> GPU 서버 (연구실)
-                        ^
-                seq_final 읽기
-                embedding 쓰기
+                    [배치 처리]
+                    GPU 서버 --> Supabase (kbsi_embedding 저장)
+
+                    [실시간 서비스]
+사용자 --> Vercel --> GPU API (/embed, /search) --> Supabase (pgvector 검색)
+                      :8000
+                    (FastAPI + ESM-2)
 ```
 
-GPU 서버는 Vercel과 직접 연결할 필요 없이, **Supabase에서 서열을 읽고 결과를 쓰기만** 하면 됩니다.
+**GPU 서버 요구사항**:
+- 고정 IP 또는 도메인 (Vercel에서 접근 가능해야 함)
+- 방화벽에서 API 포트(8000) 오픈
+- HTTPS 권장 (nginx reverse proxy + Let's Encrypt)
 
 ---
 
@@ -41,6 +52,9 @@ pip install torch torchvision --index-url https://download.pytorch.org/whl/cu121
 ```bash
 pip install fair-esm
 pip install supabase python-dotenv tqdm
+
+# API 서버용
+pip install fastapi uvicorn
 ```
 
 ### 1.4 서열 클러스터링 도구 (dedupe용)
@@ -396,33 +410,386 @@ python import_clusters.py
 
 ---
 
-## 8. 임베딩 활용 (Vercel에서)
+## 8. 실시간 API 서버 (FastAPI)
 
-임베딩이 DB에 저장되면 Supabase의 pgvector를 통해 Vercel 앱에서 바로 사용 가능:
+### 8.1 API 서버 코드
 
-```sql
--- 유사 서열 검색 (코사인 유사도)
-SELECT c.id, c.name, p.full_name,
-       1 - (e.embedding <=> query_embedding) AS similarity
-FROM kbsi_embedding e
-JOIN kbsi_construct c ON c.id = e.construct_id
-JOIN kbsi_protein p ON p.id = c.protein_id
-ORDER BY e.embedding <=> query_embedding
-LIMIT 10;
+`api_server.py`:
+
+```python
+"""
+ESM-2 실시간 임베딩 API 서버
+
+GPU 서버에서 실행:
+  python api_server.py                     # 기본 (포트 8000)
+  python api_server.py --port 8080         # 포트 변경
+  python api_server.py --model 3B          # 3B 모델 사용
+
+Vercel에서 호출:
+  POST http://gpu-server:8000/embed   { "sequence": "MKTL..." }
+  POST http://gpu-server:8000/search  { "sequence": "MKTL...", "limit": 10 }
+  GET  http://gpu-server:8000/health
+"""
+
+import os, torch, esm, argparse
+from contextlib import asynccontextmanager
+from fastapi import FastAPI, HTTPException
+from fastapi.middleware.cors import CORSMiddleware
+from pydantic import BaseModel
+from dotenv import load_dotenv
+from supabase import create_client
+
+load_dotenv()
+
+# ─── 인자 ───
+parser = argparse.ArgumentParser()
+parser.add_argument("--port", type=int, default=8000)
+parser.add_argument("--model", choices=["650M", "3B"], default="650M")
+args, _ = parser.parse_known_args()
+
+MODEL_MAP = {
+    "650M": ("esm2_t33_650M_UR50D", 33, 1280),
+    "3B":   ("esm2_t36_3B_UR50D",   36, 2560),
+}
+model_name, repr_layer, embed_dim = MODEL_MAP[args.model]
+
+# ─── 글로벌 리소스 ───
+model = None
+alphabet = None
+batch_converter = None
+device = None
+sb = None
+
+API_KEY = os.environ.get("KBSI_API_KEY", "")  # 선택적 인증
+
+@asynccontextmanager
+async def lifespan(app: FastAPI):
+    global model, alphabet, batch_converter, device, sb
+
+    # 모델 로드
+    device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
+    print(f"Loading {model_name} on {device}...")
+    model_obj, alphabet = esm.pretrained.__dict__[model_name]()
+    model = model_obj.eval().to(device)
+    batch_converter = alphabet.get_batch_converter()
+
+    # Supabase 연결
+    sb = create_client(os.environ["SUPABASE_URL"], os.environ["SUPABASE_SERVICE_ROLE_KEY"])
+
+    print(f"API server ready on port {args.port}")
+    yield
+    print("Shutting down...")
+
+app = FastAPI(title="KBSI ESM-2 API", lifespan=lifespan)
+
+app.add_middleware(
+    CORSMiddleware,
+    allow_origins=[
+        "https://kbsi-crystal-bank.vercel.app",
+        "http://localhost:3000",
+    ],
+    allow_methods=["POST", "GET"],
+    allow_headers=["*"],
+)
+
+MAX_SEQ_LEN = 1022
+
+# ─── Request/Response 모델 ───
+class EmbedRequest(BaseModel):
+    sequence: str
+    api_key: str = ""
+
+class EmbedResponse(BaseModel):
+    embedding: list[float]
+    sequence_length: int
+    model: str
+
+class SearchRequest(BaseModel):
+    sequence: str
+    limit: int = 10
+    threshold: float = 0.7
+    api_key: str = ""
+
+class SearchResult(BaseModel):
+    construct_id: int
+    construct_name: str
+    protein_name: str
+    organism: str
+    similarity: float
+
+class SearchResponse(BaseModel):
+    results: list[SearchResult]
+    query_length: int
+    model: str
+
+# ─── 인증 체크 ───
+def check_auth(api_key: str):
+    if API_KEY and api_key != API_KEY:
+        raise HTTPException(status_code=401, detail="Invalid API key")
+
+# ─── 임베딩 계산 ───
+def compute_embedding(sequence: str) -> list[float]:
+    seq = sequence.upper().replace(" ", "")[:MAX_SEQ_LEN]
+    if len(seq) < 10:
+        raise HTTPException(status_code=400, detail="Sequence must be at least 10 residues")
+
+    _, _, tokens = batch_converter([("query", seq)])
+    tokens = tokens.to(device)
+
+    with torch.no_grad():
+        results = model(tokens, repr_layers=[repr_layer])
+
+    emb = results["representations"][repr_layer][0, 1:len(seq)+1].mean(dim=0)
+    return emb.cpu().tolist()
+
+# ─── 엔드포인트 ───
+@app.get("/health")
+async def health():
+    return {
+        "status": "ok",
+        "model": model_name,
+        "device": str(device),
+        "gpu": torch.cuda.get_device_name(0) if device.type == "cuda" else "cpu",
+    }
+
+@app.post("/embed", response_model=EmbedResponse)
+async def embed(req: EmbedRequest):
+    check_auth(req.api_key)
+    seq = req.sequence.upper().replace(" ", "")
+    embedding = compute_embedding(seq)
+    return EmbedResponse(
+        embedding=embedding,
+        sequence_length=len(seq[:MAX_SEQ_LEN]),
+        model=model_name,
+    )
+
+@app.post("/search", response_model=SearchResponse)
+async def search(req: SearchRequest):
+    check_auth(req.api_key)
+    seq = req.sequence.upper().replace(" ", "")
+    query_emb = compute_embedding(seq)
+
+    # pgvector 유사도 검색
+    result = sb.rpc("match_embeddings", {
+        "query_embedding": query_emb,
+        "match_threshold": req.threshold,
+        "match_count": req.limit,
+    }).execute()
+
+    results = []
+    for r in result.data or []:
+        results.append(SearchResult(
+            construct_id=r["construct_id"],
+            construct_name=r.get("construct_name", ""),
+            protein_name=r.get("protein_name", ""),
+            organism=r.get("organism", ""),
+            similarity=round(r["similarity"], 4),
+        ))
+
+    return SearchResponse(
+        results=results,
+        query_length=len(seq[:MAX_SEQ_LEN]),
+        model=model_name,
+    )
+
+if __name__ == "__main__":
+    import uvicorn
+    uvicorn.run(app, host="0.0.0.0", port=args.port)
 ```
 
+### 8.2 Supabase RPC 함수 (유사도 검색)
+
+Supabase SQL Editor에서 실행:
+
+```sql
+CREATE OR REPLACE FUNCTION match_embeddings(
+  query_embedding vector(1280),
+  match_threshold float DEFAULT 0.7,
+  match_count int DEFAULT 10
+)
+RETURNS TABLE (
+  construct_id bigint,
+  construct_name text,
+  protein_name text,
+  organism text,
+  similarity float
+)
+LANGUAGE plpgsql
+AS $$
+BEGIN
+  RETURN QUERY
+  SELECT
+    e.construct_id,
+    c.name AS construct_name,
+    p.full_name AS protein_name,
+    p.organism,
+    (1 - (e.embedding <=> query_embedding))::float AS similarity
+  FROM kbsi_embedding e
+  JOIN kbsi_construct c ON c.id = e.construct_id
+  JOIN kbsi_protein p ON p.id = c.protein_id
+  WHERE 1 - (e.embedding <=> query_embedding) > match_threshold
+  ORDER BY e.embedding <=> query_embedding
+  LIMIT match_count;
+END;
+$$;
+```
+
+### 8.3 API 서버 실행
+
+```bash
+# 직접 실행
+python api_server.py --port 8000
+
+# 백그라운드 (systemd 서비스 권장)
+nohup python api_server.py --port 8000 > api.log 2>&1 &
+
+# 테스트
+curl http://localhost:8000/health
+curl -X POST http://localhost:8000/embed \
+  -H "Content-Type: application/json" \
+  -d '{"sequence": "MTEYKLVVVGAGGVGKSALTIQLIQ"}'
+```
+
+### 8.4 systemd 서비스 등록 (자동 시작)
+
+```bash
+sudo tee /etc/systemd/system/kbsi-esm2.service << 'EOF'
+[Unit]
+Description=KBSI ESM-2 API Server
+After=network.target
+
+[Service]
+Type=simple
+User=kbsi
+WorkingDirectory=/home/kbsi/kbsi-gpu
+Environment="PATH=/home/kbsi/miniconda3/envs/kbsi/bin:$PATH"
+ExecStart=/home/kbsi/miniconda3/envs/kbsi/bin/python api_server.py --port 8000
+Restart=always
+RestartSec=10
+
+[Install]
+WantedBy=multi-user.target
+EOF
+
+sudo systemctl daemon-reload
+sudo systemctl enable --now kbsi-esm2
+sudo systemctl status kbsi-esm2
+```
+
+### 8.5 nginx reverse proxy (HTTPS)
+
+```nginx
+# /etc/nginx/sites-available/kbsi-esm2
+server {
+    listen 443 ssl;
+    server_name gpu.kbsi-lab.kr;  # 연구실 도메인
+
+    ssl_certificate /etc/letsencrypt/live/gpu.kbsi-lab.kr/fullchain.pem;
+    ssl_certificate_key /etc/letsencrypt/live/gpu.kbsi-lab.kr/privkey.pem;
+
+    location / {
+        proxy_pass http://127.0.0.1:8000;
+        proxy_set_header Host $host;
+        proxy_set_header X-Real-IP $remote_addr;
+        proxy_read_timeout 60s;
+    }
+}
+```
+
+```bash
+sudo ln -s /etc/nginx/sites-available/kbsi-esm2 /etc/nginx/sites-enabled/
+sudo certbot --nginx -d gpu.kbsi-lab.kr
+sudo systemctl restart nginx
+```
+
+### 8.6 Vercel에서 GPU API 호출
+
 ```typescript
-// Next.js API에서 사용
-const { data } = await supabase.rpc('match_embeddings', {
-  query_embedding: queryVector,
-  match_threshold: 0.8,
-  match_count: 10,
-});
+// src/lib/external/esm2-api.ts
+const ESM2_API_URL = process.env.ESM2_API_URL; // https://gpu.kbsi-lab.kr
+const ESM2_API_KEY = process.env.ESM2_API_KEY;
+
+export async function getEmbedding(sequence: string): Promise<number[]> {
+  const res = await fetch(`${ESM2_API_URL}/embed`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ sequence, api_key: ESM2_API_KEY }),
+  });
+  if (!res.ok) throw new Error(`ESM-2 API error: ${res.status}`);
+  const data = await res.json();
+  return data.embedding;
+}
+
+export async function searchSimilar(
+  sequence: string,
+  limit = 10,
+  threshold = 0.7
+) {
+  const res = await fetch(`${ESM2_API_URL}/search`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ sequence, limit, threshold, api_key: ESM2_API_KEY }),
+  });
+  if (!res.ok) throw new Error(`ESM-2 API error: ${res.status}`);
+  return res.json();
+}
+```
+
+```bash
+# Vercel 환경변수 추가
+vercel env add ESM2_API_URL    # https://gpu.kbsi-lab.kr
+vercel env add ESM2_API_KEY    # 서버에 설정한 API 키
 ```
 
 ---
 
-## 9. 트러블슈팅
+## 9. 임베딩 활용 요약
+
+| 용도 | 방법 | 경로 |
+|------|------|------|
+| **실시간 유사 서열 검색** | 사용자 서열 → GPU API `/search` → pgvector | Vercel → GPU → Supabase |
+| **결정화 조건 추천** | 유사 단백질 → 성공 조건 조회 | GPU `/search` + Supabase 쿼리 |
+| **단백질 dedupe** | 전체 임베딩 → cosine similarity | 배치 스크립트 |
+| **ML 피처** | 임베딩 벡터를 예측 모델 입력으로 | Supabase kbsi_embedding |
+| **MCP 도구** | `sequence_search` 도구에서 k-mer 대신 ESM-2 사용 | Vercel API |
+
+---
+
+## 10. 체크리스트 (학생에게 전달)
+
+### 필요한 것
+
+| # | 항목 | 제공 방법 |
+|---|------|----------|
+| 1 | 이 문서 (`gpu-setup-guide.md`) | Git repo `data/` 폴더 |
+| 2 | `.env` 파일 (Supabase URL + Service Role Key) | 별도 전달 (보안) |
+| 3 | GPU 서버 접근 권한 (SSH) | 연구실 관리자 |
+| 4 | 도메인 또는 고정 IP | 연구실 네트워크 관리자 |
+
+**서열 데이터는 별도 전달 불필요** -- 스크립트가 Supabase에서 직접 읽습니다. `.env`만 있으면 됩니다.
+
+### 세팅 순서
+
+1. Conda 환경 생성 + 패키지 설치 (섹션 1)
+2. `.env` 파일 생성 (섹션 2)
+3. `python api_server.py` 로 테스트 (섹션 8.3)
+4. `curl http://localhost:8000/health` 확인
+5. `python esm2_embed.py --limit 100` 배치 테스트 (섹션 6.2)
+6. systemd 서비스 등록 (섹션 8.4)
+7. nginx + HTTPS 설정 (섹션 8.5)
+8. Vercel 환경변수 추가 (섹션 8.6)
+9. `python esm2_embed.py` 전체 배치 실행 (섹션 6.3)
+
+### Supabase 마이그레이션 (관리자가 사전에 실행)
+
+학생이 세팅하기 전에 Supabase에서 아래를 실행해야 합니다:
+- `CREATE EXTENSION vector;` (섹션 3)
+- `CREATE TABLE kbsi_embedding ...` (섹션 3)
+- `CREATE FUNCTION match_embeddings ...` (섹션 8.2)
+
+---
+
+## 11. 트러블슈팅
 
 | 문제 | 해결 |
 |------|------|
