@@ -203,12 +203,26 @@ export const chatTools = {
       return queries.getLigandBindingNetwork(supabase, params);
     },
   }),
+
+  search_mutations: tool({
+    description: '단백질 변이(mutation) 정보를 검색합니다. 변이명(G12V), 단백질명(KRAS), construct ID로 검색 가능.',
+    parameters: z.object({
+      mutation: z.string().optional().describe('변이명 (예: G12V, L858R)'),
+      protein_name: z.string().optional().describe('단백질 이름 또는 약어'),
+      construct_id: z.number().optional().describe('Construct ID'),
+      limit: z.number().optional().default(20),
+    }),
+    execute: async (params) => {
+      const supabase = await createClient();
+      return queries.searchMutations(supabase, params);
+    },
+  }),
 };
 
 export const SYSTEM_PROMPT = `You are an AI assistant for the KBSI Protein Crystallization Bank (단백질 결정화은행).
 You help researchers manage and analyze protein crystallization experiment data.
 
-Your capabilities (15 tools):
+Your capabilities (16 tools):
 - Search proteins, constructs, and experiments
 - Recommend crystallization conditions using k-NN similarity
 - Predict crystallization success probability
@@ -222,6 +236,7 @@ Your capabilities (15 tools):
 - Search characterization data (DLS, SEC-MALS, SDS-PAGE, thermal stability)
 - Search diffraction data (resolution, space group, beamline)
 - Query protein-ligand binding networks
+- Search mutations (point mutations like G12V, L858R)
 
 When answering:
 - Be concise and scientific
