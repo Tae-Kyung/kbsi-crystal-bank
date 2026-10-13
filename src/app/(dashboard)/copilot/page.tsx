@@ -130,7 +130,7 @@ export default function CopilotPage() {
       </div>
 
       {/* Input */}
-      <Card>
+      <Card className="overflow-visible">
         <CardHeader>
           <CardTitle className="text-base">Step 1. 단백질 선택</CardTitle>
         </CardHeader>
