@@ -5,46 +5,33 @@ import { createServiceClient } from '@/lib/supabase/service';
 
 export const maxDuration = 60;
 
-const HF_API_TOKEN = process.env.HUGGINGFACE_API_KEY || '';
-const ESM2_MODEL = 'facebook/esm2_t33_650M_UR50D';
+const GPU_API_URL = process.env.KBSI_GPU_API_URL || '';
+const GPU_API_KEY = process.env.KBSI_API_KEY || '';
 
 /**
  * HuggingFace Inference API로 ESM-2 임베딩 계산 (단일 서열, GPU 불필요)
  * 반환: 1280차원 mean-pooled 벡터
  */
-async function computeEsmEmbedding(sequence: string): Promise<{ embedding: number[] | null; debug?: string }> {
-  if (!HF_API_TOKEN) return { embedding: null, debug: 'HUGGINGFACE_API_KEY not set' };
+/**
+ * GPU 서버 /search API 호출 — 서열 → ESM-2 임베딩 → pgvector 유사 검색을 한번에 수행
+ */
+async function gpuSearchSimilar(sequence: string, limit = 50, threshold = 0.5): Promise<{ results: any[] | null; debug?: string }> {
+  if (!GPU_API_URL) return { results: null, debug: 'KBSI_GPU_API_URL not set' };
 
-  const url = `https://api-inference.huggingface.co/pipeline/feature-extraction/${ESM2_MODEL}`;
-  const res = await fetch(url, {
+  const res = await fetch(`${GPU_API_URL}/search`, {
     method: 'POST',
-    headers: {
-      'Authorization': `Bearer ${HF_API_TOKEN}`,
-      'Content-Type': 'application/json',
-    },
-    body: JSON.stringify({ inputs: sequence.slice(0, 1022) }),
-    signal: AbortSignal.timeout(120000),
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ sequence, limit, threshold, api_key: GPU_API_KEY }),
+    signal: AbortSignal.timeout(30000),
   });
 
   if (!res.ok) {
     const errText = await res.text().catch(() => '');
-    return { embedding: null, debug: `HF ${res.status}: ${errText.slice(0, 200)}` };
+    return { results: null, debug: `GPU ${res.status}: ${errText.slice(0, 200)}` };
   }
 
-  // HF 반환: [[tok0, tok1, ..., tokN]] — 각 토큰은 1280차원 벡터
-  // tok0 = BOS, tok1..tokN-1 = 서열, tokN = EOS → 서열 토큰만 mean pooling
-  const data: number[][][] = await res.json();
-  const tokens = data[0];
-  if (!tokens || tokens.length < 3) return { embedding: null, debug: `HF tokens=${tokens?.length}` };
-
-  const seqTokens = tokens.slice(1, -1); // BOS/EOS 제외
-  const dim = seqTokens[0].length;
-  const mean = new Array(dim).fill(0);
-  for (const tok of seqTokens) {
-    for (let i = 0; i < dim; i++) mean[i] += tok[i];
-  }
-  for (let i = 0; i < dim; i++) mean[i] /= seqTokens.length;
-  return { embedding: mean, debug: `ok dim=${dim} tokens=${seqTokens.length}` };
+  const data = await res.json();
+  return { results: data.results || [], debug: `ok model=${data.model} len=${data.query_length}` };
 }
 
 /**
@@ -139,33 +126,25 @@ export async function POST(request: Request) {
       return NextResponse.json({ error: '서열은 최소 10잔기 이상' }, { status: 400 });
     }
 
-    // 1차: HuggingFace Inference API로 ESM-2 임베딩 → pgvector 검색
+    // 1차: GPU 서버 API — ESM-2 임베딩 + pgvector 검색 한번에
     try {
-      const esmResult = await computeEsmEmbedding(querySeq);
-      hfDebug = esmResult.debug || '';
-      if (esmResult.embedding) {
-        const { data: similar } = await supabase.rpc('match_embeddings', {
-          query_embedding: esmResult.embedding,
-          match_threshold: 0.5,
-          match_count: 50,
-        });
+      const gpuResult = await gpuSearchSimilar(querySeq, 50, 0.5);
+      hfDebug = gpuResult.debug || '';
+      if (gpuResult.results?.length) {
+        searchMethod = 'esm2';
+        searchedCount = 284000;
+        const cIds = gpuResult.results.map((r: any) => r.construct_id);
+        const { data: constructs } = await supabase
+          .from('kbsi_construct')
+          .select('id, name, protein_id, expression_system, theoretical_mw, theoretical_pi, kbsi_protein(full_name, abbreviation, organism)')
+          .in('id', cIds);
 
-        if (similar?.length) {
-          searchMethod = 'esm2';
-          searchedCount = 284000;
-          const cIds = similar.map((r: any) => r.construct_id);
-          const { data: constructs } = await supabase
-            .from('kbsi_construct')
-            .select('id, name, protein_id, expression_system, theoretical_mw, theoretical_pi, kbsi_protein(full_name, abbreviation, organism)')
-            .in('id', cIds);
-
-          const constructMap = new Map((constructs || []).map((c: any) => [c.id, c]));
-          similarConstructs = similar.map((r: any) => ({
-            ...(constructMap.get(r.construct_id) || {}),
-            id: r.construct_id,
-            similarity: Math.round(r.similarity * 1000) / 10,
-          }));
-        }
+        const constructMap = new Map((constructs || []).map((c: any) => [c.id, c]));
+        similarConstructs = gpuResult.results.map((r: any) => ({
+          ...(constructMap.get(r.construct_id) || {}),
+          id: r.construct_id,
+          similarity: Math.round(r.similarity * 1000) / 10,
+        }));
       }
     } catch (e: any) {
       hfDebug = `exception: ${e?.message || e}`;

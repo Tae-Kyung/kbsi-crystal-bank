@@ -41,7 +41,7 @@ FAINNTKSFEDIHHQRQETKRRASYTEKEVKDFLARILSSA`;
 
 const SEARCH_METHOD_LABELS: Record<string, { label: string; color: string }> = {
   esm2_db: { label: 'ESM-2 Embedding (DB)', color: 'bg-green-100 text-green-800 dark:bg-green-900 dark:text-green-200' },
-  esm2: { label: 'ESM-2 Embedding (HF)', color: 'bg-blue-100 text-blue-800 dark:bg-blue-900 dark:text-blue-200' },
+  esm2: { label: 'ESM-2 Embedding (GPU)', color: 'bg-blue-100 text-blue-800 dark:bg-blue-900 dark:text-blue-200' },
   db: { label: 'DB Direct', color: 'bg-gray-100 text-gray-800 dark:bg-gray-800 dark:text-gray-200' },
   kmer: { label: 'k-mer (fallback)', color: 'bg-amber-100 text-amber-800 dark:bg-amber-900 dark:text-amber-200' },
 };
