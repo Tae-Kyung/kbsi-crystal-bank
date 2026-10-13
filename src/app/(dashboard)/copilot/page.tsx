@@ -4,16 +4,19 @@ import { useState, useEffect, useRef } from 'react';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
-import { Loader2, FlaskConical, AlertTriangle, CheckCircle2, Beaker } from 'lucide-react';
+import { Loader2, FlaskConical, AlertTriangle, CheckCircle2, Beaker, Brain, Sparkles, Search } from 'lucide-react';
 
 interface CopilotResult {
   analysis: {
     similar_proteins: number;
+    max_similarity: number;
     total_crystallization: number;
     success_count: number;
     failure_count: number;
     success_rate: number;
     expression_data: number;
+    searched_constructs?: number;
+    search_method: 'db' | 'esm2_db' | 'esm2_gpu' | 'kmer';
   };
   construct_recommendation: {
     expression_system: string;
@@ -25,16 +28,23 @@ interface CopilotResult {
     best_ph: { range: string; rate: number; total: number }[];
     best_temperature: { label: string; rate: number; total: number }[];
     best_precipitant: { name: string; rate: number; total: number }[];
-    top_conditions: { precipitant: string; conc: number; buffer: string; ph: number; temperature: number }[];
+    top_conditions: { precipitant: string; conc: number; buffer: string; ph: number; temperature: number; protein_conc?: number; count?: number }[];
   };
   avoid: string[];
   similar_proteins_sample: { name: string; organism: string; similarity: number; mw: number | null }[];
-  error?: string;
+  ai_strategy?: string;
 }
 
 const EXAMPLE_SEQUENCE = `MTEYKLVVVGAVGVGKSALTIQLIQNHFVDEYDPTIEDSY
 RKQVVIDGETCLLDILDTAGQEEYSAMRDQYMRTGEGFLCV
 FAINNTKSFEDIHHQRQETKRRASYTEKEVKDFLARILSSA`;
+
+const SEARCH_METHOD_LABELS: Record<string, { label: string; color: string }> = {
+  esm2_db: { label: 'ESM-2 Embedding', color: 'bg-green-100 text-green-800 dark:bg-green-900 dark:text-green-200' },
+  esm2_gpu: { label: 'ESM-2 Real-time', color: 'bg-blue-100 text-blue-800 dark:bg-blue-900 dark:text-blue-200' },
+  db: { label: 'DB Direct', color: 'bg-gray-100 text-gray-800 dark:bg-gray-800 dark:text-gray-200' },
+  kmer: { label: 'k-mer (참고용)', color: 'bg-amber-100 text-amber-800 dark:bg-amber-900 dark:text-amber-200' },
+};
 
 export default function CopilotPage() {
   const [sequence, setSequence] = useState('');
@@ -89,7 +99,6 @@ export default function CopilotPage() {
     setLoading(true);
     setError('');
     setResult(null);
-
     try {
       const res = await fetch('/api/copilot', {
         method: 'POST',
@@ -97,17 +106,16 @@ export default function CopilotPage() {
         body: JSON.stringify({ sequence: sequence.replace(/[^A-Za-z]/g, '') }),
       });
       const data = await res.json();
-      if (data.error && !data.analysis) {
-        setError(data.error);
-      } else {
-        setResult(data);
-      }
+      if (data.error && !data.analysis) setError(data.error);
+      else setResult(data);
     } catch {
       setError('분석 중 오류가 발생했습니다.');
     } finally {
       setLoading(false);
     }
   }
+
+  const methodInfo = result ? SEARCH_METHOD_LABELS[result.analysis.search_method] : null;
 
   return (
     <div className="space-y-6">
@@ -127,13 +135,14 @@ export default function CopilotPage() {
           <CardTitle className="text-base">Step 1. 단백질 선택</CardTitle>
         </CardHeader>
         <CardContent className="space-y-4">
-          {/* Mode tabs */}
           <div className="flex gap-2 border-b pb-2">
             <Button variant={mode === 'db' ? 'default' : 'ghost'} size="sm" onClick={() => setMode('db')}>
-              DB에서 검색 (정확)
+              <Search className="h-3.5 w-3.5 mr-1" />
+              DB에서 검색 + ESM-2 확장
             </Button>
             <Button variant={mode === 'sequence' ? 'default' : 'ghost'} size="sm" onClick={() => setMode('sequence')}>
-              서열 입력 (참고용)
+              <Brain className="h-3.5 w-3.5 mr-1" />
+              서열 입력
             </Button>
           </div>
 
@@ -163,17 +172,20 @@ export default function CopilotPage() {
                   </div>
                 )}
               </div>
+              <p className="text-xs text-muted-foreground">
+                선택한 단백질의 ESM-2 임베딩으로 284K construct에서 유사 서열을 검색합니다.
+              </p>
               {loading && (
                 <div className="flex items-center gap-2 text-sm text-muted-foreground">
-                  <Loader2 className="h-4 w-4 animate-spin" />분석 중...
+                  <Loader2 className="h-4 w-4 animate-spin" />분석 중... (ESM-2 유사도 검색 + 결정화 데이터 분석 + AI 전략 생성)
                 </div>
               )}
             </div>
           ) : (
             <div className="space-y-3">
-              <div className="rounded-lg bg-amber-50 dark:bg-amber-950 border border-amber-200 dark:border-amber-800 p-2">
-                <p className="text-xs text-amber-800 dark:text-amber-200">
-                  ⚠ k-mer 기반 유사도는 참고용입니다. 정확한 분석은 &quot;DB에서 검색&quot;을 사용하세요.
+              <div className="rounded-lg bg-blue-50 dark:bg-blue-950 border border-blue-200 dark:border-blue-800 p-2">
+                <p className="text-xs text-blue-800 dark:text-blue-200">
+                  GPU 서버 연결 시 ESM-2 임베딩으로 정밀 검색, 미연결 시 k-mer Jaccard로 검색합니다.
                 </p>
               </div>
               <textarea
@@ -186,10 +198,7 @@ export default function CopilotPage() {
                 <Button onClick={handleSubmit} disabled={loading || !sequence.trim()} size="sm">
                   {loading ? (
                     <span className="flex items-center gap-2"><Loader2 className="h-4 w-4 animate-spin" />분석 중...</span>
-                  ) : 'k-mer 분석 (참고용)'}
-                </Button>
-                <Button disabled variant="outline" size="sm" className="opacity-50">
-                  NCBI BLAST (추후개발)
+                  ) : '서열 분석'}
                 </Button>
                 <Button variant="ghost" size="sm" onClick={() => setSequence(EXAMPLE_SEQUENCE)}>
                   예시 (KRAS)
@@ -209,13 +218,22 @@ export default function CopilotPage() {
         <>
           {/* Analysis Summary */}
           <Card>
-            <CardHeader><CardTitle className="text-base">분석 요약</CardTitle></CardHeader>
+            <CardHeader>
+              <CardTitle className="text-base flex items-center gap-2">
+                분석 요약
+                {methodInfo && (
+                  <span className={`text-[10px] px-2 py-0.5 rounded-full font-normal ${methodInfo.color}`}>
+                    {methodInfo.label}
+                  </span>
+                )}
+              </CardTitle>
+            </CardHeader>
             <CardContent>
-              {(result.analysis as any).max_similarity < 20 && (
+              {result.analysis.search_method === 'kmer' && result.analysis.max_similarity < 20 && (
                 <div className="rounded-lg bg-amber-50 dark:bg-amber-950 border border-amber-200 dark:border-amber-800 p-3 mb-3">
                   <p className="text-sm text-amber-800 dark:text-amber-200">
-                    ⚠ 최고 유사도 {(result.analysis as any).max_similarity}% — DB에 높은 유사도의 단백질이 없습니다. 추천 결과는 일반적인 패턴 기반이며, 유사 단백질이 추가되면 정확도가 높아집니다.
-                    ({(result.analysis as any).searched_constructs?.toLocaleString()}개 서열 검색됨)
+                    k-mer 유사도 {result.analysis.max_similarity}% — GPU 서버 연결 시 ESM-2로 더 정확한 검색이 가능합니다.
+                    ({result.analysis.searched_constructs?.toLocaleString()}개 서열 검색됨)
                   </p>
                 </div>
               )}
@@ -243,6 +261,22 @@ export default function CopilotPage() {
               </div>
             </CardContent>
           </Card>
+
+          {/* AI Strategy */}
+          {result.ai_strategy && (
+            <Card className="border-primary/20">
+              <CardHeader>
+                <CardTitle className="text-base flex items-center gap-2">
+                  <Sparkles className="h-4 w-4 text-primary" /> AI 실험 전략
+                </CardTitle>
+              </CardHeader>
+              <CardContent>
+                <div className="prose prose-sm dark:prose-invert max-w-none text-sm leading-relaxed"
+                  dangerouslySetInnerHTML={{ __html: renderMarkdown(result.ai_strategy) }}
+                />
+              </CardContent>
+            </Card>
+          )}
 
           <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
             {/* Step 2: Expression */}
@@ -299,7 +333,7 @@ export default function CopilotPage() {
                   <div className="space-y-2">
                     {result.avoid.map((pattern, i) => (
                       <div key={i} className="flex items-start gap-2 text-sm">
-                        <span className="text-red-500 mt-0.5">✕</span>
+                        <span className="text-red-500 mt-0.5">&#x2715;</span>
                         <span>{pattern}</span>
                       </div>
                     ))}
@@ -329,7 +363,7 @@ export default function CopilotPage() {
                       <div className="flex-1 h-4 bg-muted rounded overflow-hidden">
                         <div className="h-full bg-emerald-500 rounded" style={{ width: `${p.rate}%` }} />
                       </div>
-                      <span className="text-xs font-mono w-12 text-right">{p.rate}%</span>
+                      <span className="text-xs font-mono w-16 text-right">{p.rate}% <span className="text-muted-foreground">({p.total})</span></span>
                     </div>
                   ))}
                 </div>
@@ -343,7 +377,7 @@ export default function CopilotPage() {
                       <div className="flex-1 h-4 bg-muted rounded overflow-hidden">
                         <div className="h-full bg-sky-500 rounded" style={{ width: `${t.rate}%` }} />
                       </div>
-                      <span className="text-xs font-mono w-12 text-right">{t.rate}%</span>
+                      <span className="text-xs font-mono w-16 text-right">{t.rate}% <span className="text-muted-foreground">({t.total})</span></span>
                     </div>
                   ))}
                 </div>
@@ -357,7 +391,7 @@ export default function CopilotPage() {
                       <div className="flex-1 h-4 bg-muted rounded overflow-hidden">
                         <div className="h-full bg-violet-500 rounded" style={{ width: `${p.rate}%` }} />
                       </div>
-                      <span className="text-xs font-mono w-12 text-right">{p.rate}%</span>
+                      <span className="text-xs font-mono w-16 text-right">{p.rate}% <span className="text-muted-foreground">({p.total})</span></span>
                     </div>
                   ))}
                 </div>
@@ -366,7 +400,7 @@ export default function CopilotPage() {
               {/* Top Conditions */}
               {result.crystallization_recommendation.top_conditions.length > 0 && (
                 <div>
-                  <p className="text-xs font-medium text-muted-foreground mb-2">추천 조건 (성공 사례 기반)</p>
+                  <p className="text-xs font-medium text-muted-foreground mb-2">추천 조건 (성공 사례 기반, 빈도순)</p>
                   <div className="rounded-md border overflow-hidden">
                     <table className="w-full text-sm">
                       <thead className="bg-muted/50">
@@ -377,17 +411,19 @@ export default function CopilotPage() {
                           <th className="px-3 py-1.5 text-left text-xs font-medium">Buffer</th>
                           <th className="px-3 py-1.5 text-left text-xs font-medium">pH</th>
                           <th className="px-3 py-1.5 text-left text-xs font-medium">Temp</th>
+                          <th className="px-3 py-1.5 text-right text-xs font-medium">건수</th>
                         </tr>
                       </thead>
                       <tbody className="divide-y">
                         {result.crystallization_recommendation.top_conditions.slice(0, 12).map((c, i) => (
-                          <tr key={i} className="hover:bg-muted/30">
+                          <tr key={i} className={`hover:bg-muted/30 ${i < 3 ? 'bg-green-50/50 dark:bg-green-950/30' : ''}`}>
                             <td className="px-3 py-1.5 text-xs font-bold text-blue-600">{i + 1}</td>
                             <td className="px-3 py-1.5 text-xs">{c.precipitant || '-'}</td>
                             <td className="px-3 py-1.5 text-xs">{c.conc ?? '-'}</td>
                             <td className="px-3 py-1.5 text-xs">{c.buffer || '-'}</td>
                             <td className="px-3 py-1.5 text-xs font-mono">{c.ph}</td>
                             <td className="px-3 py-1.5 text-xs">{c.temperature}°C</td>
+                            <td className="px-3 py-1.5 text-xs text-right font-mono">{c.count || 1}</td>
                           </tr>
                         ))}
                       </tbody>
@@ -418,4 +454,18 @@ export default function CopilotPage() {
       )}
     </div>
   );
+}
+
+/** 간단한 마크다운 → HTML 변환 (bold, list, heading) */
+function renderMarkdown(md: string): string {
+  return md
+    .replace(/&/g, '&amp;')
+    .replace(/</g, '&lt;')
+    .replace(/>/g, '&gt;')
+    .replace(/^### (.+)$/gm, '<h4 class="font-semibold mt-3 mb-1">$1</h4>')
+    .replace(/^## (.+)$/gm, '<h3 class="font-semibold text-base mt-4 mb-1">$1</h3>')
+    .replace(/\*\*(.+?)\*\*/g, '<strong>$1</strong>')
+    .replace(/^\- (.+)$/gm, '<li class="ml-4 list-disc">$1</li>')
+    .replace(/^\d+\. (.+)$/gm, '<li class="ml-4 list-decimal">$1</li>')
+    .replace(/\n/g, '<br />');
 }
