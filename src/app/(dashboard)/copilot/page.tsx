@@ -56,9 +56,11 @@ export default function CopilotPage() {
   const [searchResults, setSearchResults] = useState<any[]>([]);
   const [searchOpen, setSearchOpen] = useState(false);
   const searchTimerRef = useRef<NodeJS.Timeout>(undefined);
+  const skipSearchRef = useRef(false);
 
   // DB 검색 자동완성
   useEffect(() => {
+    if (skipSearchRef.current) { skipSearchRef.current = false; return; }
     if (searchQuery.length < 2) { setSearchResults([]); setSearchOpen(false); return; }
     clearTimeout(searchTimerRef.current);
     searchTimerRef.current = setTimeout(async () => {
@@ -73,7 +75,9 @@ export default function CopilotPage() {
   }, [searchQuery]);
 
   async function handleDbSelect(proteinId: number, name: string) {
+    skipSearchRef.current = true;
     setSearchOpen(false);
+    setSearchResults([]);
     setSearchQuery(name);
     setLoading(true);
     setError('');
