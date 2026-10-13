@@ -5,8 +5,46 @@ import { createServiceClient } from '@/lib/supabase/service';
 
 export const maxDuration = 60;
 
-const GPU_API_URL = process.env.KBSI_GPU_API_URL; // optional: GPU FastAPI for real-time embedding
-const GPU_API_KEY = process.env.KBSI_API_KEY || '';
+const HF_API_TOKEN = process.env.HUGGINGFACE_API_KEY || '';
+const ESM2_MODEL = 'facebook/esm2_t33_650M_UR50D';
+
+/**
+ * HuggingFace Inference API로 ESM-2 임베딩 계산 (단일 서열, GPU 불필요)
+ * 반환: 1280차원 mean-pooled 벡터
+ */
+async function computeEsmEmbedding(sequence: string): Promise<number[] | null> {
+  if (!HF_API_TOKEN) return null;
+
+  const res = await fetch(
+    `https://api-inference.huggingface.co/pipeline/feature-extraction/${ESM2_MODEL}`,
+    {
+      method: 'POST',
+      headers: {
+        'Authorization': `Bearer ${HF_API_TOKEN}`,
+        'Content-Type': 'application/json',
+      },
+      body: JSON.stringify({ inputs: sequence.slice(0, 1022) }),
+      signal: AbortSignal.timeout(60000),
+    },
+  );
+
+  if (!res.ok) return null;
+
+  // HF 반환: [[tok0, tok1, ..., tokN]] — 각 토큰은 1280차원 벡터
+  // tok0 = BOS, tok1..tokN-1 = 서열, tokN = EOS → 서열 토큰만 mean pooling
+  const data: number[][][] = await res.json();
+  const tokens = data[0];
+  if (!tokens || tokens.length < 3) return null;
+
+  const seqTokens = tokens.slice(1, -1); // BOS/EOS 제외
+  const dim = seqTokens[0].length;
+  const mean = new Array(dim).fill(0);
+  for (const tok of seqTokens) {
+    for (let i = 0; i < dim; i++) mean[i] += tok[i];
+  }
+  for (let i = 0; i < dim; i++) mean[i] /= seqTokens.length;
+  return mean;
+}
 
 /**
  * POST /api/copilot — Crystallization Copilot
@@ -24,7 +62,7 @@ export async function POST(request: Request) {
 
   // 1. 유사 단백질 찾기
   let similarConstructs: any[] = [];
-  let searchMethod: 'db' | 'esm2_db' | 'esm2_gpu' | 'kmer' = 'db';
+  let searchMethod: 'db' | 'esm2_db' | 'esm2' | 'kmer' = 'db';
   let searchedCount = 0;
 
   if (protein_id) {
@@ -99,41 +137,38 @@ export async function POST(request: Request) {
       return NextResponse.json({ error: '서열은 최소 10잔기 이상' }, { status: 400 });
     }
 
-    // GPU API 시도 (실시간 임베딩 계산 → pgvector 검색)
-    if (GPU_API_URL) {
-      try {
-        const gpuRes = await fetch(`${GPU_API_URL}/search`, {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ sequence: querySeq, limit: 50, threshold: 0.5, api_key: GPU_API_KEY }),
-          signal: AbortSignal.timeout(30000),
+    // 1차: HuggingFace Inference API로 ESM-2 임베딩 → pgvector 검색
+    try {
+      const embedding = await computeEsmEmbedding(querySeq);
+      if (embedding) {
+        const { data: similar } = await supabase.rpc('match_embeddings', {
+          query_embedding: embedding,
+          match_threshold: 0.5,
+          match_count: 50,
         });
 
-        if (gpuRes.ok) {
-          const gpuData = await gpuRes.json();
-          if (gpuData.results?.length > 0) {
-            searchMethod = 'esm2_gpu';
-            const constructIds = gpuData.results.map((r: any) => r.construct_id);
-            const { data: constructs } = await supabase
-              .from('kbsi_construct')
-              .select('id, name, protein_id, expression_system, theoretical_mw, theoretical_pi, kbsi_protein(full_name, abbreviation, organism)')
-              .in('id', constructIds);
+        if (similar?.length) {
+          searchMethod = 'esm2';
+          searchedCount = 284000;
+          const cIds = similar.map((r: any) => r.construct_id);
+          const { data: constructs } = await supabase
+            .from('kbsi_construct')
+            .select('id, name, protein_id, expression_system, theoretical_mw, theoretical_pi, kbsi_protein(full_name, abbreviation, organism)')
+            .in('id', cIds);
 
-            const constructMap = new Map((constructs || []).map((c: any) => [c.id, c]));
-            similarConstructs = gpuData.results.map((r: any) => ({
-              ...(constructMap.get(r.construct_id) || {}),
-              id: r.construct_id,
-              similarity: Math.round(r.similarity * 1000) / 10,
-            }));
-            searchedCount = 284000;
-          }
+          const constructMap = new Map((constructs || []).map((c: any) => [c.id, c]));
+          similarConstructs = similar.map((r: any) => ({
+            ...(constructMap.get(r.construct_id) || {}),
+            id: r.construct_id,
+            similarity: Math.round(r.similarity * 1000) / 10,
+          }));
         }
-      } catch {
-        // GPU unavailable, fall through to k-mer
       }
+    } catch {
+      // HF API 실패 → k-mer fallback
     }
 
-    // k-mer fallback
+    // 2차: k-mer fallback (HF 실패 또는 API key 없을 때)
     if (similarConstructs.length === 0) {
       searchMethod = 'kmer';
       const K = 3;
@@ -292,7 +327,7 @@ export async function POST(request: Request) {
   try {
     const ctx = [
       `단백질: ${proteinName} (${organism})`,
-      `검색: ${searchMethod === 'esm2_db' ? 'ESM-2 임베딩 유사도' : searchMethod === 'esm2_gpu' ? 'ESM-2 실시간' : searchMethod === 'db' ? 'DB 직접' : 'k-mer'} | 유사 ${similarConstructs.length}개 (최고 ${maxSimilarity}%)`,
+      `검색: ${searchMethod === 'esm2_db' ? 'ESM-2 임베딩 (DB)' : searchMethod === 'esm2' ? 'ESM-2 임베딩 (서열)' : searchMethod === 'db' ? 'DB 직접' : 'k-mer'} | 유사 ${similarConstructs.length}개 (최고 ${maxSimilarity}%)`,
       `결정화: ${total}건 (성공 ${success.length}, 실패 ${failure.length}, 성공률 ${successRate}%)`,
       topHost ? `발현: ${topHost[0]} (${topHost[1]}건)${avgTemp ? `, ${avgTemp}°C` : ''}${avgYield ? `, ${avgYield} mg/L` : ''}` : '',
       bestPH.length ? `최적 pH: ${bestPH.map(([r, v]) => `${r}(${Math.round(v.success / v.total * 100)}%)`).join(', ')}` : '',

@@ -16,7 +16,7 @@ interface CopilotResult {
     success_rate: number;
     expression_data: number;
     searched_constructs?: number;
-    search_method: 'db' | 'esm2_db' | 'esm2_gpu' | 'kmer';
+    search_method: 'db' | 'esm2_db' | 'esm2' | 'kmer';
   };
   construct_recommendation: {
     expression_system: string;
@@ -40,10 +40,10 @@ RKQVVIDGETCLLDILDTAGQEEYSAMRDQYMRTGEGFLCV
 FAINNTKSFEDIHHQRQETKRRASYTEKEVKDFLARILSSA`;
 
 const SEARCH_METHOD_LABELS: Record<string, { label: string; color: string }> = {
-  esm2_db: { label: 'ESM-2 Embedding', color: 'bg-green-100 text-green-800 dark:bg-green-900 dark:text-green-200' },
-  esm2_gpu: { label: 'ESM-2 Real-time', color: 'bg-blue-100 text-blue-800 dark:bg-blue-900 dark:text-blue-200' },
+  esm2_db: { label: 'ESM-2 Embedding (DB)', color: 'bg-green-100 text-green-800 dark:bg-green-900 dark:text-green-200' },
+  esm2: { label: 'ESM-2 Embedding (HF)', color: 'bg-blue-100 text-blue-800 dark:bg-blue-900 dark:text-blue-200' },
   db: { label: 'DB Direct', color: 'bg-gray-100 text-gray-800 dark:bg-gray-800 dark:text-gray-200' },
-  kmer: { label: 'k-mer (참고용)', color: 'bg-amber-100 text-amber-800 dark:bg-amber-900 dark:text-amber-200' },
+  kmer: { label: 'k-mer (fallback)', color: 'bg-amber-100 text-amber-800 dark:bg-amber-900 dark:text-amber-200' },
 };
 
 export default function CopilotPage() {
@@ -185,7 +185,7 @@ export default function CopilotPage() {
             <div className="space-y-3">
               <div className="rounded-lg bg-blue-50 dark:bg-blue-950 border border-blue-200 dark:border-blue-800 p-2">
                 <p className="text-xs text-blue-800 dark:text-blue-200">
-                  GPU 서버 연결 시 ESM-2 임베딩으로 정밀 검색, 미연결 시 k-mer Jaccard로 검색합니다.
+                  입력 서열을 ESM-2로 임베딩한 뒤 284K construct와 벡터 유사도 검색합니다.
                 </p>
               </div>
               <textarea
