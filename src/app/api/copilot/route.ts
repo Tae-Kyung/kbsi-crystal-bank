@@ -380,12 +380,29 @@ export async function POST(request: Request) {
       top_conditions: topConditions,
     },
     avoid: failPatterns,
-    similar_proteins_sample: similarConstructs.slice(0, 10).map((c: any) => ({
+    similar_proteins_sample: dedupeByProtein(similarConstructs),
+    ai_strategy: aiStrategy,
+  });
+}
+
+/** 단백질 단위 중복 제거 — protein_id별 최고 유사도 construct만 남김 */
+function dedupeByProtein(constructs: any[]): any[] {
+  const seen = new Map<number, any>();
+  for (const c of constructs) {
+    const pid = c.protein_id;
+    if (!pid) continue;
+    const existing = seen.get(pid);
+    if (!existing || c.similarity > existing.similarity) {
+      seen.set(pid, c);
+    }
+  }
+  return [...seen.values()]
+    .sort((a, b) => b.similarity - a.similarity)
+    .slice(0, 15)
+    .map((c: any) => ({
       name: c.kbsi_protein?.abbreviation || c.kbsi_protein?.full_name?.slice(0, 30),
       organism: c.kbsi_protein?.organism,
       similarity: c.similarity,
       mw: c.theoretical_mw ? Math.round(c.theoretical_mw / 1000 * 10) / 10 : null,
-    })),
-    ai_strategy: aiStrategy,
-  });
+    }));
 }
