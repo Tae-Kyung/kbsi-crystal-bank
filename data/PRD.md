@@ -463,77 +463,73 @@ Outcome 분포: precipitate 58.8%, diffraction_quality 30.1%, clear 5.1%, phase_
 - 장점: 즉시 결과, 정확, 외부 의존 없음
 - 단점: MMseqs2 바이너리 + 사전 계산 필요
 
-### F15-1b. Protein Language Model 기반 서열 검색 (ESM-2 + pgvector)
+### F15-1b. Protein Language Model 기반 서열 검색 (ESM-2 + pgvector) — 구현 완료
 
 ESM-2 (Meta) 단백질 언어 모델로 서열을 벡터 임베딩한 후, pgvector로 밀리초 검색.
 BLAST보다 빠르고, 진화적으로 먼 상동 단백질도 감지 가능.
 
+**현재 상태 (2026-10-13, 완료):**
+- 284,184건 임베딩 완료 (99.2%, esm2_t33_650M_UR50D, 1280차원)
+- GPU 서버: https://kbsi-esm2.aiconvergencelab.com (RTX A6000, FastAPI)
+- Supabase: kbsi_embedding 테이블 + IVFFlat 인덱스 (lists=100)
+- match_embeddings RPC 함수로 cosine similarity 검색
+- Copilot 페이지 + MCP/Chat 도구 연동 완료
+
 **아키텍처:**
 ```
-사전 계산 (1회, GPU 서버):
-  286K seq_final → ESM-2 (esm2_t33_650M) → 286K 벡터 (640차원)
-  → Supabase pgvector 테이블에 저장
+사전 계산 (완료):
+  284K seq_final → ESM-2 (esm2_t33_650M_UR50D) → 284K 벡터 (1280차원)
+  → Supabase kbsi_embedding 테이블에 저장
 
-실시간 검색 (밀리초):
-  입력 서열 → ESM-2 → 벡터 1개
-  → SELECT * FROM kbsi_sequence_embedding
-    ORDER BY embedding <-> query_vector
-    LIMIT 50
-  → 0.1초
-```
+DB 검색 모드 (GPU 불필요):
+  단백질 선택 → 저장된 임베딩 → match_embeddings RPC → 유사 서열 50건 → ~50ms
 
-**테이블:**
-```sql
-CREATE EXTENSION IF NOT EXISTS vector;
-
-CREATE TABLE kbsi_sequence_embedding (
-  construct_id  BIGINT PRIMARY KEY REFERENCES kbsi_construct(id),
-  embedding     vector(640),     -- ESM-2 t33 output dimension
-  model_version TEXT DEFAULT 'esm2_t33_650M'
-);
-
-CREATE INDEX idx_embedding_ivfflat
-  ON kbsi_sequence_embedding
-  USING ivfflat (embedding vector_cosine_ops)
-  WITH (lists = 100);
+서열 입력 모드 (GPU 서버):
+  입력 서열 → GPU FastAPI /search → ESM-2 임베딩 → pgvector 검색 → ~2초
+  (GPU 실패 시 k-mer Jaccard fallback)
 ```
 
 **BLAST 대비 장점:**
 
 | 항목 | BLAST | ESM-2 + pgvector |
 |------|-------|-----------------|
-| 속도 | 30초+ | **0.1초** |
+| 속도 | 30초+ | **0.05초** (DB모드) / **2초** (서열모드) |
 | 원격 상동체 | 못 찾음 (서열 20% 이하) | **구조/기능 유사도로 감지** |
-| 외부 의존 | NCBI 서버 | **자체 DB** |
-| GPU 필요 | 불필요 | **사전 계산만** (실시간은 CPU) |
+| 외부 의존 | NCBI 서버 | **자체 DB + GPU** |
+| 검증 | KRAS → KRAS만 | **KRAS → KRAS + NRAS + HRAS** (RAS family 전체) |
 
-**구현 단계:**
-1. GPU 서버에서 ESM-2로 286K 서열 임베딩 계산 (~1시간)
-2. Supabase pgvector에 저장
-3. /api/copilot에서 쿼리 서열 → ESM-2 임베딩 → pgvector KNN
-4. 유사 단백질의 결정화 데이터 분석 → 조건 추천
+**MCP/Chat 도구 (2026-10-13 추가):**
+- `esm2_search`: GPU ESM-2 임베딩 → 284K construct 벡터 유사도 검색
+- `copilot_analyze`: 단백질 ID/서열 → 결정화 전략 분석
+
+**미해결:**
+- 서열 입력 시 His-tag 등 공통 태그 자동 제거 — 생물학자와 논의 필요
 
 **추가 활용:**
 - 단백질 클러스터링 (임베딩 K-means)
 - 결정화 성공 예측 ML feature (임베딩 직접 사용)
 - AI Scientist: 임베딩 공간에서 단백질 군집별 결정화 패턴 자동 발견
 
-### F15-2. Crystallization Copilot (킬러 기능 #1)
+### F15-2. Crystallization Copilot (킬러 기능 #1) — 구현 완료
 
 단백질 서열 하나를 입력하면 Construct 설계 → 발현 조건 → 결정화 조건 → 실패 시 대안까지 엔드투엔드 실험 전략을 생성합니다.
 
-**입력**: FASTA 서열 1개
+**현재 상태 (2026-10-13, 완료):**
+- /copilot 페이지 완성: DB검색+ESM-2확장 / 서열입력+GPU ESM-2
+- AI 전략 생성: OpenAI gpt-4o-mini로 4단계 실험 전략 자동 생성
+- 성공 조건 중복제거 + 빈도순 정렬
+- 유사 단백질 protein_id 기준 dedup
+
+**입력**: 단백질 선택 (DB) 또는 FASTA 서열 1개
 **출력**: 4단계 실험 전략 (Construct 설계, 발현 조건, 결정화 상위 12조건, 실패 시 대안)
 
 **파이프라인**:
-1. 서열 → k-mer Jaccard로 유사 단백질 검색 (기존 구현)
+1. 서열 → ESM-2 임베딩 → pgvector 유사 단백질 검색 (284K, cosine)
 2. 유사 단백질의 Construct/Expression/Crystallization 성공 패턴 집계
 3. 성공률 기반 조건 랭킹 + 실패 패턴 분석 (피할 조건)
-4. 단계별 추천 생성 (AI 요약)
+4. GPT-4o-mini로 4단계 실험 전략 생성
 
 **기대 효과**: 1500번 시행착오 → 12번으로 감소. 모든 구조생물학자가 매일 사용하는 서비스.
-
-**현재 준비도**: 80% (1.16M 데이터 + k-NN + 26K expression 확보)
 
 ### F15-3. Custom Screen Designer (킬러 기능 #2)
 

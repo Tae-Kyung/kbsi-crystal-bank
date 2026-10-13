@@ -225,8 +225,8 @@ P1.9.1 (Phase 1 통합 검증) ← 모든 P1.* 완료 후
 
 | ID | 태스크 | 상태 |
 |----|--------|------|
-| P4.1.1 | AI 챗봇 사이드패널 (Vercel AI SDK, 12 tools) | ✅ 완료 |
-| P4.1.2 | MCP 서버 (`/api/mcp`, WebStandard Streamable HTTP) | ✅ 완료 |
+| P4.1.1 | AI 챗봇 사이드패널 (Vercel AI SDK, 18 tools) | ✅ 완료 |
+| P4.1.2 | MCP 서버 (`/api/mcp`, WebStandard Streamable HTTP, 18 tools) | ✅ 완료 |
 | P4.1.3 | OpenAPI 3.0 + Swagger UI (`/api-docs`) | ✅ 완료 |
 | P4.1.4 | 서열 유사도 검색 API (`/api/sequence-search`) | ✅ 완료 |
 | P4.1.5 | API Key 발급 시스템 (`/api/api-keys`) | ✅ 완료 |
@@ -311,6 +311,51 @@ P2.9.1 (Phase 2 완료)
        ↓
 P3.9.1 (Phase 3 완료)
 ```
+
+---
+
+## Phase 5: ESM-2 임베딩 + Copilot 완성 + MCP 에이전트화
+
+### 5.1 ESM-2 임베딩 인프라
+
+| ID | 태스크 | 상태 |
+|----|--------|------|
+| P5.1.1 | ESM-2 임베딩 테이블 (kbsi_embedding, 1280차원, pgvector) | ✅ 완료 |
+| P5.1.2 | 배치 임베딩 스크립트 (`compute_esm_embeddings.py`) | ✅ 완료 |
+| P5.1.3 | 284K construct 임베딩 계산 + Supabase 저장 (99.2%) | ✅ 완료 |
+| P5.1.4 | match_embeddings RPC 함수 (cosine similarity) | ✅ 완료 |
+| P5.1.5 | IVFFlat 인덱스 (lists=100, 2.2GB) | ✅ 완료 |
+| P5.1.6 | GPU API 서버 가이드 (`gpu-api-server-guide.md`) | ✅ 완료 |
+
+### 5.2 GPU API 서버 (연구실)
+
+| ID | 태스크 | 상태 |
+|----|--------|------|
+| P5.2.1 | FastAPI 서버 (`api_server.py`, /health /embed /search) | ✅ 완료 |
+| P5.2.2 | 학생 GPU 서버 세팅 (RTX A6000) | ✅ 완료 |
+| P5.2.3 | HTTPS 배포 (https://kbsi-esm2.aiconvergencelab.com) | ✅ 완료 |
+| P5.2.4 | Vercel 환경변수 등록 (KBSI_GPU_API_URL, KBSI_API_KEY) | ✅ 완료 |
+
+### 5.3 Copilot 페이지 완성
+
+| ID | 태스크 | 상태 |
+|----|--------|------|
+| P5.3.1 | DB 검색 모드: 임베딩 → match_embeddings → 유사 서열 확장 | ✅ 완료 |
+| P5.3.2 | 서열 입력 모드: GPU ESM-2 → pgvector → k-mer fallback | ✅ 완료 |
+| P5.3.3 | AI 실험 전략 생성 (gpt-4o-mini, 4단계) | ✅ 완료 |
+| P5.3.4 | 성공 조건 중복 제거 + 빈도순 정렬 | ✅ 완료 |
+| P5.3.5 | 유사 단백질 protein_id 기준 dedup | ✅ 완료 |
+| P5.3.6 | 검색 드롭다운 overflow 수정 + 재출현 버그 수정 | ✅ 완료 |
+| P5.3.7 | 검색 방법 뱃지 표시 (esm2_db / esm2 / kmer) | ✅ 완료 |
+
+### 5.4 MCP/Chat 에이전트화
+
+| ID | 태스크 | 상태 |
+|----|--------|------|
+| P5.4.1 | `esm2_search` 도구 (MCP + Chat, GPU ESM-2 연동) | ✅ 완료 |
+| P5.4.2 | `copilot_analyze` 도구 (MCP + Chat, 전략 분석) | ✅ 완료 |
+| P5.4.3 | SYSTEM_PROMPT 업데이트 (16 → 18 tools) | ✅ 완료 |
+| P5.4.4 | 서열 입력 시 태그 자동 제거 (His-tag 등) | 📋 생물학자 논의 후 |
 
 ---
 
