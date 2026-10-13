@@ -119,6 +119,23 @@ function createMcpServer() {
   );
 
   server.tool(
+    'esm2_search',
+    'ESM-2 임베딩 기반 서열 유사도 검색. GPU 서버에서 실시간 임베딩 계산 후 284K construct와 벡터 유사도로 검색합니다.',
+    { sequence: z.string().describe('아미노산 서열 (최소 10잔기)'), limit: z.number().optional().default(20) },
+    async ({ sequence, limit }) => toMcpResult(await queries.esm2Search(createServiceClient(), sequence, limit)),
+  );
+
+  server.tool(
+    'copilot_analyze',
+    '단백질 결정화 전략을 분석합니다. 단백질 ID 또는 서열로 유사 단백질을 찾고, 결정화 조건(pH, 온도, 침전제), 발현 조건, 성공률을 분석합니다.',
+    {
+      protein_id: z.number().optional().describe('단백질 ID (DB 검색 모드)'),
+      sequence: z.string().optional().describe('아미노산 서열 (서열 검색 모드)'),
+    },
+    async (params) => toMcpResult(await queries.copilotAnalyze(createServiceClient(), params)),
+  );
+
+  server.tool(
     'get_data_quality',
     '데이터 품질 요약 (필드 구조화율, outcome 분포, 합성/실험 비율)',
     {},

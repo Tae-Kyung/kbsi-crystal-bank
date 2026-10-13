@@ -204,6 +204,30 @@ export const chatTools = {
     },
   }),
 
+  esm2_search: tool({
+    description: 'ESM-2 임베딩 기반 서열 유사도 검색. GPU에서 실시간 임베딩 후 284K construct와 벡터 유사도 검색. Search similar proteins using ESM-2 embeddings.',
+    parameters: z.object({
+      sequence: z.string().describe('아미노산 서열 (최소 10잔기)'),
+      limit: z.number().optional().default(20),
+    }),
+    execute: async ({ sequence, limit }) => {
+      const supabase = await createClient();
+      return queries.esm2Search(supabase, sequence, limit);
+    },
+  }),
+
+  copilot_analyze: tool({
+    description: '결정화 전략 분석. 단백질 ID 또는 서열로 유사 단백질 검색 → 결정화 조건(pH, 온도, 침전제) + 발현 조건 + 성공률 분석. Analyze crystallization strategy for a protein.',
+    parameters: z.object({
+      protein_id: z.number().optional().describe('단백질 ID'),
+      sequence: z.string().optional().describe('아미노산 서열'),
+    }),
+    execute: async (params) => {
+      const supabase = await createClient();
+      return queries.copilotAnalyze(supabase, params);
+    },
+  }),
+
   search_mutations: tool({
     description: '단백질 변이(mutation) 정보를 검색합니다. 변이명(G12V), 단백질명(KRAS), construct ID로 검색 가능.',
     parameters: z.object({
@@ -222,13 +246,15 @@ export const chatTools = {
 export const SYSTEM_PROMPT = `You are an AI assistant for the KBSI Protein Crystallization Bank (단백질 결정화은행).
 You help researchers manage and analyze protein crystallization experiment data.
 
-Your capabilities (16 tools):
+Your capabilities (18 tools):
 - Search proteins, constructs, and experiments
+- **ESM-2 sequence search**: Find similar proteins using ESM-2 protein language model embeddings (284K constructs, cosine similarity)
+- **Copilot analyze**: Full crystallization strategy analysis (similar proteins → conditions → expression → success rate)
 - Recommend crystallization conditions using k-NN similarity
 - Predict crystallization success probability
 - Provide database statistics
 - Search crystallization conditions by parameters
-- Search by protein sequence similarity (k-mer Jaccard)
+- Search by protein sequence similarity (k-mer Jaccard, legacy)
 - Search ligands (drug candidates) by name or SMILES
 - Query drug-target binding data (IC50, Kd, Ki)
 - Search 3D structures by PDB ID or method (X-ray, NMR, Cryo-EM)
@@ -237,6 +263,9 @@ Your capabilities (16 tools):
 - Search diffraction data (resolution, space group, beamline)
 - Query protein-ligand binding networks
 - Search mutations (point mutations like G12V, L858R)
+
+When a user provides a protein sequence, prefer esm2_search over sequence_search (k-mer).
+When a user asks about crystallization strategy, use copilot_analyze.
 
 When answering:
 - Be concise and scientific

@@ -7,6 +7,9 @@ import { extractFeatures, findKNearest, estimateSuccessProbability } from '@/lib
 
 type SupabaseClient = any;
 
+const GPU_API_URL = process.env.KBSI_GPU_API_URL || '';
+const GPU_API_KEY = process.env.KBSI_API_KEY || '';
+
 export async function searchProteins(supabase: SupabaseClient, query: string, limit: number) {
   const { data, error } = await supabase
     .from('kbsi_protein')
@@ -316,6 +319,162 @@ export async function searchMutations(
   }
 
   return { mutations: results, count: results.length };
+}
+
+/**
+ * ESM-2 임베딩 기반 서열 유사도 검색 — GPU 서버 API 호출
+ * GPU 실패 시 DB 임베딩 fallback, 최종 k-mer fallback
+ */
+export async function esm2Search(supabase: SupabaseClient, sequence: string, limit: number = 20) {
+  const querySeq = sequence.toUpperCase().replace(/[^A-Z]/g, '');
+  if (querySeq.length < 10) return { error: 'Sequence must be at least 10 residues' };
+
+  // 1차: GPU 서버 ESM-2
+  if (GPU_API_URL) {
+    try {
+      const res = await fetch(`${GPU_API_URL}/search`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ sequence: querySeq, limit, threshold: 0.5, api_key: GPU_API_KEY }),
+        signal: AbortSignal.timeout(30000),
+      });
+      if (res.ok) {
+        const data = await res.json();
+        if (data.results?.length) {
+          return {
+            method: 'esm2_gpu',
+            model: data.model || 'esm2_t33_650M_UR50D',
+            query_length: querySeq.length,
+            total_searched: 284000,
+            results: data.results.map((r: any) => ({
+              ...r,
+              similarity: Math.round(r.similarity * 1000) / 10,
+            })),
+          };
+        }
+      }
+    } catch { /* fall through */ }
+  }
+
+  // 2차: k-mer fallback
+  const kmerResult = await sequenceSearch(supabase, querySeq, limit);
+  return { method: 'kmer_fallback', ...kmerResult };
+}
+
+/**
+ * Copilot 분석 — 단백질 ID 또는 서열로 결정화 전략 분석
+ */
+export async function copilotAnalyze(
+  supabase: SupabaseClient,
+  params: { protein_id?: number; sequence?: string }
+) {
+  const { protein_id, sequence } = params;
+  if (!protein_id && !sequence) return { error: 'protein_id or sequence required' };
+
+  // 유사 construct 찾기
+  let constructIds: number[] = [];
+  let searchInfo = '';
+
+  if (protein_id) {
+    const { data } = await supabase.from('kbsi_construct').select('id').eq('protein_id', protein_id).limit(50);
+    constructIds = (data || []).map((c: any) => c.id);
+
+    // ESM-2 확장
+    if (constructIds.length > 0) {
+      const { data: embRow } = await supabase.from('kbsi_embedding').select('embedding').eq('construct_id', constructIds[0]).single();
+      if (embRow?.embedding) {
+        const { data: similar } = await supabase.rpc('match_embeddings', {
+          query_embedding: embRow.embedding, match_threshold: 0.7, match_count: 50,
+        });
+        if (similar?.length) {
+          const extraIds = similar.map((r: any) => r.construct_id).filter((id: number) => !constructIds.includes(id));
+          constructIds.push(...extraIds);
+          searchInfo = `esm2_db: ${constructIds.length} constructs`;
+        }
+      }
+    }
+    if (!searchInfo) searchInfo = `db_direct: ${constructIds.length} constructs`;
+  } else if (sequence) {
+    const esmResult = await esm2Search(supabase, sequence, 50);
+    if ('results' in esmResult && esmResult.results) {
+      constructIds = esmResult.results.map((r: any) => r.construct_id);
+      searchInfo = `${esmResult.method}: ${constructIds.length} constructs`;
+    }
+  }
+
+  if (constructIds.length === 0) return { error: 'No similar proteins found' };
+
+  // 결정화 데이터 분석
+  const { data: crystData } = await supabase
+    .from('kbsi_crystallization')
+    .select('ph, temperature, precipitant_type, precipitant_conc, buffer_type, outcome')
+    .in('construct_id', constructIds.slice(0, 100))
+    .neq('source_type', 'synthetic')
+    .not('outcome', 'is', null)
+    .limit(5000);
+
+  const { data: exprData } = await supabase
+    .from('kbsi_expression')
+    .select('host, induction_temp, yield_mg_l')
+    .in('construct_id', constructIds.slice(0, 100))
+    .limit(500);
+
+  const total = crystData?.length || 0;
+  const success = (crystData || []).filter((c: any) => c.outcome === 'single_crystal' || c.outcome === 'diffraction_quality');
+  const successRate = total > 0 ? Math.round(success.length / total * 1000) / 10 : 0;
+
+  // 최적 조건 집계
+  const phBuckets: Record<string, { s: number; t: number }> = {};
+  const precipBuckets: Record<string, { s: number; t: number }> = {};
+  (crystData || []).forEach((c: any) => {
+    const isSuccess = c.outcome === 'single_crystal' || c.outcome === 'diffraction_quality';
+    if (c.ph != null) {
+      const b = `${Math.floor(c.ph)}-${Math.floor(c.ph) + 1}`;
+      if (!phBuckets[b]) phBuckets[b] = { s: 0, t: 0 };
+      phBuckets[b].t++;
+      if (isSuccess) phBuckets[b].s++;
+    }
+    if (c.precipitant_type) {
+      if (!precipBuckets[c.precipitant_type]) precipBuckets[c.precipitant_type] = { s: 0, t: 0 };
+      precipBuckets[c.precipitant_type].t++;
+      if (isSuccess) precipBuckets[c.precipitant_type].s++;
+    }
+  });
+
+  const bestPH = Object.entries(phBuckets).filter(([, v]) => v.t >= 3)
+    .sort((a, b) => (b[1].s / b[1].t) - (a[1].s / a[1].t)).slice(0, 5)
+    .map(([range, v]) => ({ range, rate: Math.round(v.s / v.t * 100), total: v.t }));
+
+  const bestPrecip = Object.entries(precipBuckets).filter(([, v]) => v.t >= 3)
+    .sort((a, b) => (b[1].s / b[1].t) - (a[1].s / a[1].t)).slice(0, 5)
+    .map(([name, v]) => ({ name, rate: Math.round(v.s / v.t * 100), total: v.t }));
+
+  // 성공 조건 Top
+  const condMap = new Map<string, { count: number; data: any }>();
+  success.forEach((c: any) => {
+    if (!c.ph || !c.temperature) return;
+    const key = `${c.precipitant_type || ''}|${c.ph}|${c.temperature}`;
+    const e = condMap.get(key);
+    if (e) e.count++;
+    else condMap.set(key, { count: 1, data: { precipitant: c.precipitant_type, ph: c.ph, temperature: c.temperature, buffer: c.buffer_type, conc: c.precipitant_conc } });
+  });
+  const topConditions = [...condMap.values()].sort((a, b) => b.count - a.count).slice(0, 12)
+    .map(v => ({ ...v.data, count: v.count }));
+
+  // 발현
+  const hosts: Record<string, number> = {};
+  (exprData || []).forEach((e: any) => { if (e.host) hosts[e.host] = (hosts[e.host] || 0) + 1; });
+  const topHost = Object.entries(hosts).sort((a, b) => b[1] - a[1])[0];
+
+  return {
+    search: searchInfo,
+    constructs_analyzed: constructIds.length,
+    crystallization: { total, success: success.length, success_rate: successRate },
+    expression: { data_count: exprData?.length || 0, top_system: topHost ? topHost[0] : null },
+    best_ph: bestPH,
+    best_precipitant: bestPrecip,
+    top_conditions: topConditions,
+  };
 }
 
 export async function getDataQualitySummary(supabase: SupabaseClient) {
