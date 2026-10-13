@@ -157,16 +157,16 @@ export default function CopilotPage() {
                   className="w-full rounded-lg border bg-muted/50 px-3 py-2 text-sm placeholder:text-muted-foreground focus:outline-none focus:ring-2 focus:ring-primary/30"
                 />
                 {searchOpen && searchResults.length > 0 && (
-                  <div className="absolute top-full mt-1 w-full rounded-lg border bg-popover shadow-lg z-50 overflow-hidden max-h-60 overflow-y-auto">
+                  <div className="absolute top-full mt-1 w-full rounded-lg border bg-popover shadow-lg z-50 overflow-hidden max-h-96 overflow-y-auto">
                     {searchResults.map((s: any) => (
                       <button
                         key={s.id}
                         type="button"
                         onClick={() => handleDbSelect(s.id, s.label)}
-                        className="w-full text-left px-3 py-2 text-sm hover:bg-muted/50"
+                        className="w-full text-left px-4 py-2.5 text-sm hover:bg-muted/50 border-b border-border/30 last:border-b-0"
                       >
                         <span className="font-medium">{s.label}</span>
-                        {s.sub && <span className="text-xs text-muted-foreground ml-2">{s.sub}</span>}
+                        {s.sub && <span className="text-xs text-muted-foreground ml-2">({s.sub})</span>}
                       </button>
                     ))}
                   </div>
