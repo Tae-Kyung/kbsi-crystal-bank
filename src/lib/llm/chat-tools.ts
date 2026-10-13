@@ -228,6 +228,18 @@ export const chatTools = {
     },
   }),
 
+  predict_crystallization: tool({
+    description: 'ESM-2 + XGBoost로 결정화 성공 확률을 예측합니다. 서열 + 조건 → 성공 확률(%). Predict crystallization success using ESM-2 embeddings + XGBoost.',
+    parameters: z.object({
+      sequence: z.string().describe('아미노산 서열'),
+      ph: z.number().optional().default(7.0).describe('pH'),
+      temperature: z.number().optional().default(18).describe('온도 (°C)'),
+      precipitant_type: z.string().optional().default('unknown').describe('침전제 종류'),
+      precipitant_conc: z.number().optional().default(0).describe('침전제 농도'),
+    }),
+    execute: async (params) => queries.predictCrystallizationSuccess(params),
+  }),
+
   search_mutations: tool({
     description: '단백질 변이(mutation) 정보를 검색합니다. 변이명(G12V), 단백질명(KRAS), construct ID로 검색 가능.',
     parameters: z.object({
@@ -246,7 +258,7 @@ export const chatTools = {
 export const SYSTEM_PROMPT = `You are an AI assistant for the KBSI Protein Crystallization Bank (단백질 결정화은행).
 You help researchers manage and analyze protein crystallization experiment data.
 
-Your capabilities (18 tools):
+Your capabilities (19 tools):
 - Search proteins, constructs, and experiments
 - **ESM-2 sequence search**: Find similar proteins using ESM-2 protein language model embeddings (284K constructs, cosine similarity)
 - **Copilot analyze**: Full crystallization strategy analysis (similar proteins → conditions → expression → success rate)
@@ -264,8 +276,11 @@ Your capabilities (18 tools):
 - Query protein-ligand binding networks
 - Search mutations (point mutations like G12V, L858R)
 
+- **Predict crystallization success**: ESM-2 + XGBoost model predicts success probability for given sequence + conditions
+
 When a user provides a protein sequence, prefer esm2_search over sequence_search (k-mer).
 When a user asks about crystallization strategy, use copilot_analyze.
+When a user asks about success probability for specific conditions, use predict_crystallization.
 
 When answering:
 - Be concise and scientific

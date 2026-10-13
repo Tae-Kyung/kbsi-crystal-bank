@@ -477,6 +477,41 @@ export async function copilotAnalyze(
   };
 }
 
+/**
+ * GPU 서버의 XGBoost 모델로 결정화 성공 확률 예측
+ * ESM-2 임베딩 + 조건(pH, 온도, 침전제) → 성공 확률
+ */
+export async function predictCrystallizationSuccess(
+  params: { sequence: string; ph?: number; temperature?: number; precipitant_type?: string; precipitant_conc?: number }
+) {
+  if (!GPU_API_URL) return { error: 'GPU server not configured' };
+  const { sequence, ph = 7.0, temperature = 18, precipitant_type = 'unknown', precipitant_conc = 0 } = params;
+
+  const querySeq = sequence.toUpperCase().replace(/[^A-Z]/g, '');
+  if (querySeq.length < 10) return { error: 'Sequence must be at least 10 residues' };
+
+  try {
+    const res = await fetch(`${GPU_API_URL}/predict`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        sequence: querySeq, ph, temperature, precipitant_type, precipitant_conc,
+        api_key: GPU_API_KEY,
+      }),
+      signal: AbortSignal.timeout(30000),
+    });
+
+    if (!res.ok) {
+      const errText = await res.text().catch(() => '');
+      return { error: `GPU predict failed: ${res.status} ${errText.slice(0, 200)}` };
+    }
+
+    return await res.json();
+  } catch (e: any) {
+    return { error: `GPU predict error: ${e?.message || e}` };
+  }
+}
+
 export async function getDataQualitySummary(supabase: SupabaseClient) {
   const [crystTotal, hasPH, hasTemp, hasPrecip, nullOutcome, syntheticCount] = await Promise.all([
     supabase.from('kbsi_crystallization').select('id', { count: 'exact', head: true }).then((r: any) => r.count ?? 0),

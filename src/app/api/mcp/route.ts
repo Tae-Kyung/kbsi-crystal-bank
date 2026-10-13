@@ -136,6 +136,19 @@ function createMcpServer() {
   );
 
   server.tool(
+    'predict_crystallization',
+    'ESM-2 + XGBoost로 결정화 성공 확률을 예측합니다. 서열과 결정화 조건을 입력하면 성공 확률(%)을 반환합니다.',
+    {
+      sequence: z.string().describe('아미노산 서열'),
+      ph: z.number().optional().default(7.0).describe('pH'),
+      temperature: z.number().optional().default(18).describe('온도 (°C)'),
+      precipitant_type: z.string().optional().default('unknown').describe('침전제 종류'),
+      precipitant_conc: z.number().optional().default(0).describe('침전제 농도'),
+    },
+    async (params) => toMcpResult(await queries.predictCrystallizationSuccess(params)),
+  );
+
+  server.tool(
     'get_data_quality',
     '데이터 품질 요약 (필드 구조화율, outcome 분포, 합성/실험 비율)',
     {},
