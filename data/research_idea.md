@@ -543,6 +543,220 @@ Copilot 결과:
 
 ---
 
-## 10. 한 문장 요약
+## 10. 차세대 혁신 연구 아이디어
 
-> **KBSI 단백질 결정화은행 + ESM-2 임베딩 + XGBoost 예측 모델 + AI Scientist = 전 세계 최초로 단백질 언어 모델을 활용하여 1.16M 실험 데이터에서 결정화 성공을 예측하고, 자율적으로 실험 전략을 생성하는 AI 기반 구조생물학 연구 플랫폼.**
+현재 시스템(Section 9)은 **"유사 단백질의 과거 조건을 찾아 추천"**하는 것이다.
+아래 4가지는 이를 넘어서는 혁신적 연구 방향으로, 각각 독립된 고임팩트 논문이 될 수 있다.
+
+### 10.1 Crystallizability Score — 서열만으로 결정화 난이도 예측
+
+**문제**: 구조생물학자가 새 단백질 타겟을 잡을 때, "이 단백질이 결정화 가능한가?"를 사전에 알 수 없다. 6개월~1년 투자 후 실패하는 경우가 흔하다.
+
+**아이디어**: 서열 하나만 입력하면 **결정화 난이도 점수(0~100)**를 즉시 반환하는 모델.
+
+```
+서열 입력 → ESM-2 임베딩 (1280차원) → Crystallizability Classifier → Score
+
+  Score 85+: "High — 표준 스크린으로 충분. 예상 소요 1-2주"
+  Score 50-84: "Medium — 최적화 필요. Copilot 추천 조건 사용 권장"
+  Score 20-49: "Low — truncation/mutation 설계 권장 (Section 10.4 참고)"
+  Score <20:  "Very Low — Cryo-EM 또는 NMR 전환 추천"
+```
+
+**학습 데이터 설계**:
+
+| 라벨 | 출처 | 건수 | 근거 |
+|------|------|------|------|
+| **Positive** (결정화 성공) | PDB에 X-ray 구조가 있는 단백질 | ~59K | 구조 존재 = 결정화 성공 |
+| **Negative** (결정화 실패/미시도) | UniProt에만 있고 PDB에 없는 단백질 | ~200K+ | 구조 없음 ≈ 결정화 안 됨 또는 시도 안 함 |
+
+> **주의**: PDB에 없다고 결정화 불가능한 건 아님 (시도 안 했을 수 있음).
+> 하지만 통계적으로, PDB에 있는 단백질은 결정화가 용이한 특성(가용성, 안정성, 크기 등)을 가질 가능성이 높음.
+> 이 bias를 논문에 명시하고, 해석 시 "crystallization propensity"로 표현.
+
+**Feature**:
+- ESM-2 임베딩 (1280차원) — 단백질의 구조적/진화적 특성 포착
+- 서열 기반 물성: 길이, MW, pI, hydrophobicity, disorder 비율
+- 아미노산 조성 (20차원)
+
+**모델**: XGBoost 또는 MLP. ESM-2 임베딩이 단순 물성 대비 얼마나 개선하는지가 핵심.
+
+**논문**:
+> "Sequence-based Prediction of Protein Crystallizability Using ESM-2 Embeddings: Learning from 59K Successful Structures and 200K UniProt Sequences"
+> - 저널: Acta Crystallographica Section D, Bioinformatics, 또는 Nature Communications
+> - **경쟁 논문 없음**: 기존 crystallizability 예측은 hand-crafted feature만 사용 (2010년대). PLM 임베딩 사용은 최초.
+
+**구현 난이도**: 중 (UniProt negative 데이터 수집 필요, 나머지는 현재 인프라로 가능)
+
+**임팩트**: 모든 구조생물학자가 타겟 선정 단계에서 사용. **TargetDB, SGC 등 구조유전체학 프로젝트**에 즉시 활용 가능.
+
+---
+
+### 10.2 Active Learning — "다음에 뭘 실험해야 하나"
+
+**문제**: 상용 스크린 키트는 1,536조건을 무작위 시도. 성공률 ~5%. 시약+시간+단백질 낭비.
+
+**아이디어**: 매 실험 라운드마다 **불확실성이 가장 높은 조건**을 선택하여, 최소 실험으로 최적 조건에 도달.
+
+```
+[Round 1]
+  AI: "이 12조건을 먼저 시도하세요" (최대 정보량 기준 선택)
+  연구자: 3 성공, 9 실패 → Quick Entry로 결과 입력
+       ↓
+  AI: 실패 패턴 학습 → "pH 5-6 + PEG>20% = 실패 영역" 식별
+      불확실성 분석 → "pH 7-8 + low PEG 영역은 아직 모름"
+       ↓
+[Round 2]
+  AI: "다음 12조건" (불확실 영역 집중 탐색)
+  연구자: 7 성공, 5 실패
+       ↓
+[Round 3]
+  AI: "최적 조건 수렴 — pH 7.2 / PEG 3350 18% / 4°C"
+  연구자: 확인 실험 → 성공!
+```
+
+**핵심 알고리즘**: Bayesian Optimization 또는 Gaussian Process
+- **Acquisition function**: Expected Improvement (EI) 또는 Upper Confidence Bound (UCB)
+- **Surrogate model**: XGBoost (현재 모델) + uncertainty estimation
+- 매 라운드 후 surrogate model 업데이트
+
+**수치 비교**:
+
+| 방법 | 조건 수 | 성공까지 | 시약 비용 |
+|------|---------|---------|----------|
+| 상용 스크린 (random) | 1,536 | 수 주 | ~$3,000 |
+| Copilot 추천 (현재) | 12 | 1회 | ~$50 |
+| **Active Learning** | **24 (2-3 round)** | **2-3일** | **~$100** |
+
+**논문**:
+> "Bayesian Optimization of Protein Crystallization Conditions with ESM-2-informed Priors"
+> - 저널: Nature Methods, PNAS
+> - **차별점**: ESM-2 임베딩을 Bayesian prior로 사용. 유사 단백질의 결정화 데이터가 prior가 됨.
+> - **KBSI 실험실 검증**: 실제 wet lab에서 3-round 실험으로 검증 가능
+
+**구현 난이도**: 중 (알고리즘은 기존 라이브러리, KBSI 실험 협력 필요)
+
+**임팩트**: 실험 비용 **60배 절감**. 특히 소량 단백질(막 단백질 등)에서 결정적.
+
+---
+
+### 10.3 Generative Condition Design — 조건을 "생성"하는 AI
+
+**문제**: 현재 Copilot은 과거 성공 조건에서 **검색**할 뿐, **새로운 조건**을 만들지 못한다. DB에 없는 단백질은 추천할 조건이 부족.
+
+**아이디어**: 단백질 임베딩을 조건으로 받아, **최적 결정화 조건을 생성**하는 모델.
+
+```
+ESM-2 임베딩 (1280차원)
+       ↓
+Conditional Diffusion Model / Conditional VAE
+       ↓
+생성된 조건: {
+  pH: 6.3,           ← DB에 없는 새로운 값
+  temperature: 16.5,  ← 정확한 연속값
+  precipitant: "PEG 4200",  ← 농도까지 최적화
+  precipitant_conc: 22.3,
+  buffer: "MES",
+  protein_conc: 8.5
+}
+```
+
+**학습**:
+- Input: ESM-2 임베딩 (조건 = conditioning)
+- Output: 결정화 조건 벡터 (pH, temp, precip, conc, ...)
+- 성공 데이터(216K)로만 학습 → "성공하는 조건의 분포"를 학습
+- Sampling: 새 단백질 → 성공 조건 분포에서 다수 샘플 → 다양한 후보 생성
+
+**기존 방법 vs Generative**:
+
+| | Copilot (검색) | Generative (생성) |
+|---|---|---|
+| 원리 | 유사 단백질의 과거 조건 | 단백질 특성 → 조건 분포 학습 |
+| DB에 없는 단백질 | 제한적 | **연속 공간에서 생성 가능** |
+| 조건 다양성 | 과거 값만 | **새로운 조합 생성** |
+| pH 정밀도 | 기존 값 (7.0, 7.5, ...) | **연속값 (6.37, 7.23, ...)** |
+
+**논문**:
+> "Generative AI for Protein Crystallization: Diffusion Model Generates Optimal Conditions from ESM-2 Embeddings"
+> - 저널: Nature Machine Intelligence, ICLR
+> - **최초**: 결정화 조건에 generative model을 적용한 연구 없음
+> - **검증**: 생성된 조건 vs Copilot 추천 vs Random screen → 성공률 비교
+
+**구현 난이도**: 높 (Diffusion model 학습, 조건 공간 설계)
+
+**임팩트**: 상용 스크린 키트 시장($500M+)을 대체하는 **맞춤형 AI 스크린** 가능성.
+
+---
+
+### 10.4 Protein Engineering Copilot — 결정화를 위한 단백질 변이 설계
+
+**문제**: 결정화가 어려운 단백질(Crystallizability Score < 30)은 조건 최적화만으로는 해결 불가. **단백질 자체를 변형**해야 한다. 현재 이 과정은 전문가의 경험에 완전히 의존.
+
+**아이디어**: ESM-2 임베딩 공간에서 **결정화하기 쉬운 방향으로 서열을 변형**하는 방법을 AI가 제안.
+
+```
+원본 서열 (Score 25, 결정화 매우 어려움)
+       ↓
+AI 분석:
+  1. "residue 145-167은 disordered loop → 삭제하면 Score 72"
+  2. "K45E + E89A (Surface Entropy Reduction) → Score 68"
+  3. "truncation 1-250 (core domain만) → Score 81"
+  4. "MBP fusion → 일반적으로 Score +20"
+       ↓
+각 변이 서열 → ESM-2 → 새 Score 예측 → 최적 construct 자동 설계
+```
+
+**핵심 기술**:
+- **Disorder 예측**: ESM-2 attention에서 flexible region 식별
+- **Surface Entropy Reduction (SER)**: 표면 고엔트로피 잔기(K, E, Q) → Ala 치환, ESM-2로 구조 안정성 영향 평가
+- **Domain boundary 예측**: ESM-2 임베딩의 토큰별 변화로 도메인 경계 식별
+- **Crystallizability gradient**: 임베딩 공간에서 "결정화 쉬운 방향"으로의 gradient 계산
+
+**우리 데이터의 강점**:
+- **10,922건 mutation 데이터** — 어떤 변이가 결정화에 영향을 주었는지
+- **286K construct 다양성** — wild-type vs truncation vs mutant의 성공률 비교
+- **tag_name 62,700건** — His6, MBP, GST 등 태그별 결정화 영향 통계
+
+**논문**:
+> "AI-guided Protein Engineering for Crystallization: Predicting Construct Modifications from ESM-2 Landscape"
+> - 저널: Nature Methods, Nature Structural & Molecular Biology
+> - **차별점**: 기존 SER은 수동, 우리는 ESM-2 + 10K mutation 데이터로 자동화
+> - **검증**: 실패→성공 전환 사례 10건으로 retrospective 검증
+
+**구현 난이도**: 매우 높 (multi-modal, disorder 예측, gradient 설계)
+
+**임팩트**: **Nature급**. 결정화 실패 단백질을 구제하는 유일한 AI 도구.
+
+---
+
+### 10.5 혁신 아이디어 로드맵
+
+```
+현재 (2026-10)                    단기 (3개월)                   중기 (6개월)                  장기 (1년)
+─────────────                    ────────────                  ────────────                 ────────────
+Copilot v1                       Crystallizability              Active Learning              Generative
+(ESM-2 검색 +                    Score                         (Bayesian Opt +              Condition Design
+ XGBoost 예측)                   (서열→난이도 점수)              KBSI 실험 연동)              (Diffusion Model)
+     │                                │                              │                           │
+     │    ┌──────────────────────────────────────────────────────────────────────────────────┐    │
+     └────┤          ESM-2 284K 임베딩 + 1.16M 결정화 데이터 (공통 기반)                      ├────┘
+          └──────────────────────────────────────────────────────────────────────────────────┘
+                                                                                    │
+                                                                         Protein Engineering
+                                                                         Copilot (변이 설계)
+```
+
+| 순위 | 아이디어 | 난이도 | 논문 임팩트 | 데이터 준비 | 예상 저널 |
+|------|---------|--------|-----------|-----------|----------|
+| **1** | **Crystallizability Score** | 중 | 매우 높음 | UniProt negative 수집 필요 | Acta Cryst D / Nat Comm |
+| **2** | **Active Learning** | 중 | 높음 | 현재 데이터 + KBSI 실험 | Nature Methods / PNAS |
+| **3** | **Generative Condition** | 높 | 매우 높음 | 현재 데이터로 가능 | Nat Mach Intel / ICLR |
+| **4** | **Protein Engineering** | 매우 높 | Nature급 | mutation 10K + construct 286K | Nature Methods / NSMB |
+
+**핵심 통찰**: 4가지 아이디어 모두 **동일한 ESM-2 284K 임베딩**을 기반으로 한다. 임베딩 인프라가 이미 구축되어 있으므로, 각 아이디어는 독립적으로 병렬 진행 가능. 하나의 투자(ESM-2 임베딩)가 4편 이상의 논문을 생산하는 구조.
+
+---
+
+## 11. 한 문장 요약
+
+> **KBSI 단백질 결정화은행 + ESM-2 임베딩 + AI 예측/생성 모델 + 자율 실험 루프 = 서열만으로 결정화 난이도를 예측하고, 최적 조건을 생성하고, 단백질을 설계하고, 실험을 자율적으로 최적화하는 세계 최초의 AI 기반 구조생물학 연구 플랫폼.**
