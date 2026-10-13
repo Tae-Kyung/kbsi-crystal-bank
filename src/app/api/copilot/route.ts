@@ -12,29 +12,30 @@ const ESM2_MODEL = 'facebook/esm2_t33_650M_UR50D';
  * HuggingFace Inference API로 ESM-2 임베딩 계산 (단일 서열, GPU 불필요)
  * 반환: 1280차원 mean-pooled 벡터
  */
-async function computeEsmEmbedding(sequence: string): Promise<number[] | null> {
-  if (!HF_API_TOKEN) return null;
+async function computeEsmEmbedding(sequence: string): Promise<{ embedding: number[] | null; debug?: string }> {
+  if (!HF_API_TOKEN) return { embedding: null, debug: 'HUGGINGFACE_API_KEY not set' };
 
-  const res = await fetch(
-    `https://api-inference.huggingface.co/pipeline/feature-extraction/${ESM2_MODEL}`,
-    {
-      method: 'POST',
-      headers: {
-        'Authorization': `Bearer ${HF_API_TOKEN}`,
-        'Content-Type': 'application/json',
-      },
-      body: JSON.stringify({ inputs: sequence.slice(0, 1022) }),
-      signal: AbortSignal.timeout(60000),
+  const url = `https://api-inference.huggingface.co/pipeline/feature-extraction/${ESM2_MODEL}`;
+  const res = await fetch(url, {
+    method: 'POST',
+    headers: {
+      'Authorization': `Bearer ${HF_API_TOKEN}`,
+      'Content-Type': 'application/json',
     },
-  );
+    body: JSON.stringify({ inputs: sequence.slice(0, 1022) }),
+    signal: AbortSignal.timeout(120000),
+  });
 
-  if (!res.ok) return null;
+  if (!res.ok) {
+    const errText = await res.text().catch(() => '');
+    return { embedding: null, debug: `HF ${res.status}: ${errText.slice(0, 200)}` };
+  }
 
   // HF 반환: [[tok0, tok1, ..., tokN]] — 각 토큰은 1280차원 벡터
   // tok0 = BOS, tok1..tokN-1 = 서열, tokN = EOS → 서열 토큰만 mean pooling
   const data: number[][][] = await res.json();
   const tokens = data[0];
-  if (!tokens || tokens.length < 3) return null;
+  if (!tokens || tokens.length < 3) return { embedding: null, debug: `HF tokens=${tokens?.length}` };
 
   const seqTokens = tokens.slice(1, -1); // BOS/EOS 제외
   const dim = seqTokens[0].length;
@@ -43,7 +44,7 @@ async function computeEsmEmbedding(sequence: string): Promise<number[] | null> {
     for (let i = 0; i < dim; i++) mean[i] += tok[i];
   }
   for (let i = 0; i < dim; i++) mean[i] /= seqTokens.length;
-  return mean;
+  return { embedding: mean, debug: `ok dim=${dim} tokens=${seqTokens.length}` };
 }
 
 /**
@@ -64,6 +65,7 @@ export async function POST(request: Request) {
   let similarConstructs: any[] = [];
   let searchMethod: 'db' | 'esm2_db' | 'esm2' | 'kmer' = 'db';
   let searchedCount = 0;
+  let hfDebug = '';
 
   if (protein_id) {
     // ── DB 검색 모드: 해당 단백질의 construct → 임베딩으로 유사 서열 확장 ──
@@ -139,10 +141,11 @@ export async function POST(request: Request) {
 
     // 1차: HuggingFace Inference API로 ESM-2 임베딩 → pgvector 검색
     try {
-      const embedding = await computeEsmEmbedding(querySeq);
-      if (embedding) {
+      const esmResult = await computeEsmEmbedding(querySeq);
+      hfDebug = esmResult.debug || '';
+      if (esmResult.embedding) {
         const { data: similar } = await supabase.rpc('match_embeddings', {
-          query_embedding: embedding,
+          query_embedding: esmResult.embedding,
           match_threshold: 0.5,
           match_count: 50,
         });
@@ -164,8 +167,8 @@ export async function POST(request: Request) {
           }));
         }
       }
-    } catch {
-      // HF API 실패 → k-mer fallback
+    } catch (e: any) {
+      hfDebug = `exception: ${e?.message || e}`;
     }
 
     // 2차: k-mer fallback (HF 실패 또는 API key 없을 때)
@@ -362,6 +365,7 @@ export async function POST(request: Request) {
       expression_data: exprData?.length || 0,
       searched_constructs: searchedCount || constructIds.length,
       search_method: searchMethod,
+      hf_debug: hfDebug || undefined,
     },
     construct_recommendation: {
       expression_system: topHost ? topHost[0] : 'E. coli',
