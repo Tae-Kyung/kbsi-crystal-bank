@@ -1,7 +1,7 @@
 import { createServiceClient } from '@/lib/supabase/service';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
-import { Dna, FlaskConical, Gem, Pill, Beaker, Link2, Microscope, Radiation, GitBranch } from 'lucide-react';
+import { Dna, FlaskConical, Gem, Pill, Beaker, Link2, Microscope, Radiation, GitBranch, Radio } from 'lucide-react';
 import { CrystallizationHeatmap } from '@/components/charts/crystallization-heatmap';
 import { OutcomeDistribution } from '@/components/charts/outcome-distribution';
 import { DataInsights } from '@/components/charts/data-insights';
@@ -26,7 +26,7 @@ export default async function DashboardPage() {
   };
 
   // 배치 1: 기본 stats (가벼운 테이블 우선)
-  const [proteinCount, constructCount, exprCount, purifCount, charCount, crystCount, diffrCount, structCount, ligandCount, bindingCount, mutationCount] = await Promise.all([
+  const [proteinCount, constructCount, exprCount, purifCount, charCount, crystCount, diffrCount, structCount, ligandCount, bindingCount, mutationCount, nmrCount] = await Promise.all([
     countTable('kbsi_protein'),
     countTable('kbsi_construct'),
     countTable('kbsi_expression'),
@@ -38,6 +38,7 @@ export default async function DashboardPage() {
     countTable('kbsi_ligand'),
     countTable('kbsi_construct_ligand'),
     countTable('kbsi_mutation'),
+    countTable('kbsi_nmr_experiment'),
   ]);
 
   // 배치 2: outcome + source + scatter + recent
@@ -80,6 +81,7 @@ export default async function DashboardPage() {
     { label: 'Characterizations', value: charCount, icon: Microscope },
     { label: 'Ligands', value: ligandCount, icon: Beaker },
     { label: 'Bindings', value: bindingCount, icon: Link2 },
+    { label: 'NMR', value: nmrCount, icon: Radio },
     { label: 'Mutations', value: mutationCount, icon: GitBranch },
   ];
 
@@ -106,7 +108,7 @@ export default async function DashboardPage() {
       <h2 className="text-2xl font-bold">Dashboard</h2>
 
       {/* Stats Cards */}
-      <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-9 gap-4">
+      <div className="grid grid-cols-2 md:grid-cols-5 lg:grid-cols-10 gap-4">
         {stats.map(({ label, value, icon: Icon }) => (
           <Card key={label}>
             <CardContent className="p-4">
@@ -234,6 +236,7 @@ export default async function DashboardPage() {
                   { type: 'Crystallization', count: crystCount, source: `Experimental ${experimentalCryst.toLocaleString()} + Synthetic ${syntheticTotal.toLocaleString()}` },
                   { type: 'Diffraction', count: diffrCount, source: 'PDB API + PubMed' },
                   { type: 'Structures', count: structCount, source: 'PDB (X-ray + Cryo-EM + NMR)' },
+                  { type: 'NMR Experiments', count: nmrCount, source: 'PDB NMR metadata (spectrometer, spectra)' },
                   { type: 'Ligands', count: ligandCount, source: 'PDB HET + ChEMBL' },
                   { type: 'Bindings', count: bindingCount, source: 'PDB co-crystal + ChEMBL IC50/Kd' },
                   { type: 'Mutations', count: mutationCount, source: 'PDB pdbx_mutation (point mutations)' },

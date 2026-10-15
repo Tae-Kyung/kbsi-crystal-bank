@@ -6,6 +6,7 @@ import { CrystallizationTab } from '@/components/experiments/crystallization-tab
 import { PurificationTab } from '@/components/experiments/purification-tab';
 import { StructureTab } from '@/components/experiments/structure-tab';
 import { CharacterizationTab } from '@/components/experiments/characterization-tab';
+import { NmrTab } from '@/components/experiments/nmr-tab';
 
 export default async function ExperimentsPage({
   params,
@@ -28,12 +29,13 @@ export default async function ExperimentsPage({
   const construct = constructData as any;
 
   // Fetch all experiment data in parallel
-  const [expressions, purifications, crystallizations, characterizations, structures] = await Promise.all([
+  const [expressions, purifications, crystallizations, characterizations, structures, nmrExperiments] = await Promise.all([
     supabase.from('kbsi_expression').select('*').eq('construct_id', constructId).order('attempt_number'),
     supabase.from('kbsi_purification').select('*').eq('construct_id', constructId).order('attempt_number'),
     supabase.from('kbsi_crystallization').select('*').eq('construct_id', constructId).order('attempt_number'),
     supabase.from('kbsi_characterization').select('*').eq('construct_id', constructId).order('method'),
     supabase.from('kbsi_structure').select('*').eq('construct_id', constructId).order('created_at'),
+    supabase.from('kbsi_nmr_experiment').select('*, kbsi_nmr_spectrum(id, spectrum_type)').eq('construct_id', constructId).order('created_at'),
   ]);
 
   const protein = (construct as any).kbsi_protein;
@@ -66,6 +68,9 @@ export default async function ExperimentsPage({
           <TabsTrigger value="structure">
             Structure ({structures.data?.length ?? 0})
           </TabsTrigger>
+          <TabsTrigger value="nmr">
+            NMR ({nmrExperiments.data?.length ?? 0})
+          </TabsTrigger>
         </TabsList>
 
         <TabsContent value="expression">
@@ -82,6 +87,9 @@ export default async function ExperimentsPage({
         </TabsContent>
         <TabsContent value="structure">
           <StructureTab data={structures.data ?? []} constructId={constructId} />
+        </TabsContent>
+        <TabsContent value="nmr">
+          <NmrTab data={nmrExperiments.data ?? []} />
         </TabsContent>
       </Tabs>
     </div>

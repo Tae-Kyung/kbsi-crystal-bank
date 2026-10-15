@@ -28,13 +28,14 @@ export default async function ConstructDetailPage({
   const mutations = construct.kbsi_mutation ?? [];
 
   // Fetch experiment counts + ligand bindings
-  const [expr, puri, cryst, char, diffr, struct, { data: ligandBindings }, { data: exprSources }] = await Promise.all([
+  const [expr, puri, cryst, char, diffr, struct, nmr, { data: ligandBindings }, { data: exprSources }] = await Promise.all([
     supabase.from('kbsi_expression').select('id', { count: 'exact', head: true }).eq('construct_id', parseInt(id)),
     supabase.from('kbsi_purification').select('id', { count: 'exact', head: true }).eq('construct_id', parseInt(id)),
     supabase.from('kbsi_crystallization').select('id', { count: 'exact', head: true }).eq('construct_id', parseInt(id)),
     supabase.from('kbsi_characterization').select('id', { count: 'exact', head: true }).eq('construct_id', parseInt(id)),
     supabase.from('kbsi_diffraction').select('id', { count: 'exact', head: true }).eq('construct_id', parseInt(id)),
     supabase.from('kbsi_structure').select('id', { count: 'exact', head: true }).eq('construct_id', parseInt(id)),
+    supabase.from('kbsi_nmr_experiment').select('id', { count: 'exact', head: true }).eq('construct_id', parseInt(id)),
     supabase.from('kbsi_construct_ligand').select('id, binding_kd, binding_ic50, source_db, kbsi_ligand(id, name, mw, source_db, source_id)').eq('construct_id', parseInt(id)).limit(50),
     supabase.from('kbsi_expression').select('source_db, source_id').eq('construct_id', parseInt(id)).eq('source_db', 'PubMed').not('source_id', 'is', null).limit(1),
   ]);
@@ -49,6 +50,7 @@ export default async function ConstructDetailPage({
     { label: 'Crystallization', slug: 'crystallization', count: cryst.count ?? 0, color: 'text-purple-600' },
     { label: 'Diffraction', slug: 'diffraction', count: diffr.count ?? 0, color: 'text-red-600' },
     { label: 'Structure', slug: 'structure', count: struct.count ?? 0, color: 'text-cyan-600' },
+    { label: 'NMR', slug: 'nmr', count: nmr.count ?? 0, color: 'text-indigo-600' },
   ];
 
   return (
