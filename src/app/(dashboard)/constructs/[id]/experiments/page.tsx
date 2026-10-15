@@ -38,6 +38,24 @@ export default async function ExperimentsPage({
     supabase.from('kbsi_nmr_experiment').select('*, kbsi_nmr_spectrum(id, spectrum_type)').eq('construct_id', constructId).order('created_at'),
   ]);
 
+  // Chemical shift summaries for NMR experiments
+  const nmrList = nmrExperiments.data ?? [];
+  const bmrbIds = nmrList.map((n: any) => n.bmrb_id).filter(Boolean);
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  let csSummaries: Record<string, any> = {};
+  if (bmrbIds.length > 0) {
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    const { data: csData } = await (supabase as any)
+      .from('kbsi_nmr_cs_summary')
+      .select('*')
+      .in('bmrb_id', bmrbIds);
+    if (csData) {
+      for (const cs of csData as any[]) {
+        csSummaries[cs.bmrb_id] = cs;
+      }
+    }
+  }
+
   const protein = (construct as any).kbsi_protein;
 
   return (
@@ -89,7 +107,7 @@ export default async function ExperimentsPage({
           <StructureTab data={structures.data ?? []} constructId={constructId} />
         </TabsContent>
         <TabsContent value="nmr">
-          <NmrTab data={nmrExperiments.data ?? []} />
+          <NmrTab data={nmrExperiments.data ?? []} csSummaries={csSummaries} />
         </TabsContent>
       </Tabs>
     </div>

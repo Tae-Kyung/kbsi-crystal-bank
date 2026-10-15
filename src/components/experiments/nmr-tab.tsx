@@ -42,7 +42,20 @@ function ConditionItem({ label, value }: { label: string; value: React.ReactNode
   );
 }
 
-export function NmrTab({ data }: { data: NmrExperiment[] }) {
+interface CsSummary {
+  total_shifts: number;
+  assigned_residues: number;
+  h_count: number;
+  n_count: number;
+  ca_count: number;
+  cb_count: number;
+  ha_count: number;
+  avg_h_shift: number | null;
+  avg_n_shift: number | null;
+  avg_ca_shift: number | null;
+}
+
+export function NmrTab({ data, csSummaries = {} }: { data: NmrExperiment[]; csSummaries?: Record<string, CsSummary> }) {
   return (
     <div className="space-y-4 mt-4">
       {data.length > 0 ? (
@@ -127,6 +140,38 @@ export function NmrTab({ data }: { data: NmrExperiment[] }) {
                       )}
                     </div>
                   )}
+
+                  {/* Chemical Shift Summary */}
+                  {exp.bmrb_id && csSummaries[exp.bmrb_id] && (() => {
+                    const cs = csSummaries[exp.bmrb_id];
+                    return (
+                      <div className="rounded-md border bg-muted/30 px-3 py-2 space-y-1.5">
+                        <div className="flex items-center justify-between">
+                          <span className="text-xs font-medium">Backbone Chemical Shifts</span>
+                          <span className="text-[10px] text-muted-foreground">
+                            {cs.assigned_residues} residues · {cs.total_shifts} shifts
+                          </span>
+                        </div>
+                        <div className="grid grid-cols-5 gap-2 text-center">
+                          {[
+                            { label: 'H', count: cs.h_count, avg: cs.avg_h_shift },
+                            { label: 'N', count: cs.n_count, avg: cs.avg_n_shift },
+                            { label: 'CA', count: cs.ca_count, avg: cs.avg_ca_shift },
+                            { label: 'CB', count: cs.cb_count, avg: null },
+                            { label: 'HA', count: cs.ha_count, avg: null },
+                          ].map(atom => (
+                            <div key={atom.label} className="rounded bg-background px-1 py-1">
+                              <div className="text-[10px] text-muted-foreground">{atom.label}</div>
+                              <div className="text-sm font-bold">{atom.count}</div>
+                              {atom.avg != null && (
+                                <div className="text-[9px] text-muted-foreground">{atom.avg} ppm</div>
+                              )}
+                            </div>
+                          ))}
+                        </div>
+                      </div>
+                    );
+                  })()}
 
                   {/* Notes */}
                   {exp.notes && (

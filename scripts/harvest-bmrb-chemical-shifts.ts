@@ -1,0 +1,304 @@
+/**
+ * BMRB에서 backbone chemical shift 데이터 수집 → kbsi_nmr_chemical_shift
+ *
+ * bmrb_id가 있는 kbsi_nmr_experiment에서 BMRB API로 backbone chemical shift를 가져옴.
+ * Backbone atoms: H, N, CA, CB, HA (잔기당 최대 5개)
+ *
+ * npx tsx scripts/harvest-bmrb-chemical-shifts.ts [옵션]
+ *   --limit 100       처리 건수 (기본: 전체)
+ *   --offset 0        시작 오프셋
+ *   --dry-run         미리보기 (DB 삽입 안 함)
+ *   --validate-only   API 응답 검증만 (통계 출력)
+ */
+
+import dotenv from 'dotenv';
+import { createClient } from '@supabase/supabase-js';
+
+dotenv.config({ path: '.env.local' });
+
+const supabase = createClient(
+  process.env.NEXT_PUBLIC_SUPABASE_URL!,
+  process.env.SUPABASE_SERVICE_ROLE_KEY!
+);
+
+const BMRB_API = 'https://api.bmrb.io/v2/entry';
+const BATCH_SIZE = 10; // BMRB API는 느리므로 작은 배치
+const API_DELAY_MS = 500;
+const BACKBONE_ATOMS = new Set(['H', 'N', 'CA', 'CB', 'HA']);
+
+function sleep(ms: number) {
+  return new Promise((resolve) => setTimeout(resolve, ms));
+}
+
+interface ChemShiftRow {
+  nmr_experiment_id: number;
+  bmrb_id: string;
+  seq_id: number;
+  comp_id: string;
+  atom_id: string;
+  atom_type: string;
+  chemical_shift: number;
+  chemical_shift_err: number | null;
+  source_db: string;
+  source_id: string;
+}
+
+interface BmrbShiftData {
+  shifts: ChemShiftRow[];
+  totalRaw: number;
+  backboneCount: number;
+  residueCount: number;
+}
+
+async function fetchChemicalShifts(bmrbId: string, nmrExpId: number): Promise<BmrbShiftData | null> {
+  try {
+    const res = await fetch(`${BMRB_API}/${bmrbId}`, {
+      headers: { 'User-Agent': 'KBSI-CrystalBank/1.0' },
+      signal: AbortSignal.timeout(30000),
+    });
+    if (!res.ok) return null;
+    const data = await res.json();
+
+    const entry = data[bmrbId] || data;
+    const saveframes = entry.saveframes || [];
+
+    const shifts: ChemShiftRow[] = [];
+    let totalRaw = 0;
+
+    for (const sf of saveframes) {
+      if (sf.category !== 'assigned_chemical_shifts') continue;
+
+      for (const loop of sf.loops || []) {
+        if (loop.category !== '_Atom_chem_shift') continue;
+
+        const tags: string[] = loop.tags;
+        const idxSeq = tags.indexOf('Seq_ID');
+        const idxComp = tags.indexOf('Comp_ID');
+        const idxAtom = tags.indexOf('Atom_ID');
+        const idxType = tags.indexOf('Atom_type');
+        const idxVal = tags.indexOf('Val');
+        const idxErr = tags.indexOf('Val_err');
+
+        if (idxSeq < 0 || idxComp < 0 || idxAtom < 0 || idxVal < 0) continue;
+
+        for (const row of loop.data) {
+          totalRaw++;
+          const atomId = row[idxAtom];
+          if (!BACKBONE_ATOMS.has(atomId)) continue;
+
+          const val = parseFloat(row[idxVal]);
+          if (isNaN(val)) continue;
+
+          const errRaw = idxErr >= 0 ? parseFloat(row[idxErr]) : NaN;
+
+          shifts.push({
+            nmr_experiment_id: nmrExpId,
+            bmrb_id: bmrbId,
+            seq_id: parseInt(row[idxSeq]),
+            comp_id: row[idxComp],
+            atom_id: atomId,
+            atom_type: idxType >= 0 ? row[idxType] : atomId === 'H' || atomId === 'HA' ? 'H' : atomId === 'N' ? 'N' : 'C',
+            chemical_shift: val,
+            chemical_shift_err: !isNaN(errRaw) ? errRaw : null,
+            source_db: 'BMRB',
+            source_id: bmrbId,
+          });
+        }
+      }
+    }
+
+    const residueCount = new Set(shifts.map(s => s.seq_id)).size;
+
+    return { shifts, totalRaw, backboneCount: shifts.length, residueCount };
+  } catch {
+    return null;
+  }
+}
+
+async function main() {
+  const args = process.argv.slice(2);
+  const limitIdx = args.indexOf('--limit');
+  const limit = limitIdx >= 0 ? parseInt(args[limitIdx + 1]) : Infinity;
+  const offsetIdx = args.indexOf('--offset');
+  const startOffset = offsetIdx >= 0 ? parseInt(args[offsetIdx + 1]) : 0;
+  const dryRun = args.includes('--dry-run');
+  const validateOnly = args.includes('--validate-only');
+
+  console.log(`=== BMRB Chemical Shift Harvester ===`);
+  console.log(`Mode: ${validateOnly ? 'VALIDATE ONLY' : dryRun ? 'DRY RUN' : 'LIVE INSERT'}`);
+  console.log(`Atoms: ${[...BACKBONE_ATOMS].join(', ')} (backbone only)\n`);
+
+  // 1. bmrb_id가 있는 NMR experiment 조회
+  const PAGE_SIZE = 1000;
+  const experiments: { id: number; bmrb_id: string; source_id: string }[] = [];
+  for (let off = startOffset; ; off += PAGE_SIZE) {
+    const { data, error } = await supabase
+      .from('kbsi_nmr_experiment')
+      .select('id, bmrb_id, source_id')
+      .not('bmrb_id', 'is', null)
+      .order('id', { ascending: true })
+      .range(off, off + PAGE_SIZE - 1);
+
+    if (error) { console.error('Query error:', error.message); return; }
+    if (!data || data.length === 0) break;
+    experiments.push(...data);
+    if (data.length < PAGE_SIZE) break;
+    if (limit < Infinity && experiments.length >= limit) break;
+  }
+  console.log(`NMR experiments with bmrb_id: ${experiments.length}`);
+
+  // 이미 chemical shift가 있는 bmrb_id 확인 (중복 방지)
+  const existingBmrb = new Set<string>();
+  for (let off = 0; ; off += PAGE_SIZE) {
+    const { data } = await supabase
+      .from('kbsi_nmr_chemical_shift')
+      .select('bmrb_id')
+      .order('bmrb_id')
+      .range(off, off + PAGE_SIZE - 1);
+    if (!data || data.length === 0) break;
+    data.forEach((r: any) => existingBmrb.add(r.bmrb_id));
+    if (data.length < PAGE_SIZE) break;
+  }
+
+  // 중복 bmrb_id 제거 (같은 bmrb_id가 여러 experiment에 연결될 수 있음)
+  const seenBmrb = new Set<string>();
+  const toProcess: { id: number; bmrb_id: string; source_id: string }[] = [];
+  for (const exp of experiments) {
+    if (existingBmrb.has(exp.bmrb_id)) continue;
+    if (seenBmrb.has(exp.bmrb_id)) continue;
+    seenBmrb.add(exp.bmrb_id);
+    toProcess.push(exp);
+  }
+
+  const processLimit = Math.min(toProcess.length, limit === Infinity ? toProcess.length : limit);
+  console.log(`Already imported: ${existingBmrb.size}`);
+  console.log(`Unique BMRB IDs to process: ${toProcess.length}`);
+  console.log(`Processing: ${processLimit}\n`);
+
+  if (processLimit === 0) {
+    console.log('Nothing to do.');
+    return;
+  }
+
+  // 통계
+  const stats = {
+    processed: 0,
+    apiSuccess: 0,
+    apiFail: 0,
+    noShifts: 0,
+    totalBackbone: 0,
+    totalRaw: 0,
+    inserted: 0,
+    insertErrors: 0,
+    residueCounts: [] as number[],
+    compDistribution: {} as Record<string, number>,
+    atomDistribution: {} as Record<string, number>,
+  };
+
+  for (let i = 0; i < processLimit; i += BATCH_SIZE) {
+    const batch = toProcess.slice(i, Math.min(i + BATCH_SIZE, processLimit));
+
+    for (const exp of batch) {
+      stats.processed++;
+
+      const result = await fetchChemicalShifts(exp.bmrb_id, exp.id);
+      if (!result) {
+        stats.apiFail++;
+        continue;
+      }
+      stats.apiSuccess++;
+      stats.totalRaw += result.totalRaw;
+      stats.totalBackbone += result.backboneCount;
+
+      if (result.shifts.length === 0) {
+        stats.noShifts++;
+        continue;
+      }
+
+      stats.residueCounts.push(result.residueCount);
+
+      // 통계 수집
+      for (const s of result.shifts) {
+        stats.compDistribution[s.comp_id] = (stats.compDistribution[s.comp_id] || 0) + 1;
+        stats.atomDistribution[s.atom_id] = (stats.atomDistribution[s.atom_id] || 0) + 1;
+      }
+
+      if (validateOnly) continue;
+
+      if (dryRun) {
+        if (stats.inserted < 3) {
+          console.log(`[DRY] BMRB ${exp.bmrb_id}: ${result.backboneCount} backbone shifts, ${result.residueCount} residues`);
+          console.log(`  Sample: ${result.shifts[0].comp_id}${result.shifts[0].seq_id} ${result.shifts[0].atom_id} = ${result.shifts[0].chemical_shift} ppm`);
+        }
+        stats.inserted++;
+        continue;
+      }
+
+      // DB 삽입 (배치)
+      const INSERT_BATCH = 200;
+      for (let j = 0; j < result.shifts.length; j += INSERT_BATCH) {
+        const chunk = result.shifts.slice(j, j + INSERT_BATCH);
+        const { error } = await supabase
+          .from('kbsi_nmr_chemical_shift')
+          .upsert(chunk, { onConflict: 'bmrb_id,seq_id,atom_id', ignoreDuplicates: true });
+
+        if (error) {
+          stats.insertErrors++;
+          if (stats.insertErrors <= 3) console.error(`  [ERR] BMRB ${exp.bmrb_id}: ${error.message}`);
+        }
+      }
+      stats.inserted++;
+    }
+
+    const pct = Math.round(Math.min(i + batch.length, processLimit) / processLimit * 100);
+    process.stdout.write(`\r  Progress: ${Math.min(i + batch.length, processLimit)}/${processLimit} (${pct}%) | api=${stats.apiSuccess}/${stats.processed} shifts=${stats.totalBackbone} entries=${stats.inserted}`);
+
+    if (i + BATCH_SIZE < processLimit) await sleep(API_DELAY_MS);
+  }
+
+  console.log('\n');
+
+  // ── 리포트 ──
+  console.log('=== RESULTS ===');
+  console.log(`  Processed:       ${stats.processed}`);
+  console.log(`  API success:     ${stats.apiSuccess}`);
+  console.log(`  API fail:        ${stats.apiFail}`);
+  console.log(`  No shifts:       ${stats.noShifts}`);
+  console.log(`  Entries stored:  ${stats.inserted}`);
+  console.log(`  Insert errors:   ${stats.insertErrors}`);
+  console.log(`  Total raw:       ${stats.totalRaw.toLocaleString()}`);
+  console.log(`  Backbone only:   ${stats.totalBackbone.toLocaleString()}`);
+  console.log(`  Ratio:           ${stats.totalRaw > 0 ? Math.round(stats.totalBackbone / stats.totalRaw * 100) : 0}%`);
+  console.log();
+
+  if (stats.residueCounts.length > 0) {
+    const sorted = stats.residueCounts.sort((a, b) => a - b);
+    const median = sorted[Math.floor(sorted.length / 2)];
+    const avg = Math.round(sorted.reduce((a, b) => a + b, 0) / sorted.length);
+    console.log('=== RESIDUE COUNTS ===');
+    console.log(`  Entries: ${sorted.length}`);
+    console.log(`  Median:  ${median}`);
+    console.log(`  Average: ${avg}`);
+    console.log(`  Min:     ${sorted[0]}`);
+    console.log(`  Max:     ${sorted[sorted.length - 1]}`);
+    console.log();
+  }
+
+  if (Object.keys(stats.atomDistribution).length > 0) {
+    console.log('=== ATOM DISTRIBUTION ===');
+    for (const [k, v] of Object.entries(stats.atomDistribution).sort((a, b) => b[1] - a[1])) {
+      console.log(`  ${k.padEnd(4)} ${v.toLocaleString()}`);
+    }
+    console.log();
+  }
+
+  if (Object.keys(stats.compDistribution).length > 0) {
+    console.log('=== TOP RESIDUE TYPES ===');
+    const sorted = Object.entries(stats.compDistribution).sort((a, b) => b[1] - a[1]);
+    for (const [k, v] of sorted.slice(0, 15)) {
+      console.log(`  ${k.padEnd(5)} ${v.toLocaleString()}`);
+    }
+  }
+}
+
+main().catch(console.error);
