@@ -42,6 +42,12 @@ const EXPERIMENT_CONFIG: Record<string, { table: string; title: string; desc: st
     desc: '구조결정',
     fields: ['method', 'resolution', 'pdb_id', 'emdb_id'],
   },
+  nmr: {
+    table: 'kbsi_nmr_experiment',
+    title: 'NMR Experiments',
+    desc: 'NMR 실험',
+    fields: ['spectrometer', 'magnetic_field', 'temperature', 'labelling', 'bmrb_id', 'source_db', 'source_id'],
+  },
 };
 
 export default async function ExperimentTypePage({

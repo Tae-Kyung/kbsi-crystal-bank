@@ -13,6 +13,7 @@ export default async function ExperimentsPage() {
     { count: charCount },
     { count: diffCount },
     { count: structCount },
+    { count: nmrCount },
   ] = await Promise.all([
     supabase.from('kbsi_expression').select('*', { count: 'exact', head: true }),
     supabase.from('kbsi_purification').select('*', { count: 'exact', head: true }),
@@ -20,6 +21,7 @@ export default async function ExperimentsPage() {
     supabase.from('kbsi_characterization').select('*', { count: 'exact', head: true }),
     supabase.from('kbsi_diffraction').select('*', { count: 'exact', head: true }),
     supabase.from('kbsi_structure').select('*', { count: 'exact', head: true }),
+    supabase.from('kbsi_nmr_experiment').select('*', { count: 'exact', head: true }),
   ]);
 
   const categories = [
@@ -29,6 +31,7 @@ export default async function ExperimentsPage() {
     { name: 'Characterization', slug: 'characterization', desc: '특성분석', count: charCount ?? 0, color: 'bg-orange-100 text-orange-800 dark:bg-orange-900 dark:text-orange-200', extra: '논문 추출 활성' },
     { name: 'Diffraction', slug: 'diffraction', desc: '회절 실험', count: diffCount ?? 0, color: 'bg-red-100 text-red-800 dark:bg-red-900 dark:text-red-200', extra: 'PDB + 논문 추출' },
     { name: 'Structure', slug: 'structure', desc: '구조결정', count: structCount ?? 0, color: 'bg-cyan-100 text-cyan-800 dark:bg-cyan-900 dark:text-cyan-200', extra: 'X-ray + Cryo-EM + NMR' },
+    { name: 'NMR', slug: 'nmr', desc: 'NMR 실험', count: nmrCount ?? 0, color: 'bg-indigo-100 text-indigo-800 dark:bg-indigo-900 dark:text-indigo-200', extra: 'PDB NMR metadata' },
   ];
 
   return (
