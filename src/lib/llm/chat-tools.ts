@@ -38,7 +38,7 @@ export const chatTools = {
     description: '특정 Construct의 실험 데이터를 조회합니다. Get experiments for a construct by type.',
     parameters: z.object({
       construct_id: z.number().describe('Construct ID'),
-      experiment_type: z.enum(['expression', 'purification', 'crystallization', 'characterization', 'diffraction', 'structure']),
+      experiment_type: z.enum(['expression', 'purification', 'crystallization', 'characterization', 'diffraction', 'structure', 'nmr']),
       limit: z.number().optional().default(20),
     }),
     execute: async ({ construct_id, experiment_type, limit }) => {
@@ -253,30 +253,47 @@ export const chatTools = {
       return queries.searchMutations(supabase, params);
     },
   }),
+
+  search_nmr_experiments: tool({
+    description: 'NMR 실험 데이터를 검색합니다. 단백질명, 자기장 강도(MHz), pH, 동위원소 표지 등으로 검색 가능. Search NMR experiments by protein name, field strength, pH, labelling.',
+    parameters: z.object({
+      construct_id: z.number().optional().describe('Construct ID'),
+      protein_name: z.string().optional().describe('단백질 이름 (예: ubiquitin, KRAS)'),
+      field_min: z.number().optional().describe('최소 자기장 강도 (MHz)'),
+      field_max: z.number().optional().describe('최대 자기장 강도 (MHz)'),
+      ph_min: z.number().optional().describe('최소 pH'),
+      ph_max: z.number().optional().describe('최대 pH'),
+      labelling: z.string().optional().describe('동위원소 표지 (예: 15N, 13C)'),
+      limit: z.number().optional().default(20),
+    }),
+    execute: async (params) => {
+      const supabase = await createClient();
+      return queries.searchNmrExperiments(supabase, params);
+    },
+  }),
 };
 
 export const SYSTEM_PROMPT = `You are an AI assistant for the KBSI Protein Crystallization Bank (단백질 결정화은행).
 You help researchers manage and analyze protein crystallization experiment data.
 
-Your capabilities (19 tools):
-- Search proteins, constructs, and experiments
+Your capabilities (20 tools):
+- Search proteins, constructs, and experiments (including NMR)
 - **ESM-2 sequence search**: Find similar proteins using ESM-2 protein language model embeddings (284K constructs, cosine similarity)
-- **Copilot analyze**: Full crystallization strategy analysis (similar proteins → conditions → expression → success rate)
+- **Copilot analyze**: Full strategy analysis (similar proteins → crystallization + NMR conditions → expression → method distribution → success rate)
 - Recommend crystallization conditions using k-NN similarity
-- Predict crystallization success probability
-- Provide database statistics
+- **Predict crystallization success**: ESM-2 + XGBoost model predicts success probability for given sequence + conditions
+- Provide database statistics (including NMR experiment/spectrum counts)
 - Search crystallization conditions by parameters
 - Search by protein sequence similarity (k-mer Jaccard, legacy)
 - Search ligands (drug candidates) by name or SMILES
 - Query drug-target binding data (IC50, Kd, Ki)
 - Search 3D structures by PDB ID or method (X-ray, NMR, Cryo-EM)
+- **Search NMR experiments**: by protein name, field strength (MHz), pH, labelling (15N/13C), conformer count
 - Check data quality summary (field coverage, outcome distribution)
 - Search characterization data (DLS, SEC-MALS, SDS-PAGE, thermal stability)
 - Search diffraction data (resolution, space group, beamline)
 - Query protein-ligand binding networks
 - Search mutations (point mutations like G12V, L858R)
-
-- **Predict crystallization success**: ESM-2 + XGBoost model predicts success probability for given sequence + conditions
 
 When a user provides a protein sequence, prefer esm2_search over sequence_search (k-mer).
 When a user asks about crystallization strategy, use copilot_analyze.

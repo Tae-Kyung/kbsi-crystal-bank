@@ -30,7 +30,7 @@ function createMcpServer() {
     '특정 Construct의 실험 데이터를 조회합니다',
     {
       construct_id: z.number().describe('Construct ID'),
-      experiment_type: z.enum(['expression', 'purification', 'crystallization', 'characterization', 'diffraction', 'structure']),
+      experiment_type: z.enum(['expression', 'purification', 'crystallization', 'characterization', 'diffraction', 'structure', 'nmr']),
       limit: z.number().optional().default(20),
     },
     async ({ construct_id, experiment_type, limit }) => toMcpResult(await queries.getExperiments(createServiceClient(), construct_id, experiment_type, limit)),
@@ -126,8 +126,24 @@ function createMcpServer() {
   );
 
   server.tool(
+    'search_nmr_experiments',
+    'NMR 실험 데이터를 검색합니다. 단백질명, 자기장 강도, pH, labelling 등으로 필터링 가능.',
+    {
+      construct_id: z.number().optional().describe('Construct ID'),
+      protein_name: z.string().optional().describe('단백질 이름 (예: ubiquitin, KRAS)'),
+      field_min: z.number().optional().describe('최소 자기장 강도 (MHz)'),
+      field_max: z.number().optional().describe('최대 자기장 강도 (MHz)'),
+      ph_min: z.number().optional().describe('최소 pH'),
+      ph_max: z.number().optional().describe('최대 pH'),
+      labelling: z.string().optional().describe('동위원소 표지 (예: 15N, 13C)'),
+      limit: z.number().optional().default(20),
+    },
+    async (params) => toMcpResult(await queries.searchNmrExperiments(createServiceClient(), params)),
+  );
+
+  server.tool(
     'copilot_analyze',
-    '단백질 결정화 전략을 분석합니다. 단백질 ID 또는 서열로 유사 단백질을 찾고, 결정화 조건(pH, 온도, 침전제), 발현 조건, 성공률을 분석합니다.',
+    '단백질 결정화 전략을 분석합니다. 단백질 ID 또는 서열로 유사 단백질을 찾고, 결정화 조건(pH, 온도, 침전제), 발현 조건, NMR 조건, 방법론 분포, 성공률을 분석합니다.',
     {
       protein_id: z.number().optional().describe('단백질 ID (DB 검색 모드)'),
       sequence: z.string().optional().describe('아미노산 서열 (서열 검색 모드)'),

@@ -37,6 +37,7 @@ export async function getExperiments(supabase: SupabaseClient, construct_id: num
     expression: 'kbsi_expression', purification: 'kbsi_purification',
     crystallization: 'kbsi_crystallization', characterization: 'kbsi_characterization',
     diffraction: 'kbsi_diffraction', structure: 'kbsi_structure',
+    nmr: 'kbsi_nmr_experiment',
   };
   const table = tableMap[experiment_type];
   if (!table) return { error: `Unknown type: ${experiment_type}` };
@@ -48,7 +49,7 @@ export async function getExperiments(supabase: SupabaseClient, construct_id: num
 }
 
 export async function getStatistics(supabase: SupabaseClient) {
-  const tables = ['kbsi_protein', 'kbsi_construct', 'kbsi_expression', 'kbsi_purification', 'kbsi_crystallization', 'kbsi_structure', 'kbsi_ligand', 'kbsi_mutation'];
+  const tables = ['kbsi_protein', 'kbsi_construct', 'kbsi_expression', 'kbsi_purification', 'kbsi_crystallization', 'kbsi_structure', 'kbsi_nmr_experiment', 'kbsi_nmr_spectrum', 'kbsi_ligand', 'kbsi_mutation'];
   const results: Record<string, number> = {};
   for (const table of tables) {
     const { count } = await supabase.from(table).select('*', { count: 'exact', head: true });
@@ -359,6 +360,54 @@ export async function esm2Search(supabase: SupabaseClient, sequence: string, lim
   // 2차: k-mer fallback
   const kmerResult = await sequenceSearch(supabase, querySeq, limit);
   return { method: 'kmer_fallback', ...kmerResult };
+}
+
+/**
+ * NMR 실험 데이터 검색 — construct ID, field, pH, labelling 등으로 검색
+ */
+export async function searchNmrExperiments(
+  supabase: SupabaseClient,
+  params: { construct_id?: number; protein_name?: string; field_min?: number; field_max?: number; ph_min?: number; ph_max?: number; labelling?: string; limit?: number }
+) {
+  const { construct_id, protein_name, field_min, field_max, ph_min, ph_max, labelling, limit = 20 } = params;
+
+  let q = supabase
+    .from('kbsi_nmr_experiment')
+    .select('id, construct_id, spectrometer, magnetic_field, temperature, sample_ph, ionic_strength, labelling, conformers_submitted, conformers_calculated, bmrb_id, source_id, kbsi_nmr_spectrum(spectrum_type)')
+    .order('magnetic_field', { ascending: false, nullsFirst: false })
+    .limit(limit);
+
+  if (construct_id) q = q.eq('construct_id', construct_id);
+  if (field_min) q = q.gte('magnetic_field', field_min);
+  if (field_max) q = q.lte('magnetic_field', field_max);
+  if (ph_min) q = q.gte('sample_ph', ph_min);
+  if (ph_max) q = q.lte('sample_ph', ph_max);
+  if (labelling) q = q.ilike('labelling', `%${labelling}%`);
+
+  // protein_name → construct_id 역추적
+  if (protein_name && !construct_id) {
+    const { data: proteins } = await supabase
+      .from('kbsi_protein')
+      .select('id')
+      .or(`full_name.ilike.%${protein_name}%,abbreviation.ilike.%${protein_name}%,gene_name.ilike.%${protein_name}%`)
+      .limit(10);
+    if (proteins?.length) {
+      const { data: constructs } = await supabase
+        .from('kbsi_construct')
+        .select('id')
+        .in('protein_id', proteins.map((p: any) => p.id))
+        .limit(100);
+      if (constructs?.length) {
+        q = q.in('construct_id', constructs.map((c: any) => c.id));
+      } else {
+        return { experiments: [], count: 0 };
+      }
+    }
+  }
+
+  const { data, error, count } = await q;
+  if (error) return { error: error.message };
+  return { experiments: data, count: data?.length ?? 0 };
 }
 
 /**
