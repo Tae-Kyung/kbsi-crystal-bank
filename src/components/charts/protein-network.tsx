@@ -35,9 +35,41 @@ export function ProteinNetwork({ proteinName, constructCount, counts }: ProteinN
   const nodeW = 120;
   const nodeH = 52;
 
+  // CSS variables for dark mode support
+  const edgeActive = 'var(--edge-active)';
+  const edgeInactive = 'var(--edge-inactive)';
+  const nodeBgInactive = 'var(--node-bg-inactive)';
+  const nodeBorderInactive = 'var(--node-border-inactive)';
+  const dotInactive = 'var(--dot-inactive)';
+  const labelInactive = 'var(--label-inactive)';
+  const countActive = 'var(--count-active)';
+  const countInactive = 'var(--count-inactive)';
+
   return (
     <div className="w-full">
-      <svg viewBox="0 0 610 180" className="w-full" style={{ maxHeight: 220 }}>
+      <style>{`
+        .protein-network {
+          --edge-active: #94a3b8;
+          --edge-inactive: #e2e8f0;
+          --node-bg-inactive: #f8fafc;
+          --node-border-inactive: #e2e8f0;
+          --dot-inactive: #cbd5e1;
+          --label-inactive: #94a3b8;
+          --count-active: #1e293b;
+          --count-inactive: #cbd5e1;
+        }
+        .dark .protein-network {
+          --edge-active: #64748b;
+          --edge-inactive: #334155;
+          --node-bg-inactive: #1e293b;
+          --node-border-inactive: #334155;
+          --dot-inactive: #475569;
+          --label-inactive: #64748b;
+          --count-active: #e2e8f0;
+          --count-inactive: #475569;
+        }
+      `}</style>
+      <svg viewBox="0 0 610 180" className="w-full protein-network" style={{ maxHeight: 220 }}>
         {/* Edges */}
         {EDGES.map(([from, to], i) => {
           const a = NODES[from];
@@ -57,7 +89,7 @@ export function ProteinNetwork({ proteinName, constructCount, counts }: ProteinN
                 key={i}
                 d={`M${x1},${y1} C${x1},${y1 + 15} ${x2},${y2 - 15} ${x2},${y2}`}
                 fill="none"
-                stroke={hasData ? '#94a3b8' : '#e2e8f0'}
+                stroke={hasData ? edgeActive : edgeInactive}
                 strokeWidth={hasData ? 2 : 1}
                 strokeDasharray={hasData ? undefined : '4'}
                 markerEnd={hasData ? 'url(#arrow)' : undefined}
@@ -72,7 +104,7 @@ export function ProteinNetwork({ proteinName, constructCount, counts }: ProteinN
               y1={a.y + nodeH / 2}
               x2={b.x}
               y2={b.y + nodeH / 2}
-              stroke={hasData ? '#94a3b8' : '#e2e8f0'}
+              stroke={hasData ? edgeActive : edgeInactive}
               strokeWidth={hasData ? 2 : 1}
               strokeDasharray={hasData ? undefined : '4'}
             />
@@ -82,7 +114,7 @@ export function ProteinNetwork({ proteinName, constructCount, counts }: ProteinN
         {/* Arrow marker */}
         <defs>
           <marker id="arrow" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="6" markerHeight="6" orient="auto">
-            <path d="M 0 0 L 10 5 L 0 10 z" fill="#94a3b8" />
+            <path d="M 0 0 L 10 5 L 0 10 z" fill={edgeActive} />
           </marker>
         </defs>
 
@@ -103,22 +135,22 @@ export function ProteinNetwork({ proteinName, constructCount, counts }: ProteinN
                 width={nodeW}
                 height={nodeH}
                 rx={8}
-                fill={active ? node.color + '18' : '#f8fafc'}
-                stroke={active ? node.color : '#e2e8f0'}
+                fill={active ? node.color + '18' : nodeBgInactive}
+                stroke={active ? node.color : nodeBorderInactive}
                 strokeWidth={active ? 2 : 1}
               />
               <circle
                 cx={node.x + 14}
                 cy={node.y + nodeH / 2}
                 r={5}
-                fill={active ? node.color : '#cbd5e1'}
+                fill={active ? node.color : dotInactive}
               />
               <text
                 x={node.x + 26}
                 y={node.y + 20}
                 fontSize={11}
                 fontWeight={600}
-                fill={active ? node.color : '#94a3b8'}
+                fill={active ? node.color : labelInactive}
               >
                 {node.label}
               </text>
@@ -127,7 +159,7 @@ export function ProteinNetwork({ proteinName, constructCount, counts }: ProteinN
                 y={node.y + 40}
                 fontSize={14}
                 fontWeight={700}
-                fill={active ? '#1e293b' : '#cbd5e1'}
+                fill={active ? countActive : countInactive}
               >
                 {count.toLocaleString()}
               </text>
