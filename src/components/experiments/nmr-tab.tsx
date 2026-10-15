@@ -11,6 +11,11 @@ interface NmrExperiment {
   labelling: string | null;
   bmrb_id: string | null;
   source_id: string | null;
+  sample_ph: number | null;
+  ionic_strength: string | null;
+  pressure: string | null;
+  conformers_calculated: number | null;
+  conformers_submitted: number | null;
   notes: string | null;
   kbsi_nmr_spectrum: { id: number; spectrum_type: string }[];
 }
@@ -35,10 +40,24 @@ export function NmrTab({ data }: { data: NmrExperiment[] }) {
                   {exp.temperature != null && (
                     <span className="text-sm">{exp.temperature}°C</span>
                   )}
+                  {exp.sample_ph != null && (
+                    <span className="text-sm">pH {exp.sample_ph}</span>
+                  )}
                   {exp.labelling && (
                     <Badge variant="outline" className="font-mono text-xs">
                       {exp.labelling}
                     </Badge>
+                  )}
+                  {exp.conformers_submitted != null && (
+                    <Badge variant="outline" className="text-xs">
+                      {exp.conformers_submitted} conformers
+                      {exp.conformers_calculated != null && (
+                        <span className="text-muted-foreground ml-1">/ {exp.conformers_calculated} calc</span>
+                      )}
+                    </Badge>
+                  )}
+                  {exp.ionic_strength && (
+                    <span className="text-xs text-muted-foreground">I.S. {exp.ionic_strength}</span>
                   )}
                   {exp.source_id && (
                     <a
