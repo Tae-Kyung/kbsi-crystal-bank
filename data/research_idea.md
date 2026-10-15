@@ -731,7 +731,94 @@ AI 분석:
 
 ---
 
-### 10.5 혁신 아이디어 로드맵
+### 10.5 BioNMR 연구그룹 연계 — NMR 동역학 + 결정화 통합
+
+> **이동한 박사팀 (BioNMR Lab, KBSI)** 연구역량과 결정화은행의 시너지.
+> 상세: [PRD_BIONMR_EXTENSION.md](./PRD_BIONMR_EXTENSION.md)
+
+**배경**: 이동한 박사팀은 1.2 GHz NMR(아시아 최초, 2024 설치) 기반으로 단백질 동역학, IDP 연구, AI+NMR 융합, 구조 기반 신약개발을 수행. 대표 성과로 p53 IDP 동역학(Nature Comm. 2026), Tau-MB 메커니즘(JACS Au 2024), ONEST CEST 분석 플랫폼(Bioinformatics 2026), Deep Learning NMR 신호 분석(2025) 등.
+
+**문제**: 현재 결정화은행은 X-ray 결정학 데이터만 포함. 전체 PDB 구조의 ~7%를 차지하는 NMR 구조, 그리고 X-ray로는 볼 수 없는 IDP/들뜬 상태 정보가 빠져 있어, 단백질 구조결정의 전체 그림을 제시하지 못한다.
+
+**아이디어 5a: NMR 동역학 기반 결정화 난이도 보정**
+
+NMR relaxation 데이터(S² order parameter, Rex)로 측정된 단백질 유연성이 결정화 성공률과 상관관계를 가진다는 가설:
+
+```
+BMRB relaxation 데이터 (~2,000 단백질)
+       ↓
+S² (backbone rigidity) + Rex (conformational exchange)
+       ↓
+결정화은행 결정화 데이터와 cross-reference
+       ↓
+발견: "평균 S² > 0.85 → 결정화 성공률 높음"
+      "Rex 영역이 많은 단백질 → 결정화 어려움"
+       ↓
+XGBoost v2: ESM-2 (1280) + 조건 (4) + NMR dynamics (3) = 1287차원
+            → 예측 정확도 91.9% → 93-95%?
+```
+
+**아이디어 5b: 구조결정 방법론 추천 엔진**
+
+단백질 특성에 따라 X-ray vs NMR vs Cryo-EM 최적 방법을 자동 추천:
+
+| 판단 기준 | X-ray 유리 | NMR 유리 | Cryo-EM 유리 |
+|-----------|-----------|---------|-------------|
+| MW | < 150 kDa | **< 40 kDa** | > 100 kDa |
+| IDP 비율 | < 20% | **> 30%** | < 30% |
+| 결정화 예측 | > 60% | < 40% | any |
+| 동역학 필요 | ❌ | **필수** | ❌ |
+
+```
+사용자: 서열 입력
+Copilot v2:
+  결정화 성공 확률: 32% (Low)
+  Disorder 비율: 45% (N-terminal 1-50, loop 120-160)
+  추천 방법: "NMR 권장 (IDP 비율 높음, MW 28kDa)"
+  "1.2 GHz NMR 사용 시 최적. ¹⁵N-HSQC로 시작 권장"
+  대안: "Disorder region 삭제(truncation 51-119) 시 결정화 확률 78%로 향상"
+```
+
+**아이디어 5c: Excited State Structure Bank (세계 최초)**
+
+기존 PDB는 ground state 구조만 저장. NMR CEST/CPMG로 관측되는 들뜬 상태(excited state) 구조의 체계적 데이터베이스는 세계 어디에도 없음.
+
+- 들뜬 상태 population (%), exchange rate (kex), chemical shift difference (Δω) 저장
+- 기능적 의미 annotation (enzyme catalysis, ligand binding, allosteric 등)
+- 들뜬 상태 population이 높은 단백질 → 결정화 난이도와 상관관계 분석
+- 들뜬 상태를 안정화하는 리간드/변이 → 결정화 촉진 전략
+
+**아이디어 5d: NMR 기반 Drug Screening 통합**
+
+이동한 박사팀의 NMR 약물 스크리닝(STD-NMR, HSQC, CEST)과 결정화은행 Ligand/Binding DB(182K/520K) 통합:
+
+```
+결정화은행 Ligand DB (182K)  →  NMR 스크리닝 타겟 선별
+결정화은행 ESM-2 검색        →  유사 타겟의 기존 리간드 확인
+BioNMR NMR 스크리닝          →  Kd, kon/koff, 결합 부위 매핑
+결정화은행 Copilot            →  공결정화 조건 추천
+X-ray 구조 결정              →  약물-타겟 복합체 구조
+      ↓
+kbsi_binding 테이블 확장 (NMR kinetics 데이터 추가)
+```
+
+**논문 계획:**
+
+| # | 제목 (안) | 저널 | 시너지 |
+|---|----------|------|--------|
+| 5a | NMR Dynamics Predicts Crystallization Success | Acta Cryst. D | BMRB × 결정화 DB |
+| 5b | AI-driven Structural Method Selection for Proteins | Nature Methods | 방법론 추천 AI |
+| 5c | Excited State Structure Bank | Nucleic Acids Res. | 세계 최초 DB |
+| 5d | Integrated NMR Screening + Crystallization Platform | J. Med. Chem. | BioNMR × 결정화 |
+| 5e | NMR Chemical Shift SSP Predicts Crystallization Conditions | J. Biomol. NMR | BMRB × PDB |
+
+**구현 난이도**: 중~높 (NMR 데이터 수집은 BMRB 공개, 통합 모델은 BioNMR 팀 협력 필요)
+
+**임팩트**: 결정화은행(X-ray) + BioNMR(NMR 동역학) = 단백질 구조결정 **전 과정**을 아우르는 세계 유일의 통합 AI 플랫폼. 특히 Excited State Bank는 Nature/NAR급 논문 가능.
+
+---
+
+### 10.6 혁신 아이디어 로드맵
 
 ```
 현재 (2026-10)                    단기 (3개월)                   중기 (6개월)                  장기 (1년)
@@ -742,23 +829,26 @@ Copilot v1                       Crystallizability              Active Learning 
      │                                │                              │                           │
      │    ┌──────────────────────────────────────────────────────────────────────────────────┐    │
      └────┤          ESM-2 284K 임베딩 + 1.16M 결정화 데이터 (공통 기반)                      ├────┘
-          └──────────────────────────────────────────────────────────────────────────────────┘
-                                                                                    │
-                                                                         Protein Engineering
-                                                                         Copilot (변이 설계)
+          └──────────┬─────────────────────────────────────────────────────────────┬─────────┘
+                     │                                                             │
+              BioNMR 연계                                                 Protein Engineering
+              (NMR 동역학 + 방법론 추천                                    Copilot (변이 설계)
+               + Excited State Bank
+               + Drug Screening 통합)
 ```
 
 | 순위 | 아이디어 | 난이도 | 논문 임팩트 | 데이터 준비 | 예상 저널 |
 |------|---------|--------|-----------|-----------|----------|
 | **1** | **Crystallizability Score** | 중 | 매우 높음 | UniProt negative 수집 필요 | Acta Cryst D / Nat Comm |
 | **2** | **Active Learning** | 중 | 높음 | 현재 데이터 + KBSI 실험 | Nature Methods / PNAS |
-| **3** | **Generative Condition** | 높 | 매우 높음 | 현재 데이터로 가능 | Nat Mach Intel / ICLR |
-| **4** | **Protein Engineering** | 매우 높 | Nature급 | mutation 10K + construct 286K | Nature Methods / NSMB |
+| **3** | **BioNMR 연계 (5a-5e)** | 중~높 | 매우 높음 (5편) | BMRB 공개 + BioNMR 협력 | NAR / Nat Methods / Acta Cryst D |
+| **4** | **Generative Condition** | 높 | 매우 높음 | 현재 데이터로 가능 | Nat Mach Intel / ICLR |
+| **5** | **Protein Engineering** | 매우 높 | Nature급 | mutation 10K + construct 286K | Nature Methods / NSMB |
 
-**핵심 통찰**: 4가지 아이디어 모두 **동일한 ESM-2 284K 임베딩**을 기반으로 한다. 임베딩 인프라가 이미 구축되어 있으므로, 각 아이디어는 독립적으로 병렬 진행 가능. 하나의 투자(ESM-2 임베딩)가 4편 이상의 논문을 생산하는 구조.
+**핵심 통찰**: 5가지 아이디어 방향 모두 **동일한 ESM-2 284K 임베딩**을 기반으로 한다. 임베딩 인프라가 이미 구축되어 있으므로, 각 아이디어는 독립적으로 병렬 진행 가능. 하나의 투자(ESM-2 임베딩)가 **8편 이상의 논문**을 생산하는 구조. BioNMR 연계는 이동한 박사팀의 1.2 GHz NMR + AI+NMR 역량과 결합하여 **추가 5편**의 고임팩트 논문 생산 가능.
 
 ---
 
 ## 11. 한 문장 요약
 
-> **KBSI 단백질 결정화은행 + ESM-2 임베딩 + AI 예측/생성 모델 + 자율 실험 루프 = 서열만으로 결정화 난이도를 예측하고, 최적 조건을 생성하고, 단백질을 설계하고, 실험을 자율적으로 최적화하는 세계 최초의 AI 기반 구조생물학 연구 플랫폼.**
+> **KBSI 단백질 결정화은행 + ESM-2 임베딩 + BioNMR 동역학 + AI 예측/생성 모델 + 자율 실험 루프 = 서열만으로 결정화 난이도를 예측하고, 최적 방법론(X-ray/NMR/Cryo-EM)을 추천하고, 조건을 생성하고, 단백질을 설계하고, 실험을 자율적으로 최적화하는 세계 최초의 AI 기반 통합 구조생물학 연구 플랫폼.**
