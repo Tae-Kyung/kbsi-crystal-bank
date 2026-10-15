@@ -44,8 +44,8 @@ export function CrystallizationHeatmap({ data }: CrystallizationHeatmapProps) {
   return (
     <div>
       <ResponsiveContainer width="100%" height={350}>
-        <ScatterChart margin={{ top: 10, right: 10, bottom: 30, left: 10 }}>
-          <XAxis type="number" dataKey="ph" name="pH" domain={[2, 12]} label={{ value: 'pH', position: 'bottom', offset: 10 }} />
+        <ScatterChart margin={{ top: 10, right: 10, bottom: 10, left: 10 }}>
+          <XAxis type="number" dataKey="ph" name="pH" domain={[2, 12]} label={{ value: 'pH', position: 'insideBottom', offset: -5 }} />
           <YAxis type="number" dataKey="temp" name="Temperature" unit="°C" label={{ value: 'Temp (°C)', angle: -90, position: 'insideLeft' }} />
           <ZAxis range={[80, 80]} />
           <Tooltip
@@ -61,14 +61,6 @@ export function CrystallizationHeatmap({ data }: CrystallizationHeatmapProps) {
                 </div>
               );
             }}
-          />
-          <Legend
-            payload={[
-              { value: '성공 (실험/DB)', type: 'circle', color: '#059669' },
-              { value: '성공 (합성)', type: 'triangle', color: '#059669' },
-              { value: '실패 (실험/DB)', type: 'circle', color: '#ef4444' },
-              { value: '실패 (합성)', type: 'triangle', color: '#ef4444' },
-            ]}
           />
           {/* Real data — circles */}
           <Scatter name="실험/DB" data={realPoints} shape="circle">
@@ -86,6 +78,12 @@ export function CrystallizationHeatmap({ data }: CrystallizationHeatmapProps) {
           )}
         </ScatterChart>
       </ResponsiveContainer>
+      <div className="flex items-center justify-center gap-4 mt-1 text-xs text-muted-foreground">
+        <span className="flex items-center gap-1"><span className="inline-block w-2.5 h-2.5 rounded-full bg-[#059669]" />성공 (실험/DB)</span>
+        <span className="flex items-center gap-1"><span className="inline-block w-0 h-0 border-l-[5px] border-r-[5px] border-b-[9px] border-transparent border-b-[#059669]" />성공 (합성)</span>
+        <span className="flex items-center gap-1"><span className="inline-block w-2.5 h-2.5 rounded-full bg-[#ef4444]" />실패 (실험/DB)</span>
+        <span className="flex items-center gap-1"><span className="inline-block w-0 h-0 border-l-[5px] border-r-[5px] border-b-[9px] border-transparent border-b-[#ef4444]" />실패 (합성)</span>
+      </div>
     </div>
   );
 }
