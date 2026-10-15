@@ -643,17 +643,27 @@ const STRATEGY_SECTIONS: { key: keyof AiStrategyStructured; label: string; icon:
   { key: 'avoid', label: '피해야 할 조건', icon: '⚠️', color: 'bg-red-50 dark:bg-red-950/30 border-red-200 dark:border-red-800' },
 ];
 
-function AiStrategyCard({ strategy }: { strategy: string }) {
-  // JSON 파싱 시도
-  let structured: AiStrategyStructured | null = null;
+function parseStrategy(raw: string): AiStrategyStructured | null {
+  // 1차: 직접 파싱
   try {
-    const parsed = JSON.parse(strategy);
-    if (parsed && typeof parsed === 'object' && (parsed.construct || parsed.crystallization)) {
-      structured = parsed;
-    }
-  } catch {
-    // plain text fallback
+    const parsed = JSON.parse(raw);
+    if (parsed && typeof parsed === 'object' && (parsed.construct || parsed.crystallization)) return parsed;
+  } catch { /* continue */ }
+
+  // 2차: 문자열 내 JSON 추출 (GPT가 앞뒤에 텍스트를 붙인 경우)
+  const jsonMatch = raw.match(/\{[\s\S]*\}/);
+  if (jsonMatch) {
+    try {
+      const parsed = JSON.parse(jsonMatch[0]);
+      if (parsed && typeof parsed === 'object' && (parsed.construct || parsed.crystallization)) return parsed;
+    } catch { /* continue */ }
   }
+
+  return null;
+}
+
+function AiStrategyCard({ strategy }: { strategy: string }) {
+  const structured = parseStrategy(strategy);
 
   return (
     <Card className="border-primary/20">
@@ -666,7 +676,7 @@ function AiStrategyCard({ strategy }: { strategy: string }) {
         {structured ? (
           <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
             {STRATEGY_SECTIONS.map(({ key, label, icon, color }) => {
-              const value = structured![key];
+              const value = structured[key];
               if (!value) return null;
               const isWide = key === 'summary' || key === 'crystallization';
               return (
