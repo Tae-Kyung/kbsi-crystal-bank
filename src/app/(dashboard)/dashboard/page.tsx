@@ -107,15 +107,15 @@ export default async function DashboardPage() {
     <div className="space-y-6">
       <h2 className="text-2xl font-bold">Dashboard</h2>
 
-      {/* Stats Cards */}
-      <div className="grid grid-cols-2 md:grid-cols-5 lg:grid-cols-10 gap-4">
+      {/* Stats Cards — 2행 5열 */}
+      <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-5 gap-3">
         {stats.map(({ label, value, icon: Icon }) => (
           <Card key={label}>
-            <CardContent className="p-4">
+            <CardContent className="px-4 py-3">
               <div className="flex items-center gap-3">
-                <Icon className="h-5 w-5 text-muted-foreground" />
-                <div>
-                  <div className="text-2xl font-bold">{value.toLocaleString()}</div>
+                <Icon className="h-5 w-5 text-muted-foreground shrink-0" />
+                <div className="min-w-0">
+                  <div className="text-xl font-bold">{value.toLocaleString()}</div>
                   <div className="text-xs text-muted-foreground">{label}</div>
                 </div>
               </div>
