@@ -210,6 +210,8 @@ PDB 공개 데이터를 활용하여 결정화 조건 데이터를 체계적으�
 | RCSB PDB X-ray (pH 없음) | ~1,013건 | `pdb-sweep-method.ts --no-ph` | 구조/발현 정보 |
 | RCSB PDB Cryo-EM | ~4,430건 | `pdb-sweep-method.ts` | 전자현미경 구조 |
 | RCSB PDB NMR | ~2,700건 | `pdb-sweep-method.ts` | 용액 구조 |
+| **PDB NMR 실험 메타** | **14,552건** | `harvest-nmr-from-pdb.ts` | spectrometer, field, pH, conformers 등 |
+| **PDB NMR 스펙트럼** | **74,116건** | `harvest-nmr-from-pdb.ts` | NOESY, TOCSY, HNCA 등 |
 | TargetTrack/PepcDB | 80건 | `harvest:targettrack` | LLM 프로토콜 파싱 (전량 완료) |
 | ChEMBL 바인딩 | 7,942건 | `harvest-chembl.ts` | 20개 신약 타겟 IC50/Kd/Ki |
 | UniProt ID | 13,574건 | `backfill-uniprot-ids.ts` | PDB→UniProt accession 연결 완료 |
@@ -1102,6 +1104,101 @@ CREATE MATERIALIZED VIEW kbsi_search_keywords_mv AS
 REFRESH MATERIALIZED VIEW CONCURRENTLY kbsi_search_keywords_mv;
 ```
 - 단순하지만 실시간 반영 안 됨 → Trigger 보조로 사용
+
+---
+
+## 5-7. Phase 9 — BioNMR 데이터 통합 및 활용 (2026-10-15)
+
+> 상세 고도화 로드맵: [PRD_BIONMR_EXTENSION.md](./PRD_BIONMR_EXTENSION.md)
+
+### F23. NMR 실험 데이터 PDB 수집 (구현 완료)
+
+PDB에서 NMR 구조의 실험 메타데이터를 수집하여 `kbsi_nmr_experiment` + `kbsi_nmr_spectrum` 테이블에 적재.
+
+**현재 상태 (2026-10-15, 완료):**
+
+| 테이블 | 건수 | 비고 |
+|--------|------|------|
+| kbsi_nmr_experiment | **14,552건** | PDB NMR 전량 수집 |
+| kbsi_nmr_spectrum | **74,116건** | 실험당 평균 ~5개 |
+
+**필드 채움률:**
+
+| 필드 | 건수 | 비율 | 출처 |
+|------|------|------|------|
+| spectrometer | 13,641 | 94% | PDB pdbx_nmr_spectrometer |
+| magnetic_field | 13,648 | 94% | PDB field_strength |
+| temperature | 13,667 | 94% | PDB sample_conditions (K→°C 변환) |
+| sample_ph | 13,451 | 92% | PDB sample_conditions.pH |
+| conformers_submitted | 14,475 | 99% | PDB pdbx_nmr_ensemble |
+| conformers_calculated | 13,219 | 91% | PDB pdbx_nmr_ensemble |
+| pressure | 12,538 | 86% | PDB sample_conditions |
+| ionic_strength | 10,751 | 74% | PDB sample_conditions |
+| bmrb_id | 9,606 | 66% | PDB pdbx_database_related |
+| labelling | 8,187 | 56% | PDB pdbx_nmr_sample_details |
+
+**스크립트:**
+- `scripts/harvest-nmr-from-pdb.ts` — PDB API에서 NMR 메타데이터 수집
+  - `--backfill` 모드: 기존 레코드에 새 필드(pH, ionic_strength, conformers) 추가
+  - `--validate-only` 모드: DB 삽입 없이 PDB API 응답 검증 + 통계 출력
+  - `--dry-run` 모드: 미리보기
+
+**마이그레이션:**
+- `00001_initial_schema.sql`: kbsi_nmr_experiment + kbsi_nmr_spectrum 테이블 정의
+- `20261015_nmr_sample_conditions.sql`: sample_ph, ionic_strength, pressure, conformers_* 컬럼 추가
+
+### F23-1. NMR 탭 UI (구현 완료)
+
+Construct 상세 페이지 (`/constructs/:id/experiments`) NMR 탭에 구조화된 카드 레이아웃:
+
+```
+┌──────────────────────────────────────────────────┐
+│ [950 MHz]  Bruker AVANCE III HD   PDB: 21KO ↗   │  ← 장비 + 링크
+│                                                  │
+│ ┌──────────────────────────────────────────────┐ │
+│ │ TEMPERATURE  pH    IONIC STRENGTH  LABELLING │ │  ← 샘플 조건
+│ │ 24.9°C       6.8   25mM NaCl      U-¹³C,¹⁵N │ │
+│ └──────────────────────────────────────────────┘ │
+│                                                  │
+│ Ensemble: 20 conformers / 100 calculated         │  ← 앙상블
+│ [NOESY] [TOCSY] [HNCA] [CBCA(CO)NH] ...         │  ← 스펙트럼
+└──────────────────────────────────────────────────┘
+```
+
+### F23-2. Copilot NMR 조건 추천 + 방법론 분포 (구현 완료)
+
+Copilot 분석 시 유사 construct의 NMR 실험 데이터 + 구조결정 방법론을 자동 분석:
+
+**NMR 조건 추천:**
+- 유사 단백질의 NMR 실험 빈도순 분석
+- Field strength, Sample pH, Temperature, Labelling, Ionic strength 분포
+- 평균 conformer 수 (유연성 지표) — 30개 이상 시 "리간드 결합 상태에서 결정화 권장" 안내
+
+**구조결정 방법론 분포:**
+- 유사 단백질이 X-ray / NMR / Cryo-EM 중 어떤 방법으로 풀렸는지 비율 표시
+- 방법별 평균 해상도
+- AI 전략 프롬프트에 NMR 정보 포함 → GPT가 NMR 대안도 자동 제안
+
+**적용 범위:**
+- `/copilot` 페이지 UI (NMR 조건 추천 카드 + 방법론 분포 바)
+- `/api/copilot` API 응답 (`nmr_recommendation`, `method_distribution` 필드)
+- MCP `copilot_analyze` 도구 (동일 필드)
+
+### F23-3. 대시보드 통계 카드 (구현 완료)
+
+- 대시보드 통계에 NMR 카운트 추가 (10개 카드, 2행 5열 레이아웃)
+- Explorer에 NMR 파이프라인 바 추가
+
+### F24. 향후 NMR 데이터 활용 계획
+
+| # | 항목 | 난이도 | 상태 |
+|---|------|--------|------|
+| 1 | BMRB Chemical Shift 요약 수집 (17,572 엔트리) | 중 | 미착수 |
+| 2 | BMRB Order Parameter S² 수집 (130 엔트리) | 중 | 미착수 |
+| 3 | NMR dynamics → 결정화 난이도 예측 보정 (XGBoost v2) | 중 | 미착수 |
+| 4 | 구조결정 방법론 추천 엔진 (X-ray vs NMR vs Cryo-EM) | 중 | 부분 구현 (Copilot 방법론 분포) |
+| 5 | Excited State Structure Bank (세계 최초) | 높 | 미착수 |
+| 6 | NMR Drug Screening 데이터 통합 | 높 | 미착수 |
 
 ---
 
