@@ -431,14 +431,30 @@ export async function POST(request: Request) {
     const { text } = await generateText({
       model: openai('gpt-4o-mini'),
       system: `당신은 KBSI 결정화은행의 구조생물학 전문 AI입니다.
-분석 데이터를 바탕으로 실험 전략을 한국어로 작성하세요.
-구조: **1) Construct 설계** → **2) 발현 조건** → **3) 결정화 스크린 (상위 12조건)** → **4) NMR 대안 (데이터 있으면)** → **5) 실패 시 대안**
-NMR 데이터가 있으면 NMR 실험 조건도 추천하세요 (field, pH, labelling 등).
-구체적 수치를 포함하고, 실용적으로 작성하세요. Markdown 사용. 500자 이내.`,
+분석 데이터를 바탕으로 실험 전략을 JSON으로 반환하세요. 반드시 아래 형식만 출력하세요.
+
+{"construct":"Construct 설계 추천 (1-2문장, 구체적 잔기 범위/태그/변이 포함)","expression":"발현 조건 추천 (1-2문장, 숙주/온도/유도 조건 포함)","crystallization":"결정화 전략 (2-3문장, 상위 조건 요약 + 핵심 파라미터)","nmr":"NMR 대안 전략 (NMR 데이터가 있으면 1-2문장, 없으면 null)","avoid":"피해야 할 조건 (1-2문장, 실패 패턴 기반)","summary":"한 줄 핵심 요약"}
+
+규칙:
+- 각 필드는 한국어, 구체적 수치를 포함
+- nmr 필드: NMR 데이터가 컨텍스트에 없으면 반드시 null
+- JSON만 출력, 다른 텍스트 없이`,
       prompt: ctx,
-      maxTokens: 600,
+      maxTokens: 800,
     });
-    aiStrategy = text;
+
+    // JSON 파싱 시도 — 실패 시 기존 텍스트 그대로 사용
+    try {
+      const jsonMatch = text.match(/\{[\s\S]*\}/);
+      if (jsonMatch) {
+        const parsed = JSON.parse(jsonMatch[0]);
+        aiStrategy = JSON.stringify(parsed);
+      } else {
+        aiStrategy = text;
+      }
+    } catch {
+      aiStrategy = text;
+    }
   } catch {
     // AI 요약 생성 실패 — 무시
   }

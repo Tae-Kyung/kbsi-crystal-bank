@@ -42,7 +42,7 @@ interface CopilotResult {
     avg_conformers: number | null;
   } | null;
   method_distribution?: { method: string; count: number; pct: number; avg_resolution: number | null }[] | null;
-  ai_strategy?: string;
+  ai_strategy?: string; // JSON string or plain text
   prediction?: {
     success_probability: number;
     confidence: string;
@@ -327,20 +327,7 @@ export default function CopilotPage() {
           )}
 
           {/* AI Strategy */}
-          {result.ai_strategy && (
-            <Card className="border-primary/20">
-              <CardHeader>
-                <CardTitle className="text-base flex items-center gap-2">
-                  <Sparkles className="h-4 w-4 text-primary" /> AI 실험 전략
-                </CardTitle>
-              </CardHeader>
-              <CardContent>
-                <div className="prose prose-sm dark:prose-invert max-w-none text-sm leading-relaxed"
-                  dangerouslySetInnerHTML={{ __html: renderMarkdown(result.ai_strategy) }}
-                />
-              </CardContent>
-            </Card>
-          )}
+          {result.ai_strategy && <AiStrategyCard strategy={result.ai_strategy} />}
 
           <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
             {/* Step 2: Expression */}
@@ -638,16 +625,65 @@ export default function CopilotPage() {
   );
 }
 
-/** 간단한 마크다운 → HTML 변환 (bold, list, heading) */
-function renderMarkdown(md: string): string {
-  return md
-    .replace(/&/g, '&amp;')
-    .replace(/</g, '&lt;')
-    .replace(/>/g, '&gt;')
-    .replace(/^### (.+)$/gm, '<h4 class="font-semibold mt-3 mb-1">$1</h4>')
-    .replace(/^## (.+)$/gm, '<h3 class="font-semibold text-base mt-4 mb-1">$1</h3>')
-    .replace(/\*\*(.+?)\*\*/g, '<strong>$1</strong>')
-    .replace(/^\- (.+)$/gm, '<li class="ml-4 list-disc">$1</li>')
-    .replace(/^\d+\. (.+)$/gm, '<li class="ml-4 list-decimal">$1</li>')
-    .replace(/\n/g, '<br />');
+interface AiStrategyStructured {
+  construct?: string;
+  expression?: string;
+  crystallization?: string;
+  nmr?: string | null;
+  avoid?: string;
+  summary?: string;
+}
+
+const STRATEGY_SECTIONS: { key: keyof AiStrategyStructured; label: string; icon: string; color: string }[] = [
+  { key: 'summary', label: '핵심 요약', icon: '💡', color: 'bg-primary/5 border-primary/20' },
+  { key: 'construct', label: 'Construct 설계', icon: '🧬', color: 'bg-blue-50 dark:bg-blue-950/30 border-blue-200 dark:border-blue-800' },
+  { key: 'expression', label: '발현 조건', icon: '🧪', color: 'bg-green-50 dark:bg-green-950/30 border-green-200 dark:border-green-800' },
+  { key: 'crystallization', label: '결정화 전략', icon: '💎', color: 'bg-violet-50 dark:bg-violet-950/30 border-violet-200 dark:border-violet-800' },
+  { key: 'nmr', label: 'NMR 대안', icon: '📡', color: 'bg-indigo-50 dark:bg-indigo-950/30 border-indigo-200 dark:border-indigo-800' },
+  { key: 'avoid', label: '피해야 할 조건', icon: '⚠️', color: 'bg-red-50 dark:bg-red-950/30 border-red-200 dark:border-red-800' },
+];
+
+function AiStrategyCard({ strategy }: { strategy: string }) {
+  // JSON 파싱 시도
+  let structured: AiStrategyStructured | null = null;
+  try {
+    const parsed = JSON.parse(strategy);
+    if (parsed && typeof parsed === 'object' && (parsed.construct || parsed.crystallization)) {
+      structured = parsed;
+    }
+  } catch {
+    // plain text fallback
+  }
+
+  return (
+    <Card className="border-primary/20">
+      <CardHeader>
+        <CardTitle className="text-base flex items-center gap-2">
+          <Sparkles className="h-4 w-4 text-primary" /> AI 실험 전략
+        </CardTitle>
+      </CardHeader>
+      <CardContent>
+        {structured ? (
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
+            {STRATEGY_SECTIONS.map(({ key, label, icon, color }) => {
+              const value = structured![key];
+              if (!value) return null;
+              const isWide = key === 'summary' || key === 'crystallization';
+              return (
+                <div key={key} className={`rounded-lg border p-3 ${color} ${isWide ? 'md:col-span-2' : ''}`}>
+                  <div className="flex items-center gap-1.5 mb-1">
+                    <span className="text-sm">{icon}</span>
+                    <span className="text-xs font-semibold uppercase tracking-wider text-muted-foreground">{label}</span>
+                  </div>
+                  <p className="text-sm leading-relaxed">{value}</p>
+                </div>
+              );
+            })}
+          </div>
+        ) : (
+          <p className="text-sm leading-relaxed whitespace-pre-wrap">{strategy}</p>
+        )}
+      </CardContent>
+    </Card>
+  );
 }
