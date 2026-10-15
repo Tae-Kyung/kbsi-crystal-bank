@@ -10,7 +10,7 @@ import { Loader2 } from 'lucide-react';
 interface OrganismInfo { organism: string; count: number }
 interface ProteinInfo { id: number; full_name: string; abbreviation: string | null; gene_name: string | null }
 interface ConstructInfo { id: number; name: string | null; construct_type: string | null; expression_system: string | null; theoretical_mw: number | null }
-interface DetailData { expression: number; purification: number; characterization: number; crystallization: number; diffraction: number; structure: number; ligands: number }
+interface DetailData { expression: number; purification: number; characterization: number; crystallization: number; diffraction: number; structure: number; nmr: number; ligands: number }
 
 const PIPELINE = [
   { key: 'expression', label: 'Expr', color: 'bg-blue-500' },
@@ -19,6 +19,7 @@ const PIPELINE = [
   { key: 'crystallization', label: 'Cryst', color: 'bg-purple-500' },
   { key: 'diffraction', label: 'Diffr', color: 'bg-red-500' },
   { key: 'structure', label: 'Struct', color: 'bg-green-500' },
+  { key: 'nmr', label: 'NMR', color: 'bg-indigo-500' },
   { key: 'ligands', label: 'Ligands', color: 'bg-pink-500' },
 ] as const;
 
