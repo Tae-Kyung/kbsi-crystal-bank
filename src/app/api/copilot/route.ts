@@ -328,7 +328,72 @@ export async function POST(request: Request) {
   const avgTemp = exprTemps.length > 0 ? Math.round(exprTemps.reduce((a, b) => a + b, 0) / exprTemps.length) : null;
   const avgYield = exprYields.length > 0 ? Math.round(exprYields.reduce((a, b) => a + b, 0) / exprYields.length * 10) / 10 : null;
 
-  // 5. 성공 확률 예측 (XGBoost + ESM-2)
+  // 5. NMR 실험 분석 + 방법론 분포
+  const { data: nmrData } = await supabase
+    .from('kbsi_nmr_experiment')
+    .select('spectrometer, magnetic_field, temperature, sample_ph, ionic_strength, labelling, conformers_submitted')
+    .in('construct_id', constructIds.slice(0, 100))
+    .limit(500);
+
+  const { data: structData } = await supabase
+    .from('kbsi_structure')
+    .select('method, resolution')
+    .in('construct_id', constructIds.slice(0, 100))
+    .limit(500);
+
+  let nmrRecommendation: any = null;
+  if (nmrData && nmrData.length > 0) {
+    const fieldDist: Record<string, number> = {};
+    const phDist: Record<string, number> = {};
+    const tempDist: Record<string, number> = {};
+    const labelDist: Record<string, number> = {};
+    const ionicDist: Record<string, number> = {};
+    const conformers: number[] = [];
+
+    nmrData.forEach((n: any) => {
+      if (n.magnetic_field) { const k = `${n.magnetic_field} MHz`; fieldDist[k] = (fieldDist[k] || 0) + 1; }
+      if (n.sample_ph != null) { const k = `${(Math.round(n.sample_ph * 2) / 2).toFixed(1)}`; phDist[k] = (phDist[k] || 0) + 1; }
+      if (n.temperature != null) { const k = `${Math.round(n.temperature)}°C`; tempDist[k] = (tempDist[k] || 0) + 1; }
+      if (n.labelling) { labelDist[n.labelling] = (labelDist[n.labelling] || 0) + 1; }
+      if (n.ionic_strength) { ionicDist[n.ionic_strength] = (ionicDist[n.ionic_strength] || 0) + 1; }
+      if (n.conformers_submitted != null) conformers.push(n.conformers_submitted);
+    });
+
+    const topOf = (d: Record<string, number>, n: number) =>
+      Object.entries(d).sort((a, b) => b[1] - a[1]).slice(0, n).map(([label, count]) => ({ label, count }));
+
+    nmrRecommendation = {
+      total: nmrData.length,
+      top_fields: topOf(fieldDist, 5),
+      top_ph: topOf(phDist, 5),
+      top_temperature: topOf(tempDist, 5),
+      top_labelling: topOf(labelDist, 3),
+      top_ionic_strength: topOf(ionicDist, 3),
+      avg_conformers: conformers.length > 0 ? Math.round(conformers.reduce((a, b) => a + b, 0) / conformers.length) : null,
+    };
+  }
+
+  let methodDistribution: any[] | null = null;
+  if (structData && structData.length > 0) {
+    const methods: Record<string, { count: number; resolutions: number[] }> = {};
+    structData.forEach((s: any) => {
+      const m = s.method || 'unknown';
+      if (!methods[m]) methods[m] = { count: 0, resolutions: [] };
+      methods[m].count++;
+      if (s.resolution != null) methods[m].resolutions.push(s.resolution);
+    });
+    methodDistribution = Object.entries(methods)
+      .sort((a, b) => b[1].count - a[1].count)
+      .map(([method, v]) => ({
+        method,
+        count: v.count,
+        pct: Math.round(v.count / structData.length * 100),
+        avg_resolution: v.resolutions.length > 0
+          ? Math.round(v.resolutions.reduce((a, b) => a + b, 0) / v.resolutions.length * 10) / 10 : null,
+      }));
+  }
+
+  // 6. 성공 확률 예측 (XGBoost + ESM-2)
   let prediction: { success_probability: number; confidence: string } | null = null;
   if (sequence) {
     const querySeq = sequence.toUpperCase().replace(/[^A-Z]/g, '');
@@ -359,13 +424,16 @@ export async function POST(request: Request) {
       topConditions.length ? `상위 조건: ${topConditions.slice(0, 3).map((c, i) => `${i + 1}) ${c.precipitant || '-'}/pH${c.ph}/${c.temperature}°C(${c.count}건)`).join(' ')}` : '',
       failPatterns.length ? `실패패턴: ${failPatterns.join('; ')}` : '',
       prediction ? `XGBoost+ESM-2 성공 예측: ${prediction.success_probability}% (${prediction.confidence} confidence)` : '',
+      nmrRecommendation ? `NMR 실험: ${nmrRecommendation.total}건 (${nmrRecommendation.top_fields.map((f: any) => f.label).join(', ')})${nmrRecommendation.avg_conformers ? `, 평균 conformer ${nmrRecommendation.avg_conformers}개` : ''}` : '',
+      methodDistribution ? `구조결정 방법: ${methodDistribution.map((m: any) => `${m.method} ${m.pct}%`).join(', ')}` : '',
     ].filter(Boolean).join('\n');
 
     const { text } = await generateText({
       model: openai('gpt-4o-mini'),
       system: `당신은 KBSI 결정화은행의 구조생물학 전문 AI입니다.
 분석 데이터를 바탕으로 실험 전략을 한국어로 작성하세요.
-구조: **1) Construct 설계** → **2) 발현 조건** → **3) 결정화 스크린 (상위 12조건)** → **4) 실패 시 대안**
+구조: **1) Construct 설계** → **2) 발현 조건** → **3) 결정화 스크린 (상위 12조건)** → **4) NMR 대안 (데이터 있으면)** → **5) 실패 시 대안**
+NMR 데이터가 있으면 NMR 실험 조건도 추천하세요 (field, pH, labelling 등).
 구체적 수치를 포함하고, 실용적으로 작성하세요. Markdown 사용. 500자 이내.`,
       prompt: ctx,
       maxTokens: 600,
@@ -402,6 +470,8 @@ export async function POST(request: Request) {
     },
     avoid: failPatterns,
     similar_proteins_sample: dedupeByProtein(similarConstructs),
+    nmr_recommendation: nmrRecommendation,
+    method_distribution: methodDistribution,
     ai_strategy: aiStrategy,
     prediction: prediction ? {
       success_probability: prediction.success_probability,

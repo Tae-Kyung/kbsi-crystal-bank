@@ -466,6 +466,116 @@ export async function copilotAnalyze(
   (exprData || []).forEach((e: any) => { if (e.host) hosts[e.host] = (hosts[e.host] || 0) + 1; });
   const topHost = Object.entries(hosts).sort((a, b) => b[1] - a[1])[0];
 
+  // NMR 실험 분석
+  const { data: nmrData } = await supabase
+    .from('kbsi_nmr_experiment')
+    .select('spectrometer, magnetic_field, temperature, sample_ph, ionic_strength, labelling, conformers_submitted, conformers_calculated, bmrb_id')
+    .in('construct_id', constructIds.slice(0, 100))
+    .limit(500);
+
+  let nmrAnalysis = null;
+  if (nmrData && nmrData.length > 0) {
+    // Field strength 분포
+    const fieldDist: Record<string, number> = {};
+    nmrData.forEach((n: any) => {
+      if (n.magnetic_field) {
+        const key = `${n.magnetic_field} MHz`;
+        fieldDist[key] = (fieldDist[key] || 0) + 1;
+      }
+    });
+    const topFields = Object.entries(fieldDist).sort((a, b) => b[1] - a[1]).slice(0, 5)
+      .map(([field, count]) => ({ field, count }));
+
+    // pH 분포
+    const phDist: Record<string, number> = {};
+    nmrData.forEach((n: any) => {
+      if (n.sample_ph != null) {
+        const key = `${(Math.round(n.sample_ph * 2) / 2).toFixed(1)}`;
+        phDist[key] = (phDist[key] || 0) + 1;
+      }
+    });
+    const topPh = Object.entries(phDist).sort((a, b) => b[1] - a[1]).slice(0, 5)
+      .map(([ph, count]) => ({ ph: parseFloat(ph), count }));
+
+    // Temperature 분포
+    const tempDist: Record<string, number> = {};
+    nmrData.forEach((n: any) => {
+      if (n.temperature != null) {
+        const key = `${Math.round(n.temperature)}`;
+        tempDist[key] = (tempDist[key] || 0) + 1;
+      }
+    });
+    const topTemp = Object.entries(tempDist).sort((a, b) => b[1] - a[1]).slice(0, 5)
+      .map(([temp, count]) => ({ temp: parseFloat(temp), count }));
+
+    // Labelling 분포
+    const labelDist: Record<string, number> = {};
+    nmrData.forEach((n: any) => {
+      if (n.labelling) {
+        labelDist[n.labelling] = (labelDist[n.labelling] || 0) + 1;
+      }
+    });
+    const topLabelling = Object.entries(labelDist).sort((a, b) => b[1] - a[1]).slice(0, 3)
+      .map(([label, count]) => ({ label, count }));
+
+    // Ionic strength 분포
+    const ionicDist: Record<string, number> = {};
+    nmrData.forEach((n: any) => {
+      if (n.ionic_strength) {
+        ionicDist[n.ionic_strength] = (ionicDist[n.ionic_strength] || 0) + 1;
+      }
+    });
+    const topIonic = Object.entries(ionicDist).sort((a, b) => b[1] - a[1]).slice(0, 3)
+      .map(([buffer, count]) => ({ buffer, count }));
+
+    // Conformer 통계 (유연성 지표)
+    const conformers = nmrData
+      .filter((n: any) => n.conformers_submitted != null)
+      .map((n: any) => n.conformers_submitted as number);
+    const avgConformers = conformers.length > 0
+      ? Math.round(conformers.reduce((a: number, b: number) => a + b, 0) / conformers.length)
+      : null;
+
+    nmrAnalysis = {
+      total: nmrData.length,
+      top_fields: topFields,
+      top_ph: topPh,
+      top_temperature: topTemp,
+      top_labelling: topLabelling,
+      top_ionic_strength: topIonic,
+      avg_conformers: avgConformers,
+      has_bmrb: nmrData.filter((n: any) => n.bmrb_id).length,
+    };
+  }
+
+  // 구조 결정 방법론 분포
+  const { data: structData } = await supabase
+    .from('kbsi_structure')
+    .select('method, resolution')
+    .in('construct_id', constructIds.slice(0, 100))
+    .limit(500);
+
+  let methodDistribution = null;
+  if (structData && structData.length > 0) {
+    const methods: Record<string, { count: number; resolutions: number[] }> = {};
+    structData.forEach((s: any) => {
+      const m = s.method || 'unknown';
+      if (!methods[m]) methods[m] = { count: 0, resolutions: [] };
+      methods[m].count++;
+      if (s.resolution != null) methods[m].resolutions.push(s.resolution);
+    });
+    methodDistribution = Object.entries(methods)
+      .sort((a, b) => b[1].count - a[1].count)
+      .map(([method, v]) => ({
+        method,
+        count: v.count,
+        pct: Math.round(v.count / structData.length * 100),
+        avg_resolution: v.resolutions.length > 0
+          ? Math.round(v.resolutions.reduce((a, b) => a + b, 0) / v.resolutions.length * 10) / 10
+          : null,
+      }));
+  }
+
   return {
     search: searchInfo,
     constructs_analyzed: constructIds.length,
@@ -474,6 +584,8 @@ export async function copilotAnalyze(
     best_ph: bestPH,
     best_precipitant: bestPrecip,
     top_conditions: topConditions,
+    nmr: nmrAnalysis,
+    method_distribution: methodDistribution,
   };
 }
 

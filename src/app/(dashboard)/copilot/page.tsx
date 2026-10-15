@@ -4,7 +4,7 @@ import { useState, useEffect, useRef } from 'react';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
-import { Loader2, FlaskConical, AlertTriangle, CheckCircle2, Beaker, Brain, Sparkles, Search } from 'lucide-react';
+import { Loader2, FlaskConical, AlertTriangle, CheckCircle2, Beaker, Brain, Sparkles, Search, Radio, BarChart3 } from 'lucide-react';
 
 interface CopilotResult {
   analysis: {
@@ -32,6 +32,16 @@ interface CopilotResult {
   };
   avoid: string[];
   similar_proteins_sample: { name: string; organism: string; similarity: number; mw: number | null }[];
+  nmr_recommendation?: {
+    total: number;
+    top_fields: { label: string; count: number }[];
+    top_ph: { label: string; count: number }[];
+    top_temperature: { label: string; count: number }[];
+    top_labelling: { label: string; count: number }[];
+    top_ionic_strength: { label: string; count: number }[];
+    avg_conformers: number | null;
+  } | null;
+  method_distribution?: { method: string; count: number; pct: number; avg_resolution: number | null }[] | null;
   ai_strategy?: string;
   prediction?: {
     success_probability: number;
@@ -487,6 +497,124 @@ export default function CopilotPage() {
               )}
             </CardContent>
           </Card>
+
+          {/* Method Distribution + NMR */}
+          {(result.method_distribution || result.nmr_recommendation) && (
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+              {/* Method Distribution */}
+              {result.method_distribution && result.method_distribution.length > 0 && (
+                <Card>
+                  <CardHeader>
+                    <CardTitle className="text-base flex items-center gap-2">
+                      <BarChart3 className="h-4 w-4" /> 구조결정 방법론 분포
+                    </CardTitle>
+                  </CardHeader>
+                  <CardContent>
+                    <div className="space-y-2">
+                      {result.method_distribution.map((m) => (
+                        <div key={m.method} className="flex items-center gap-2">
+                          <span className="text-xs w-24 truncate" title={m.method}>{m.method}</span>
+                          <div className="flex-1 h-4 bg-muted rounded overflow-hidden">
+                            <div className="h-full bg-indigo-500 rounded" style={{ width: `${m.pct}%` }} />
+                          </div>
+                          <span className="text-xs font-mono w-20 text-right">
+                            {m.pct}% ({m.count})
+                          </span>
+                          {m.avg_resolution && (
+                            <span className="text-[10px] text-muted-foreground w-12 text-right">{m.avg_resolution}A</span>
+                          )}
+                        </div>
+                      ))}
+                    </div>
+                  </CardContent>
+                </Card>
+              )}
+
+              {/* NMR Recommendation */}
+              {result.nmr_recommendation && (
+                <Card>
+                  <CardHeader>
+                    <CardTitle className="text-base flex items-center gap-2">
+                      <Radio className="h-4 w-4" /> NMR 실험 조건 추천
+                      <Badge variant="outline" className="text-[10px] font-normal">{result.nmr_recommendation.total}건</Badge>
+                    </CardTitle>
+                  </CardHeader>
+                  <CardContent className="space-y-3">
+                    <div className="grid grid-cols-2 gap-3">
+                      {/* Field */}
+                      <div>
+                        <p className="text-[10px] uppercase tracking-wider text-muted-foreground mb-1">Field Strength</p>
+                        <div className="space-y-0.5">
+                          {result.nmr_recommendation.top_fields.map((f) => (
+                            <div key={f.label} className="flex justify-between text-xs">
+                              <span className="font-medium">{f.label}</span>
+                              <span className="text-muted-foreground">{f.count}건</span>
+                            </div>
+                          ))}
+                        </div>
+                      </div>
+                      {/* pH */}
+                      <div>
+                        <p className="text-[10px] uppercase tracking-wider text-muted-foreground mb-1">Sample pH</p>
+                        <div className="space-y-0.5">
+                          {result.nmr_recommendation.top_ph.map((p) => (
+                            <div key={p.label} className="flex justify-between text-xs">
+                              <span className="font-medium">pH {p.label}</span>
+                              <span className="text-muted-foreground">{p.count}건</span>
+                            </div>
+                          ))}
+                        </div>
+                      </div>
+                      {/* Temperature */}
+                      <div>
+                        <p className="text-[10px] uppercase tracking-wider text-muted-foreground mb-1">Temperature</p>
+                        <div className="space-y-0.5">
+                          {result.nmr_recommendation.top_temperature.map((t) => (
+                            <div key={t.label} className="flex justify-between text-xs">
+                              <span className="font-medium">{t.label}</span>
+                              <span className="text-muted-foreground">{t.count}건</span>
+                            </div>
+                          ))}
+                        </div>
+                      </div>
+                      {/* Labelling */}
+                      <div>
+                        <p className="text-[10px] uppercase tracking-wider text-muted-foreground mb-1">Labelling</p>
+                        <div className="space-y-0.5">
+                          {result.nmr_recommendation.top_labelling.map((l) => (
+                            <div key={l.label} className="flex justify-between text-xs">
+                              <span className="font-mono text-[10px]">{l.label}</span>
+                              <span className="text-muted-foreground">{l.count}건</span>
+                            </div>
+                          ))}
+                        </div>
+                      </div>
+                    </div>
+                    {/* Ionic Strength */}
+                    {result.nmr_recommendation.top_ionic_strength.length > 0 && (
+                      <div>
+                        <p className="text-[10px] uppercase tracking-wider text-muted-foreground mb-1">Buffer / Ionic Strength</p>
+                        <div className="flex flex-wrap gap-1">
+                          {result.nmr_recommendation.top_ionic_strength.map((is) => (
+                            <Badge key={is.label} variant="secondary" className="text-[10px]">{is.label} ({is.count})</Badge>
+                          ))}
+                        </div>
+                      </div>
+                    )}
+                    {/* Conformers */}
+                    {result.nmr_recommendation.avg_conformers != null && (
+                      <div className="rounded-md bg-muted/50 px-3 py-2 text-xs">
+                        평균 앙상블: <span className="font-medium">{result.nmr_recommendation.avg_conformers} conformers</span>
+                        {result.nmr_recommendation.avg_conformers > 30 && (
+                          <span className="text-amber-600 ml-2">— 유연한 단백질, 결정화 시 리간드 결합 상태 권장</span>
+                        )}
+                      </div>
+                    )}
+                  </CardContent>
+                </Card>
+              )}
+            </div>
+          )}
 
           {/* Similar Proteins */}
           <Card>
