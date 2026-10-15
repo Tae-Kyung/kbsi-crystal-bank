@@ -33,6 +33,12 @@ interface CopilotResult {
   avoid: string[];
   similar_proteins_sample: { name: string; organism: string; similarity: number; mw: number | null }[];
   ai_strategy?: string;
+  prediction?: {
+    success_probability: number;
+    confidence: string;
+    model: string;
+    condition_used?: { ph: number; temperature: number; precipitant: string; conc: number } | null;
+  } | null;
 }
 
 const EXAMPLE_SEQUENCE = `MTEYKLVVVGAVGVGKSALTIQLIQNHFVDEYDPTIEDSY
@@ -265,6 +271,50 @@ export default function CopilotPage() {
               </div>
             </CardContent>
           </Card>
+
+          {/* Success Prediction */}
+          {result.prediction && (
+            <Card className="border-primary/30">
+              <CardHeader>
+                <CardTitle className="text-base flex items-center gap-2">
+                  <Brain className="h-4 w-4 text-primary" /> XGBoost + ESM-2 성공 예측
+                </CardTitle>
+              </CardHeader>
+              <CardContent>
+                <div className="flex items-center gap-6">
+                  <div className="text-center">
+                    <div className={`text-4xl font-bold ${
+                      result.prediction.success_probability >= 70 ? 'text-green-600' :
+                      result.prediction.success_probability >= 40 ? 'text-amber-600' : 'text-red-600'
+                    }`}>
+                      {result.prediction.success_probability}%
+                    </div>
+                    <div className="text-xs text-muted-foreground mt-1">성공 확률</div>
+                  </div>
+                  <div className="flex-1 space-y-1.5">
+                    <div className="h-3 bg-muted rounded-full overflow-hidden">
+                      <div
+                        className={`h-full rounded-full transition-all ${
+                          result.prediction.success_probability >= 70 ? 'bg-green-500' :
+                          result.prediction.success_probability >= 40 ? 'bg-amber-500' : 'bg-red-500'
+                        }`}
+                        style={{ width: `${result.prediction.success_probability}%` }}
+                      />
+                    </div>
+                    <div className="flex justify-between text-[10px] text-muted-foreground">
+                      <span>신뢰도: {result.prediction.confidence}</span>
+                      <span>모델: {result.prediction.model}</span>
+                    </div>
+                    {result.prediction.condition_used && (
+                      <p className="text-[10px] text-muted-foreground">
+                        조건: {result.prediction.condition_used.precipitant || '-'} / pH {result.prediction.condition_used.ph} / {result.prediction.condition_used.temperature}°C
+                      </p>
+                    )}
+                  </div>
+                </div>
+              </CardContent>
+            </Card>
+          )}
 
           {/* AI Strategy */}
           {result.ai_strategy && (

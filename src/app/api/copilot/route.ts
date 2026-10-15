@@ -15,6 +15,33 @@ const GPU_API_KEY = process.env.KBSI_API_KEY || '';
 /**
  * GPU 서버 /search API 호출 — 서열 → ESM-2 임베딩 → pgvector 유사 검색을 한번에 수행
  */
+/**
+ * GPU 서버 /predict API 호출 — 서열 + 조건 → XGBoost + ESM-2 성공 확률 예측
+ */
+async function gpuPredict(
+  sequence: string,
+  ph = 7.0,
+  temperature = 18,
+  precipitant_type = 'unknown',
+  precipitant_conc = 0
+): Promise<{ success_probability: number; confidence: string } | null> {
+  if (!GPU_API_URL) return null;
+
+  try {
+    const res = await fetch(`${GPU_API_URL}/predict`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ sequence, ph, temperature, precipitant_type, precipitant_conc, api_key: GPU_API_KEY }),
+      signal: AbortSignal.timeout(30000),
+    });
+    if (!res.ok) return null;
+    const data = await res.json();
+    return { success_probability: data.success_probability, confidence: data.confidence };
+  } catch {
+    return null;
+  }
+}
+
 async function gpuSearchSimilar(sequence: string, limit = 50, threshold = 0.5): Promise<{ results: any[] | null; debug?: string }> {
   if (!GPU_API_URL) return { results: null, debug: 'KBSI_GPU_API_URL not set' };
 
@@ -301,7 +328,21 @@ export async function POST(request: Request) {
   const avgTemp = exprTemps.length > 0 ? Math.round(exprTemps.reduce((a, b) => a + b, 0) / exprTemps.length) : null;
   const avgYield = exprYields.length > 0 ? Math.round(exprYields.reduce((a, b) => a + b, 0) / exprYields.length * 10) / 10 : null;
 
-  // 5. AI 실험 전략 요약
+  // 5. 성공 확률 예측 (XGBoost + ESM-2)
+  let prediction: { success_probability: number; confidence: string } | null = null;
+  if (sequence) {
+    const querySeq = sequence.toUpperCase().replace(/[^A-Z]/g, '');
+    const topCond = topConditions[0];
+    prediction = await gpuPredict(
+      querySeq,
+      topCond?.ph ?? 7.0,
+      topCond?.temperature ?? 18,
+      topCond?.precipitant ?? 'unknown',
+      topCond?.conc ?? 0
+    );
+  }
+
+  // 6. AI 실험 전략 요약
   const proteinName = similarConstructs[0]?.kbsi_protein?.full_name || 'Unknown';
   const organism = similarConstructs[0]?.kbsi_protein?.organism || '';
 
@@ -317,6 +358,7 @@ export async function POST(request: Request) {
       bestPrecip.length ? `최적 침전제: ${bestPrecip.map(([n, v]) => `${n}(${Math.round(v.success / v.total * 100)}%)`).join(', ')}` : '',
       topConditions.length ? `상위 조건: ${topConditions.slice(0, 3).map((c, i) => `${i + 1}) ${c.precipitant || '-'}/pH${c.ph}/${c.temperature}°C(${c.count}건)`).join(' ')}` : '',
       failPatterns.length ? `실패패턴: ${failPatterns.join('; ')}` : '',
+      prediction ? `XGBoost+ESM-2 성공 예측: ${prediction.success_probability}% (${prediction.confidence} confidence)` : '',
     ].filter(Boolean).join('\n');
 
     const { text } = await generateText({
@@ -361,6 +403,17 @@ export async function POST(request: Request) {
     avoid: failPatterns,
     similar_proteins_sample: dedupeByProtein(similarConstructs),
     ai_strategy: aiStrategy,
+    prediction: prediction ? {
+      success_probability: prediction.success_probability,
+      confidence: prediction.confidence,
+      model: 'xgboost_esm2',
+      condition_used: topConditions[0] ? {
+        ph: topConditions[0].ph,
+        temperature: topConditions[0].temperature,
+        precipitant: topConditions[0].precipitant,
+        conc: topConditions[0].conc,
+      } : null,
+    } : null,
   });
 }
 
