@@ -32,7 +32,9 @@
     "ops:trend": "npx tsx scripts/ops-harness.ts trend",
     "ops:pipeline": "npx tsx scripts/ops-harness.ts pipeline",
     "preflight:loop": "npx tsx scripts/preflight-loop.ts",
-    "validate": "npx tsx scripts/data-validation-loop.ts"
+    "validate": "npx tsx scripts/data-validation-loop.ts",
+    "test:e2e": "npx playwright test",
+    "report:update": "npx tsx scripts/update-technical-report.ts"
   },
   "dependencies": {
     "@ai-sdk/openai": "^1.1.0",
@@ -62,6 +64,7 @@
     "zod-to-json-schema": "^3.25.2"
   },
   "devDependencies": {
+    "@playwright/test": "^1.64.1",
     "@testing-library/jest-dom": "^6.6.0",
     "@testing-library/react": "^16.1.0",
     "@types/node": "^22.10.0",

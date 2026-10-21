@@ -1,5 +1,28 @@
 # KBSI 단백질 결정화은행 기술 보고서
 
+
+## DB 최신 수치 (2026-10-21, 자동 생성)
+
+| 엔티티 | 건수 |
+|--------|------|
+| Proteins | 59,349 |
+| Constructs | 286,581 |
+| Structures | 286,454 |
+| Crystallization | 1,161,043 |
+| Expression | 29,153 |
+| Purification | 13,356 |
+| Characterization | 7,195 |
+| Diffraction | 478,202 |
+| NMR Experiments | 14,552 |
+| NMR Chemical Shifts | 2,836,767 |
+| Ligands | 182,285 |
+| Bindings | 519,480 |
+| Mutations | 10,922 |
+| ESM-2 Embeddings | 0 |
+| References | 126,331 |
+| Gene Names | 37,151 (62.6%) |
+| UniProt Mappings | 40,808 (68.8%) |
+
 ## Technical Report: KBSI Protein Crystallization Bank — AI Data Hub
 
 ---
