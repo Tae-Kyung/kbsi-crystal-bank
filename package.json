@@ -31,7 +31,8 @@
     "ops:snapshot": "npx tsx scripts/ops-harness.ts snapshot",
     "ops:trend": "npx tsx scripts/ops-harness.ts trend",
     "ops:pipeline": "npx tsx scripts/ops-harness.ts pipeline",
-    "preflight:loop": "npx tsx scripts/preflight-loop.ts"
+    "preflight:loop": "npx tsx scripts/preflight-loop.ts",
+    "validate": "npx tsx scripts/data-validation-loop.ts"
   },
   "dependencies": {
     "@ai-sdk/openai": "^1.1.0",

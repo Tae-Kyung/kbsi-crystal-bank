@@ -1,0 +1,323 @@
+{
+  "project": {
+    "title": "KBSI-CrystalBank: AI-Ready Protein Crystallization Database",
+    "domain": "structural_biology",
+    "sub_domain": "protein_crystallization",
+    "dataset_version": "2026-10-21",
+    "repository": "https://github.com/Tae-Kyung/kbsi-crystal-bank",
+    "platform_url": "https://kbsi-crystal-bank.vercel.app"
+  },
+
+  "dataset_summary": {
+    "proteins": 59349,
+    "constructs": 286581,
+    "crystallization_conditions": 1161043,
+    "crystallization_experimental": 233655,
+    "crystallization_synthetic_negatives": 927388,
+    "structures": 286454,
+    "expression_records": 29153,
+    "purification_records": 13356,
+    "characterization_records": 7195,
+    "diffraction_records": 478202,
+    "nmr_experiments": 14552,
+    "ligands": 182285,
+    "binding_measurements": 519480,
+    "mutations": 10922,
+    "esm2_embeddings": 284184,
+    "esm2_dimensions": 1280,
+    "references": 126331
+  },
+
+  "data_schema": {
+    "crystallization": {
+      "key_fields": ["ph", "temperature", "precipitant_type", "precipitant_concentration", "buffer", "method", "outcome"],
+      "outcome_enum": ["clear", "precipitate", "phase_separation", "microcrystal", "single_crystal", "diffraction_quality"],
+      "outcome_ordinal": {"clear": 0, "precipitate": 1, "phase_separation": 2, "microcrystal": 3, "single_crystal": 4, "diffraction_quality": 5},
+      "source_types": ["experimental", "literature", "database", "synthetic"],
+      "field_coverage": {"ph": 0.995, "temperature": 0.942, "precipitant_type": 0.138, "outcome": 0.987}
+    },
+    "protein": {
+      "key_fields": ["full_name", "abbreviation", "gene_name", "organism", "seq_final", "theoretical_mw", "theoretical_pi", "residues"],
+      "embedding_model": "esm2_t33_650M_UR50D",
+      "embedding_dim": 1280
+    },
+    "expression": {
+      "key_fields": ["host_organism", "expression_vector", "tag_name", "induction_temp", "induction_time", "yield_mg_per_liter", "result_level"],
+      "result_levels": ["no_expression", "insoluble", "low", "moderate", "high"]
+    },
+    "diffraction": {
+      "key_fields": ["resolution", "space_group", "wavelength", "beamline", "unit_cell_a", "unit_cell_b", "unit_cell_c"]
+    }
+  },
+
+  "baseline_benchmark": {
+    "task": "binary_crystallization_success_prediction",
+    "success_definition": "outcome in [single_crystal, diffraction_quality]",
+    "best_model": "k-NN (k=3)",
+    "accuracy": 0.919,
+    "precision": 0.925,
+    "f1_score": 0.912,
+    "feature_importance": {
+      "ph": 0.250,
+      "temperature": 0.165,
+      "esm2_embedding": 0.180,
+      "precipitant_type": 0.120,
+      "molecular_weight": 0.085,
+      "isoelectric_point": 0.070,
+      "sequence_length": 0.055,
+      "organism": 0.040,
+      "other": 0.035
+    },
+    "ablation": {
+      "with_esm2": 0.919,
+      "without_esm2": 0.873,
+      "esm2_contribution": 0.046
+    }
+  },
+
+  "mcp_tools": [
+    {"name": "search_proteins", "description": "Search proteins by name, organism, gene name"},
+    {"name": "search_constructs", "description": "Search constructs by protein_id, tag, sequence"},
+    {"name": "get_experiments", "description": "Get experiments (expression/purification/crystallization/characterization/diffraction/structure/nmr)"},
+    {"name": "get_statistics", "description": "Database-wide summary statistics"},
+    {"name": "recommend_crystallization", "description": "k-NN based condition recommendation"},
+    {"name": "predict_success", "description": "Quick success/failure classification"},
+    {"name": "predict_crystallization", "description": "ESM-2 + XGBoost success prediction with probability"},
+    {"name": "search_crystallization_conditions", "description": "Filter conditions by pH, temp, precipitant, outcome"},
+    {"name": "sequence_search", "description": "k-mer Jaccard similarity search"},
+    {"name": "esm2_search", "description": "ESM-2 embedding cosine similarity search (GPU)"},
+    {"name": "copilot_analyze", "description": "Full AI strategy: similar proteins + conditions + expression + NMR + method distribution"},
+    {"name": "search_ligands", "description": "Search ligands by name, SMILES, InChI"},
+    {"name": "get_bindings", "description": "Get IC50/Kd/Ki binding data"},
+    {"name": "search_structures", "description": "Search structures by PDB ID, method, resolution"},
+    {"name": "get_data_quality", "description": "Data coverage and outcome distribution for a protein"},
+    {"name": "search_characterizations", "description": "Search characterization data (DLS, SEC, Tm)"},
+    {"name": "search_diffractions", "description": "Search diffraction data by resolution, space group"},
+    {"name": "search_mutations", "description": "Search mutation/variant data"},
+    {"name": "search_nmr_experiments", "description": "Search NMR data by field strength, pH, labelling"}
+  ],
+
+  "hypothesis_templates": [
+    {
+      "id": "H001",
+      "category": "protein_property_vs_crystallization",
+      "template": "Proteins with {property} in range [{min}, {max}] have significantly {higher/lower} crystallization success rate than the population average",
+      "variables": ["molecular_weight", "isoelectric_point", "sequence_length", "residues", "hydrophobicity"],
+      "validation_method": "chi_squared_test",
+      "minimum_sample_size": 100,
+      "significance_threshold": 0.01
+    },
+    {
+      "id": "H002",
+      "category": "condition_optimization",
+      "template": "For {organism_class} proteins, optimal crystallization pH is {pH_range} with {precipitant_type}",
+      "variables": ["organism", "ph", "precipitant_type", "temperature"],
+      "validation_method": "anova_with_bonferroni",
+      "minimum_sample_size": 50,
+      "significance_threshold": 0.05
+    },
+    {
+      "id": "H003",
+      "category": "expression_to_crystallization",
+      "template": "Expression in {host_system} with {tag_type} at {induction_temp}°C leads to {higher/lower} crystallization success compared to {alternative_system}",
+      "variables": ["host_organism", "tag_name", "induction_temp", "yield_mg_per_liter"],
+      "validation_method": "t_test_independent",
+      "minimum_sample_size": 30,
+      "significance_threshold": 0.01
+    },
+    {
+      "id": "H004",
+      "category": "ligand_effect",
+      "template": "Co-crystallization with ligands having Kd < {threshold} nM increases diffraction quality crystal probability by {effect_size}%",
+      "variables": ["binding_kd", "binding_ic50", "ligand_mw"],
+      "validation_method": "logistic_regression",
+      "minimum_sample_size": 50,
+      "significance_threshold": 0.01
+    },
+    {
+      "id": "H005",
+      "category": "sequence_similarity",
+      "template": "Proteins with ESM-2 cosine similarity > {threshold} to a successfully crystallized protein share optimal conditions with probability > {prob}",
+      "variables": ["esm2_similarity_threshold", "condition_transfer_success_rate"],
+      "validation_method": "bootstrap_confidence_interval",
+      "minimum_sample_size": 100,
+      "significance_threshold": 0.05
+    },
+    {
+      "id": "H006",
+      "category": "mutation_effect",
+      "template": "Surface entropy reduction mutations at positions with high B-factor improve crystallization success rate by {effect_size}%",
+      "variables": ["mutation_type", "mutation_position", "b_factor"],
+      "validation_method": "paired_t_test",
+      "minimum_sample_size": 20,
+      "significance_threshold": 0.05
+    },
+    {
+      "id": "H007",
+      "category": "method_comparison",
+      "template": "For proteins with {disorder_percent}% predicted disorder, {NMR/Cryo-EM} yields structure faster than X-ray crystallography",
+      "variables": ["disorder_percent", "method", "resolution", "time_to_structure"],
+      "validation_method": "survival_analysis",
+      "minimum_sample_size": 50,
+      "significance_threshold": 0.05
+    },
+    {
+      "id": "H008",
+      "category": "precipitant_specificity",
+      "template": "PEG molecular weight {MW} is optimal for proteins in the {MW_range} kDa range, while ammonium sulfate is preferred for {pI_range} pI proteins",
+      "variables": ["precipitant_type", "protein_mw", "protein_pi"],
+      "validation_method": "multinomial_logistic",
+      "minimum_sample_size": 200,
+      "significance_threshold": 0.01
+    }
+  ],
+
+  "pre_generated_hypotheses": [
+    {
+      "id": "PH001",
+      "hypothesis": "Proteins in the 10-30 kDa molecular weight range have the highest crystallization success rate",
+      "rationale": "Smaller proteins have fewer conformational degrees of freedom, facilitating crystal packing",
+      "mcp_query_plan": [
+        "get_statistics() → confirm total crystallization records",
+        "search_crystallization_conditions(outcome=diffraction_quality) → collect successful conditions",
+        "search_proteins() → get MW distribution",
+        "Statistical binning by MW → chi-squared test"
+      ],
+      "expected_result": "10-30 kDa: ~31% success vs 30-50 kDa: ~28% vs >100 kDa: ~8%",
+      "priority": "high",
+      "novelty": "medium"
+    },
+    {
+      "id": "PH002",
+      "hypothesis": "E. coli expression with His6-tag at 18°C induction yields the highest downstream crystallization success",
+      "rationale": "Low induction temperature promotes proper folding; His6 is minimally disruptive to crystal contacts",
+      "mcp_query_plan": [
+        "get_experiments(type=expression, host=E. coli) → expression records",
+        "Cross-reference construct_ids with crystallization outcomes",
+        "Group by tag_name × induction_temp → success rates",
+        "ANOVA + post-hoc Tukey HSD"
+      ],
+      "expected_result": "His6 + 18°C: 35-40% success vs GST + 37°C: 20-25%",
+      "priority": "high",
+      "novelty": "medium"
+    },
+    {
+      "id": "PH003",
+      "hypothesis": "The optimal crystallization pH correlates with protein pI: best results at pH = pI ± 1.5",
+      "rationale": "Proteins near their isoelectric point have reduced solubility, nucleation-favorable",
+      "mcp_query_plan": [
+        "search_proteins() → get pI values",
+        "search_crystallization_conditions(outcome=single_crystal|diffraction_quality) → pH values",
+        "Calculate |pH - pI| distribution for successes vs failures",
+        "Kolmogorov-Smirnov test + effect size"
+      ],
+      "expected_result": "|pH - pI| < 1.5 in successful crystals significantly more often",
+      "priority": "high",
+      "novelty": "high"
+    },
+    {
+      "id": "PH004",
+      "hypothesis": "Thermophilic organism proteins crystallize at higher temperatures (25-37°C) with higher success rates than mesophilic proteins",
+      "rationale": "Thermostable proteins maintain conformational rigidity at elevated temperatures",
+      "mcp_query_plan": [
+        "search_proteins(organism contains 'thermus|thermococcus|pyrococcus|sulfolobus') → thermophile set",
+        "Compare crystallization temperature and success distributions",
+        "Mann-Whitney U test for temperature difference",
+        "Chi-squared for success rate difference"
+      ],
+      "expected_result": "Thermophile success rate 40-50% vs mesophile 25-30% at matched conditions",
+      "priority": "medium",
+      "novelty": "low"
+    },
+    {
+      "id": "PH005",
+      "hypothesis": "Proteins with ESM-2 similarity > 0.85 to a successfully crystallized protein can adopt the same conditions with >70% probability",
+      "rationale": "Similar sequences adopt similar folds, requiring similar crystallization environments",
+      "mcp_query_plan": [
+        "esm2_search(protein_id=X, k=20) → similar proteins",
+        "For each pair: check if conditions overlap within ±0.5 pH, ±5°C, same precipitant",
+        "Binary success at transferred conditions → logistic regression on similarity",
+        "ROC curve for similarity threshold determination"
+      ],
+      "expected_result": "At similarity > 0.85, condition transfer success ~72-78%",
+      "priority": "high",
+      "novelty": "high"
+    },
+    {
+      "id": "PH006",
+      "hypothesis": "Co-crystallization with tight-binding ligands (Kd < 100 nM) increases diffraction-quality crystal probability by >15%",
+      "rationale": "Ligand binding stabilizes protein conformation, reducing conformational entropy",
+      "mcp_query_plan": [
+        "search_ligands() + get_bindings() → ligands with Kd values",
+        "Match to constructs with crystallization outcomes",
+        "Compare: with-ligand vs without-ligand success rates",
+        "Logistic regression controlling for protein MW and pI"
+      ],
+      "expected_result": "Kd < 100 nM: +18-22% success; Kd > 10 µM: +3-5% (not significant)",
+      "priority": "high",
+      "novelty": "medium"
+    },
+    {
+      "id": "PH007",
+      "hypothesis": "PEG 3350 at 15-25% w/v is the most broadly effective precipitant across all protein families",
+      "rationale": "PEG 3350 is the most commonly used precipitant in the PDB",
+      "mcp_query_plan": [
+        "search_crystallization_conditions(precipitant_type='PEG 3350') → success rates",
+        "Compare with Ammonium Sulfate, PEG 4000, PEG 8000, MPD",
+        "Stratify by protein family (Pfam domain)",
+        "Chi-squared with Bonferroni correction"
+      ],
+      "expected_result": "PEG 3350 is top-1 in 60-70% of protein families by success count",
+      "priority": "medium",
+      "novelty": "low"
+    },
+    {
+      "id": "PH008",
+      "hypothesis": "NMR-characterized proteins (with BMRB assignments) show 15-20% higher crystallization success when conditions match NMR sample pH ± 0.5",
+      "rationale": "NMR sample conditions indicate protein stability; similar pH promotes folded-state crystallization",
+      "mcp_query_plan": [
+        "search_nmr_experiments() → NMR sample pH values",
+        "Match to crystallization conditions via construct_id",
+        "Calculate |cryst_pH - nmr_pH| for successes vs failures",
+        "Logistic regression with pH_difference as predictor"
+      ],
+      "expected_result": "|ΔpH| < 0.5: ~45% success vs |ΔpH| > 2.0: ~20% success",
+      "priority": "medium",
+      "novelty": "high"
+    }
+  ],
+
+  "statistical_methods": {
+    "hypothesis_testing": ["t_test", "chi_squared", "anova", "mann_whitney_u", "kolmogorov_smirnov", "fisher_exact"],
+    "correction": ["bonferroni", "fdr_benjamini_hochberg"],
+    "effect_size": ["cohens_d", "odds_ratio", "cramers_v", "eta_squared"],
+    "ml_evaluation": ["accuracy", "precision", "recall", "f1", "auroc", "auprc"],
+    "confidence": "bootstrap_95ci",
+    "minimum_sample_sizes": {"t_test": 30, "chi_squared": 50, "anova": 20, "regression": 100}
+  },
+
+  "quality_gates": {
+    "statistical_significance": "p < 0.01 after correction",
+    "minimum_effect_size": "Cohen's d > 0.3 or OR > 1.5",
+    "minimum_sample_size": 100,
+    "cross_validation": "5-fold stratified",
+    "reproducibility": "consistent across 3+ random seeds",
+    "domain_expert_review": true,
+    "pre_registration": "hypothesis registered before data analysis"
+  },
+
+  "paper_generation": {
+    "target_journals": [
+      {"name": "Nature Scientific Data", "type": "data_descriptor", "priority": 1},
+      {"name": "Acta Crystallographica D", "type": "methods", "priority": 2},
+      {"name": "Journal of Chemical Information and Modeling", "type": "computational", "priority": 3},
+      {"name": "Bioinformatics", "type": "software", "priority": 4},
+      {"name": "Nature Methods", "type": "methods", "priority": 5}
+    ],
+    "sections": ["abstract", "introduction", "methods", "results", "discussion", "references"],
+    "style": "scientific_formal",
+    "max_length_words": 5000,
+    "figure_limit": 8,
+    "table_limit": 5
+  }
+}
