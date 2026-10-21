@@ -176,13 +176,85 @@ async function backfillDOI() {
 }
 
 // ═══════════════════════════════════════════════════════
+// 3. DOI backfill via CrossRef title search
+// ═══════════════════════════════════════════════════════
+async function backfillDOIByTitle() {
+  console.log('\n=== DOI backfill (Title → CrossRef) ===');
+
+  const { data: refs, error } = await supabase
+    .from('kbsi_reference')
+    .select('id, title, journal, year')
+    .is('doi', null)
+    .is('pmid', null)
+    .not('title', 'is', null)
+    .not('journal', 'eq', 'To be published')
+    .limit(1000);
+
+  if (error) { console.error('Query error:', error.message); return; }
+  if (!refs || refs.length === 0) {
+    console.log('  No title-without-DOI records found.');
+    return;
+  }
+
+  console.log(`  Found ${refs.length} references for title search`);
+
+  let resolved = 0;
+  let failed = 0;
+
+  for (const ref of refs) {
+    try {
+      const title = encodeURIComponent(ref.title.substring(0, 200));
+      const url = `https://api.crossref.org/works?query.title=${title}&rows=1&select=DOI,title`;
+      const res = await fetch(url, {
+        headers: { 'User-Agent': 'KBSI-CrystalBank/1.0 (mailto:admin@kbsi.re.kr)' }
+      });
+
+      if (!res.ok) { failed++; continue; }
+
+      const data = await res.json();
+      const items = data?.message?.items;
+      if (!items || items.length === 0) { failed++; continue; }
+
+      // Verify title similarity (simple check)
+      const foundTitle = (items[0].title?.[0] || '').toLowerCase();
+      const queryTitle = ref.title.toLowerCase();
+      if (foundTitle.length > 10 && queryTitle.includes(foundTitle.substring(0, 30))) {
+        const doi = items[0].DOI;
+        if (!dryRun) {
+          await supabase.from('kbsi_reference').update({ doi }).eq('id', ref.id);
+        }
+        resolved++;
+      } else {
+        failed++;
+      }
+
+      if (resolved % 50 === 0 && resolved > 0) {
+        console.log(`  Progress: ${resolved} resolved...`);
+      }
+
+      // CrossRef rate limit: be polite
+      await new Promise(r => setTimeout(r, 500));
+
+    } catch {
+      failed++;
+    }
+  }
+
+  console.log(`  ${dryRun ? 'Would resolve' : 'Resolved'}: ${resolved} DOIs`);
+  console.log(`  Failed/no match: ${failed}`);
+}
+
+// ═══════════════════════════════════════════════════════
 // Main
 // ═══════════════════════════════════════════════════════
 async function main() {
   console.log('Provenance Backfill' + (dryRun ? ' (DRY RUN)' : ''));
 
   if (!doiOnly) await backfillSyntheticSourceId();
-  if (!sourceOnly) await backfillDOI();
+  if (!sourceOnly) {
+    await backfillDOI();
+    await backfillDOIByTitle();
+  }
 
   console.log('\nDone.');
 }

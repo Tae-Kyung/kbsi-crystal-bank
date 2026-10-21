@@ -500,8 +500,10 @@ const PIPELINE_DAG: PipelineStep[] = [
   { id: 'dedupe', script: 'scripts/dedupe-proteins.ts', depends_on: ['seq-hash'], description: 'Deduplicate proteins', category: 'cleanup' },
   { id: 'rebuild-search', script: 'scripts/rebuild-search-keywords.ts', depends_on: ['clean-names', 'gene-name'], description: 'Rebuild search index', category: 'cleanup' },
 
-  // Layer 5: Validation
+  // Layer 5: Validation + Provenance
   { id: 'cross-validate', script: 'scripts/cross-validate.ts', depends_on: ['clean-quality', 'dedupe'], description: 'Cross-validation', category: 'validate' },
+  { id: 'enrich-precip', script: 'scripts/enrich-precipitant.ts', depends_on: ['enrich-cond'], description: 'Precipitant extraction + normalization', category: 'enrich' },
+  { id: 'provenance', script: 'scripts/backfill-provenance.ts', depends_on: ['cross-validate'], description: 'source_id + DOI backfill', category: 'enrich' },
 ];
 
 function topoSort(dag: PipelineStep[]): PipelineStep[] {
