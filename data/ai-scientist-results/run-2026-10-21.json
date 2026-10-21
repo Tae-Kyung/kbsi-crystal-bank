@@ -1,0 +1,84 @@
+[
+  {
+    "id": "PH001",
+    "hypothesis": "10-30 kDa proteins have the highest crystallization success rate",
+    "status": "rejected",
+    "p_value": 1,
+    "effect_size": null,
+    "sample_size": 0,
+    "summary": "Best: 0-10 kDa (0.0%). Chi2 p=1.00e+0. No significant difference.",
+    "data": {
+      "bins": [
+        {
+          "label": "0-10 kDa",
+          "total": 0,
+          "success": 0,
+          "rate": 0
+        },
+        {
+          "label": "10-30 kDa",
+          "total": 0,
+          "success": 0,
+          "rate": 0
+        },
+        {
+          "label": "30-50 kDa",
+          "total": 0,
+          "success": 0,
+          "rate": 0
+        },
+        {
+          "label": "50-100 kDa",
+          "total": 0,
+          "success": 0,
+          "rate": 0
+        },
+        {
+          "label": ">100 kDa",
+          "total": 0,
+          "success": 0,
+          "rate": 0
+        }
+      ],
+      "chi2": {
+        "p_value": 1,
+        "statistic": 0
+      }
+    },
+    "timestamp": "2026-10-21T23:39:41.151Z"
+  },
+  {
+    "id": "PH003",
+    "hypothesis": "pH-pI correlation",
+    "status": "error",
+    "p_value": null,
+    "effect_size": null,
+    "sample_size": 0,
+    "summary": "No protein pI data",
+    "data": null,
+    "timestamp": "2026-10-21T23:39:41.258Z"
+  },
+  {
+    "id": "PH004",
+    "hypothesis": "Thermophilic proteins crystallize with higher success rate",
+    "status": "inconclusive",
+    "p_value": null,
+    "effect_size": 0.000009160403240948689,
+    "sample_size": 361,
+    "summary": "Thermophile: 100.0% (n=361) vs All: 100.0% (n=218331). Delta=0.0pp. No clear advantage.",
+    "data": {
+      "thermo": {
+        "total": 361,
+        "success": 361,
+        "rate": 1
+      },
+      "all": {
+        "total": 218331,
+        "success": 218329,
+        "rate": 0.999990839596759
+      },
+      "thermo_proteins": 1821
+    },
+    "timestamp": "2026-10-21T23:39:43.682Z"
+  }
+]

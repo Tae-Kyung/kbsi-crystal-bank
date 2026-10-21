@@ -34,7 +34,10 @@
     "preflight:loop": "npx tsx scripts/preflight-loop.ts",
     "validate": "npx tsx scripts/data-validation-loop.ts",
     "test:e2e": "npx playwright test",
-    "report:update": "npx tsx scripts/update-technical-report.ts"
+    "report:update": "npx tsx scripts/update-technical-report.ts",
+    "ai:run": "npx tsx scripts/ai-scientist-runner.ts",
+    "ai:list": "npx tsx scripts/ai-scientist-runner.ts --list",
+    "ml:export": "npx tsx scripts/export-ml-features.ts"
   },
   "dependencies": {
     "@ai-sdk/openai": "^1.1.0",
