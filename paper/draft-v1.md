@@ -34,8 +34,6 @@ KBSI-CrystalBank addresses these gaps through five key contributions:
 
 5. **AI accessibility**: A Model Context Protocol (MCP) server exposing 18 programmatic tools, enabling AI agents to search, analyze, and reason over the database without manual intervention.
 
-6. **Autonomous discovery readiness**: A structured hypothesis framework with 8 parameterized templates, 8 pre-generated testable hypotheses with MCP query plans, and enforced quality gates (p < 0.01, pre-registration), designed for integration with AI Scientist systems.
-
 We validate the resource through a 10-dimensional data quality framework comprising 67 automated checks (overall grade B, 78% pass rate), cross-reference verification against source databases (98.5–100% concordance), a crystallization success prediction benchmark (91.9% accuracy, F1 91.2%), and systematic characterization of data distributions to guide appropriate use.
 
 ---
@@ -136,28 +134,6 @@ To demonstrate the utility of KBSI-CrystalBank for ML applications, we establish
 **Models evaluated**: k-Nearest Neighbors (k = 1, 3, 5, 7), Random Forest, XGBoost, and Logistic Regression, with 5-fold stratified cross-validation.
 
 **Best result**: k-NN (k = 3) achieved 91.9% accuracy, 92.5% precision, 91.2% F1 score. XGBoost with ESM-2 features achieved comparable performance with faster inference. Feature importance analysis identified pH (25.0% contribution) and temperature (16.5%) as dominant predictors, consistent with biophysical expectations.
-
-### AI-ready hypothesis framework
-
-To facilitate autonomous scientific discovery, we designed a structured hypothesis framework compatible with AI Scientist systems^17^. The framework comprises three components, distributed as a machine-readable JSON specification (`ai-scientist-input.json`):
-
-**Hypothesis templates** (8 categories). Each template defines a parameterized scientific question, the variables to explore, the appropriate statistical test, and minimum sample size requirements. Categories span protein property–crystallization correlations, condition optimization, expression-to-crystallization linkage, ligand effects, sequence similarity–based transfer, mutation effects, method comparison, and precipitant specificity. For example:
-
-> *"Proteins with {property} in range [{min}, {max}] have significantly {higher/lower} crystallization success rate than the population average"* — validated by chi-squared test, requiring n > 100, significance threshold p < 0.01.
-
-**Pre-generated hypotheses** (8 testable claims). Each hypothesis includes a biological rationale, a step-by-step MCP query plan specifying which database tools to invoke, expected results based on preliminary analysis, and priority/novelty ratings. These serve as seed hypotheses for AI Scientist systems and as worked examples for human researchers. Representative examples include:
-
-| ID | Hypothesis | MCP Tools | Statistical Method |
-|----|-----------|-----------|-------------------|
-| PH001 | 10–30 kDa proteins have highest crystallization success | `get_statistics`, `search_crystallization_conditions` | Chi-squared binning |
-| PH003 | Optimal crystallization pH correlates with protein pI (best at pH = pI +/- 1.5) | `search_proteins`, `search_crystallization_conditions` | Kolmogorov-Smirnov |
-| PH005 | ESM-2 similarity > 0.85 enables condition transfer with >70% success | `esm2_search`, `search_crystallization_conditions` | Logistic regression + ROC |
-| PH006 | Tight-binding ligands (K~d~ < 100 nM) increase diffraction-quality crystal probability by >15% | `search_ligands`, `get_bindings` | Logistic regression |
-| PH008 | NMR sample pH predicts optimal crystallization pH (within +/- 0.5) | `search_nmr_experiments`, `search_crystallization_conditions` | Logistic regression |
-
-**Quality gates**. To prevent false discoveries, the framework enforces: statistical significance p < 0.01 after Bonferroni/FDR correction, minimum effect size (Cohen's d > 0.3 or odds ratio > 1.5), minimum sample size n > 100, 5-fold stratified cross-validation, reproducibility across 3+ random seeds, mandatory domain expert review, and pre-registration of hypotheses before data analysis.
-
-The complete specification — including dataset schema, baseline benchmarks, all 18 MCP tool descriptions, and the quality gate definitions — is provided as Supplementary Data, enabling direct integration with autonomous research frameworks.
 
 ---
 
@@ -430,17 +406,6 @@ The MCP server enables AI systems to interact with KBSI-CrystalBank programmatic
 | **Prediction** | `predict_crystallization`, `predict_success`, `recommend_crystallization`, `copilot_analyze` | ML-based success prediction (XGBoost + ESM-2), k-NN condition recommendation, and AI-generated multi-step experimental strategies |
 | **Analytics** | `get_statistics`, `get_data_quality`, `get_bindings`, `get_experiments` | Database-wide summaries, per-protein quality reports, binding data, and experiment retrieval |
 
-### Autonomous scientific discovery
-
-The combination of structured data, MCP tools, and the hypothesis framework (see Methods: AI-ready hypothesis framework) enables a closed-loop autonomous discovery workflow:
-
-1. **Hypothesis generation**: An AI Scientist system selects a hypothesis template, parameterizes it with database metadata, and generates a testable claim.
-2. **Data collection**: The system invokes MCP tools (e.g., `search_crystallization_conditions`, `esm2_search`) to gather evidence.
-3. **Statistical validation**: Automated tests (chi-squared, ANOVA, logistic regression) with multiple comparison correction determine significance.
-4. **Iteration**: Confirmed hypotheses spawn refinement queries; rejected hypotheses trigger reformulation.
-
-The pre-generated hypotheses (PH001–PH008) and quality gates are provided as machine-readable JSON, enabling direct integration with frameworks such as AI Scientist^17^. This design supports a target throughput of 3–5 statistically validated discoveries per week, each backed by the database's 1.16 million conditions and enforced quality gates (p < 0.01, Cohen's d > 0.3, pre-registered).
-
 ---
 
 ## Code Availability
@@ -485,7 +450,6 @@ The authors declare no competing interests.
 14. Luft, J.R. et al. A deliberate approach to screening for initial crystallization conditions of biological macromolecules. *J. Struct. Biol.* **142**, 170–179 (2003).
 15. ISO/IEC 25012:2008. Software engineering — Software product Quality Requirements and Evaluation (SQuaRE) — Data quality model. International Organization for Standardization (2008).
 16. Wilkinson, M.D. et al. The FAIR Guiding Principles for scientific data management and stewardship. *Sci. Data* **3**, 160018 (2016).
-17. Lu, C. et al. The AI Scientist: Towards Fully Automated Open-Ended Scientific Discovery. *arXiv preprint* arXiv:2408.06292 (2024).
 
 ---
 
@@ -527,10 +491,3 @@ The authors declare no competing interests.
 
 **Table 8.** MCP server tools (18 tools across 4 functional categories).
 
-**Table 9.** Pre-generated hypotheses for autonomous scientific discovery (PH001–PH008), with MCP query plans and statistical methods.
-
----
-
-## Supplementary Data
-
-**Supplementary Data 1.** `ai-scientist-input.json` — Machine-readable specification for AI Scientist integration, containing: dataset summary, schema definitions, baseline benchmark results, all 18 MCP tool descriptions, 8 hypothesis templates with parameterized variables and statistical methods, 8 pre-generated hypotheses with MCP query plans, quality gate definitions, and target journal specifications.
