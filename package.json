@@ -27,7 +27,11 @@
     "ops:health": "npx tsx scripts/ops-harness.ts health",
     "ops:quality": "npx tsx scripts/ops-harness.ts quality",
     "ops:report": "npx tsx scripts/ops-harness.ts report",
-    "ops:maintenance": "npx tsx scripts/ops-harness.ts maintenance"
+    "ops:maintenance": "npx tsx scripts/ops-harness.ts maintenance",
+    "ops:snapshot": "npx tsx scripts/ops-harness.ts snapshot",
+    "ops:trend": "npx tsx scripts/ops-harness.ts trend",
+    "ops:pipeline": "npx tsx scripts/ops-harness.ts pipeline",
+    "preflight:loop": "npx tsx scripts/preflight-loop.ts"
   },
   "dependencies": {
     "@ai-sdk/openai": "^1.1.0",

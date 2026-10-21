@@ -25,3 +25,6 @@ uploads/
 data/targettrack/*.tar.gz
 data/targettrack/*.xml.gz
 data/targettrack/*.csv
+
+# Ops metrics snapshots
+data/metrics-history/
