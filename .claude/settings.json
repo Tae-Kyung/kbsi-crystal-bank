@@ -3,7 +3,12 @@
     "PostToolUse": [
       {
         "matcher": "Edit|Write",
-        "command": "npx eslint --no-warn-ignored $CLAUDE_FILE_PATHS 2>&1 | tail -5 || true"
+        "hooks": [
+          {
+            "type": "command",
+            "command": "npx eslint --no-warn-ignored $CLAUDE_FILE_PATHS 2>&1 | tail -5 || true"
+          }
+        ]
       }
     ]
   }
