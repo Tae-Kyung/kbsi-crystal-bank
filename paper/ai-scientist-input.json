@@ -69,7 +69,7 @@
       "crystallization": {
         "ph": { "filled": 1155093, "total": 1161043, "pct": 99.5 },
         "temperature": { "filled": 1094154, "total": 1161043, "pct": 94.2 },
-        "precipitant_type": { "filled": 160179, "total": 1161043, "pct": 13.8 },
+        "precipitant_type": { "filled": 657254, "total": 1161043, "pct": 56.6 },
         "outcome": { "filled": 1145719, "total": 1161043, "pct": 98.7 }
       },
       "protein": {
@@ -187,7 +187,7 @@
         { "id": 3, "name": "Integrity", "checks": 5, "pass": 5, "grade": "A", "findings": "ESM-2 99.2%, references 98.7%, BMRB 66.0%, audit active" },
         { "id": 4, "name": "Deduplication", "checks": 4, "pass": 4, "grade": "A", "findings": "seq_hash 99.2%, unique constraints enforced, 2.8M chemical shifts" },
         { "id": 5, "name": "Extensibility", "checks": 5, "pass": 4, "grade": "B", "findings": "Gene 62.6%, UniProt 68.8%, organism 93.7%, mutations 10,922" },
-        { "id": 6, "name": "Completeness", "checks": 16, "pass": 12, "grade": "B", "findings": "pH 99.5%, temp 94.2%, outcome 98.7%, precipitant 13.8% (low)" },
+        { "id": 6, "name": "Completeness", "checks": 16, "pass": 13, "grade": "B+", "findings": "pH 99.5%, temp 94.2%, outcome 98.7%, precipitant 56.6% (good)" },
         { "id": 7, "name": "Distribution", "checks": 6, "pass": 6, "grade": "A", "findings": "Success ratio 0.232, 416 organisms, pH mean 6.79 std 1.24, temp mean 17.8C std 7.0C" },
         { "id": 8, "name": "Provenance", "checks": 6, "pass": 4, "grade": "B", "findings": "source_type 100%, source_db 100%, source_id 20.1% (synthetic have strategy tags), DOI 61.6%" },
         { "id": 9, "name": "Timeliness", "checks": 5, "pass": 4, "grade": "B", "findings": "Active updates, weekly snapshots, zero staging backlog" },
@@ -241,7 +241,7 @@
     "limitations": [
       "Synthetic negatives are computationally generated, not experimentally observed — use source_type filter",
       "LLM extraction 81.4% accuracy — ~1 in 5 expression/purification records may have errors",
-      "Precipitant type coverage 13.8% — filter for non-null precipitant_type",
+      "Precipitant type coverage 56.6% — moderate, filter for non-null precipitant_type for precipitant-specific analyses",
       "Temporal bias toward well-studied organisms and druggable families",
       "Crystallization is stochastic — database captures reported conditions, not full variability"
     ]
