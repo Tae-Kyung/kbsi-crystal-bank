@@ -1233,3 +1233,53 @@ Copilot 분석 시 유사 construct의 NMR 실험 데이터 + 구조결정 방�
 | LLM 추출 정확도 부족 | Medium | staging 검증 필수화, confidence threshold |
 | Supabase 무료 티어 한계 | Low | Pro 플랜 전환, 자체 호스팅 전환 가능 |
 | 데이터 보안 (NDA 데이터) | High | RLS, 암호화, 감사 로그 |
+
+---
+
+## Phase 10: Harness/Loop Engineering + 논문 (2026-10-22 구현 완료)
+
+### F23. Harness + Loop Engineering 인프라
+
+운영 하네스와 검증 루프를 체계화하여 시스템 견고성과 확장성을 확보.
+
+**구현 완료:**
+- **ops-harness 확장**: snapshot(메트릭 JSON 저장), trend(변화 감지 >5%), pipeline(30 스크립트 DAG 오케스트레이션)
+- **preflight-loop**: typecheck→lint→test→build 단계별 검증 + 에러 분석/제안 + JSON 출력
+- **10-Dimension Data Quality Framework**: 67 automated checks (Accuracy, Consistency, Integrity, Deduplication, Extensibility, Completeness, Distribution, Provenance, Timeliness, Conformity) — Overall B (84%)
+- **GitHub Actions CI**: PR/push 자동 (ci.yml), 주간 ops report (ops-report.yml)
+- **Claude Code hooks**: PostToolUse 훅 (Edit|Write → eslint 자동)
+- **Pipeline DAG**: 30 스크립트 의존관계 그래프 (harvest→backfill→enrich→cleanup→validate)
+
+### F24. 학술 논문
+
+**구현 완료:**
+- Nature Scientific Data 대상 Data Descriptor 논문 초안 (paper/draft-v1.md)
+- LaTeX 파일 (paper/main.tex, 13페이지, 컴파일 가능)
+- Figure 8종 (paper/figures/, matplotlib 300 DPI)
+- AI Scientist 입력 데이터 (paper/ai-scientist-input.json)
+
+### F25. 데이터 확장 + 견고화
+
+**구현 완료:**
+- Precipitant 파싱 강화: +48K 추출 + 22K 정규화 (13.8% → 17.9%)
+- Provenance: source_id 100% 완성, DOI +1,140건 (62.3%)
+- E2E 테스트: Playwright 14/14 pass
+- technical_report.md 자동 업데이트
+
+### F26. AI Scientist 프로토타입
+
+**구현 완료:**
+- 가설 자동 검증 루프 (PH001/003/004, scipy 통계 연동)
+- ML Feature Export (확장 피처 CSV/JSON)
+- 웹 반영: Dashboard 커버리지 표시, Admin 10-Dimension 그리드, Copilot precipitant 카테고리
+
+**npm scripts:**
+```bash
+npm run ops:snapshot/trend/pipeline    # Harness
+npm run preflight:loop                 # Loop
+npm run validate                       # 10-Dimension QF
+npm run test:e2e                       # E2E
+npm run ai:run / ai:list              # AI Scientist
+npm run ml:export                      # ML Features
+npm run report:update                  # Report
+```

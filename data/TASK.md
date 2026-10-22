@@ -359,6 +359,65 @@ P3.9.1 (Phase 3 완료)
 
 ---
 
+## Phase 6: Harness/Loop Engineering + 논문 + AI Scientist (2026-10-22)
+
+### 6.1 Harness + Loop 인프라
+
+| ID | 태스크 | 상태 |
+|----|--------|------|
+| P6.1.1 | ops-harness 확장 (snapshot/trend/pipeline) | ✅ 완료 |
+| P6.1.2 | preflight-loop (단계별 검증 + 에러 분석 + JSON) | ✅ 완료 |
+| P6.1.3 | 10-Dimension Data Quality Framework (67 checks) | ✅ 완료 |
+| P6.1.4 | GitHub Actions CI (ci.yml — PR/push) | ✅ 완료 |
+| P6.1.5 | GitHub Actions ops-report (주간 스냅샷) | ✅ 완료 |
+| P6.1.6 | Claude Code hooks (.claude/settings.json) | ✅ 완료 |
+| P6.1.7 | GitHub secrets 설정 (CI 활성화) | 📋 수동 설정 필요 |
+
+### 6.2 논문
+
+| ID | 태스크 | 상태 |
+|----|--------|------|
+| P6.2.1 | Nature Sci Data 논문 초안 (paper/draft-v1.md) | ✅ 완료 |
+| P6.2.2 | AI Scientist 입력 데이터 (paper/ai-scientist-input.json) | ✅ 완료 |
+| P6.2.3 | 논문 Figure 8종 (paper/figures/, matplotlib 300 DPI) | ✅ 완료 |
+| P6.2.4 | LaTeX 파일 (paper/main.tex, 13페이지) | ✅ 완료 |
+| P6.2.5 | 논문 리뷰 + 투고 | 📋 미착수 |
+
+### 6.3 시스템 견고화 (Phase A)
+
+| ID | 태스크 | 상태 |
+|----|--------|------|
+| P6.3.1 | E2E 테스트 (Playwright, 14 tests) | ✅ 완료 |
+| P6.3.2 | technical_report.md 자동 업데이트 | ✅ 완료 |
+| P6.3.3 | Provenance: DOI backfill (+1,140건, 62.3%) | ✅ 완료 |
+| P6.3.4 | Provenance: source_id 100% (SQL batch) | ✅ 완료 |
+
+### 6.4 데이터 확장 (Phase B)
+
+| ID | 태스크 | 상태 |
+|----|--------|------|
+| P6.4.1 | Precipitant 파싱 강화 (+48K 추출, +22K 정규화, 17.9%) | ✅ 완료 |
+| P6.4.2 | DOI CrossRef 타이틀 검색 (+448건) | ✅ 완료 |
+
+### 6.5 AI 고도화 (Phase C)
+
+| ID | 태스크 | 상태 |
+|----|--------|------|
+| P6.5.1 | AI Scientist 가설 검증 루프 (PH001/003/004, scipy) | ✅ 완료 |
+| P6.5.2 | ML Feature Export (확장 피처 CSV/JSON) | ✅ 완료 |
+| P6.5.3 | AI Scientist 가설 추가 (PH005-008) | 📋 미착수 |
+| P6.5.4 | 예측 모델 개선 (91.9% → 93%+, GPU) | 📋 미착수 |
+
+### 6.6 웹 서비스 반영
+
+| ID | 태스크 | 상태 |
+|----|--------|------|
+| P6.6.1 | Dashboard: precipitant/source_id 커버리지 표시 | ✅ 완료 |
+| P6.6.2 | Admin: 10-Dimension Quality 그리드 + 스크립트 +7 | ✅ 완료 |
+| P6.6.3 | Copilot API: precipitant_categories 추가 | ✅ 완료 |
+
+---
+
 ## 검증 스크립트 사용법
 
 ```bash
