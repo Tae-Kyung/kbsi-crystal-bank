@@ -71,7 +71,7 @@ Several databases address portions of this problem. The PDB records crystallizat
 KBSI-CrystalBank addresses these gaps through five key contributions:
 
 \begin{enumerate}
-  \item \textbf{Scale and completeness}: 1,161,043 crystallization conditions linked to 59,349 proteins through 286,581 constructs, with structured fields for pH (99.5\% coverage), temperature (94.2\%), precipitant type, and concentration.
+  \item \textbf{Scale and completeness}: 1,161,043 crystallization conditions linked to 59,349 proteins through 286,581 constructs, with structured fields for pH (99.5\% coverage), temperature (94.2\%), precipitant type (56.6\%), and concentration.
   \item \textbf{Failure data inclusion}: 927,388 systematically generated negative controls using 14 biophysically motivated strategies, providing balanced training data for ML models. Each synthetic record is transparently tagged with its generation strategy and provenance.
   \item \textbf{Full pipeline integration}: Expression (29,153), purification (13,356), and characterization (7,195) records extracted from literature using a validated LLM pipeline, linked to downstream crystallization outcomes through a construct-centric data model.
   \item \textbf{Sequence-level representations}: ESM-2 protein language model embeddings (1,280 dimensions) computed for 284,184 proteins (99.2\% coverage), enabling similarity-based condition transfer and feature-rich ML training.
@@ -216,8 +216,8 @@ Gene name annotations & 37,151 & 62.6\% of proteins \\
 \midrule
 pH & 1,155,478 & 99.5\% \\
 Temperature & 1,094,127 & 94.2\% \\
-Precipitant type & 160,185 & 13.8\% \\
-Precipitant concentration & $\sim$160,000 & $\sim$13.8\% \\
+Precipitant type & 657,254 & 56.6\% \\
+Precipitant concentration & $\sim$657,000 & $\sim$56.6\% \\
 Method & $\sim$200,000 & $\sim$17.2\% \\
 Buffer & $\sim$180,000 & $\sim$15.5\% \\
 Outcome & 1,145,719 & 98.7\% \\
@@ -336,7 +336,7 @@ Synthetic negatives were evaluated for biological plausibility: 100\% of extreme
 \begin{enumerate}
   \item Synthetic negatives are computationally generated, not experimentally observed. Users should filter on \texttt{source\_type} and perform sensitivity analyses with and without synthetic data.
   \item LLM extraction accuracy (81.4\%) means $\sim$1 in 5 expression/purification records may contain errors.
-  \item Precipitant type coverage (13.8\%) is lower than pH and temperature due to free-text diversity.
+  \item Precipitant type coverage (56.6\%) is moderate compared to pH and temperature, reflecting the diversity of free-text naming conventions.
   \item The database inherits the PDB's bias toward well-studied organisms and druggable protein families.
   \item Crystallization is stochastic; the database captures reported conditions, not full experimental variability.
 \end{enumerate}

@@ -87,6 +87,8 @@ npm run ai:run -- PH001                 # 특정 가설만
 npm run ai:list                         # 등록된 가설 목록
 npm run ml:export                       # ML 학습용 피처 데이터셋 (JSON)
 npm run ml:export -- --csv              # CSV 형식
+npm run enrich:precipitant              # Precipitant enrichment v2 (4-Phase)
+npm run enrich:precipitant:dry          # Dry-run 미리보기
 
 # Data Maintenance
 npm run report:update                   # technical_report.md 수치 자동 업데이트
@@ -118,6 +120,7 @@ vercel deploy                           # Deploy to Vercel
 - **paper/ai-scientist-input.json**: AI Scientist용 구조화 입력 데이터
 - **scripts/ai-scientist-runner.ts**: 가설 자동 검증 (scipy 통계 연동)
 - **scripts/export-ml-features.ts**: ML 학습용 확장 피처 데이터셋
+- **scripts/enrich-precipitant-v2.ts**: 4-Phase precipitant enrichment (13.8%→56.6%)
 
 ## Development Workflow
 1. `npm run task:next` — 다음 태스크 확인

@@ -24,7 +24,7 @@ Several databases address portions of this problem. The PDB records crystallizat
 
 KBSI-CrystalBank addresses these gaps through five key contributions:
 
-1. **Scale and completeness**: 1,161,043 crystallization conditions linked to 59,349 proteins through 286,581 constructs, with structured fields for pH (99.5% coverage), temperature (94.2%), precipitant type, and concentration.
+1. **Scale and completeness**: 1,161,043 crystallization conditions linked to 59,349 proteins through 286,581 constructs, with structured fields for pH (99.5% coverage), temperature (94.2%), precipitant type (56.6%), and concentration.
 
 2. **Failure data inclusion**: 927,388 systematically generated negative controls using 14 biophysically motivated strategies, providing balanced training data for ML models. Each synthetic record is transparently tagged with its generation strategy and provenance.
 
@@ -167,13 +167,13 @@ Table 3 summarizes the current database contents (snapshot date: 2026-10-21):
 |-------|-----------------|----------|
 | pH | 1,155,478 | 99.5% |
 | Temperature | 1,094,127 | 94.2% |
-| Precipitant type | 160,185 | 13.8% |
-| Precipitant concentration | ~160,000 | ~13.8% |
+| Precipitant type | 657,254 | 56.6% |
+| Precipitant concentration | ~657,000 | ~56.6% |
 | Method (vapor diffusion, etc.) | ~200,000 | ~17.2% |
 | Buffer | ~180,000 | ~15.5% |
 | Outcome | 1,145,719 | 98.7% |
 
-The high pH and temperature coverage reflects that these are the most consistently reported parameters in PDB crystallization remarks. Lower precipitant type coverage reflects the challenge of parsing diverse free-text descriptions; ongoing enrichment efforts continue to improve this figure.
+The high pH and temperature coverage reflects that these are the most consistently reported parameters in PDB crystallization remarks. Precipitant type coverage was improved from 13.8% to 56.6% through a four-phase enrichment pipeline: (1) enhanced regex extraction with 150+ chemical name patterns, (2) PDB API re-fetch of crystallization condition free-text, (3) LLM-based parsing of complex descriptions, and (4) construct-level propagation of known precipitants to sibling experiments.
 
 ### Data access
 
@@ -270,7 +270,7 @@ Completeness quantifies the proportion of non-null values for each field, assess
 | pH | 99.5% (1,155,093/1,161,043) | Excellent |
 | Temperature | 94.2% (1,094,154/1,161,043) | Excellent |
 | Outcome | 98.7% (1,145,719/1,161,043) | Excellent |
-| Precipitant type | 13.8% (160,179/1,161,043) | Low — free-text parsing ongoing |
+| Precipitant type | 56.6% (657,254/1,161,043) | Good — multi-phase enrichment applied |
 
 **Protein annotation fields:**
 
@@ -389,7 +389,7 @@ The synthetic negative controls were evaluated for biological plausibility:
 
 2. **LLM extraction accuracy (81.4%)** means approximately 1 in 5 expression/purification records may contain errors. The staging pipeline and human review mitigate this, but users should cross-check critical records against original publications.
 
-3. **Precipitant type coverage (13.8%)** is lower than pH and temperature coverage due to the diversity of free-text descriptions. Users requiring precipitant-specific analyses should filter for non-null `precipitant_type` values.
+3. **Precipitant type coverage (56.6%)** is moderate compared to pH and temperature, reflecting the diversity of free-text descriptions and the challenge of parsing heterogeneous naming conventions. Users requiring precipitant-specific analyses should filter for non-null `precipitant_type` values.
 
 4. **Temporal bias**: The database inherits the PDB's bias toward well-studied model organisms and druggable protein families. Condition recommendations may be less reliable for underrepresented organisms or protein classes.
 
