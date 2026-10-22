@@ -37,7 +37,9 @@
     "report:update": "npx tsx scripts/update-technical-report.ts",
     "ai:run": "npx tsx scripts/ai-scientist-runner.ts",
     "ai:list": "npx tsx scripts/ai-scientist-runner.ts --list",
-    "ml:export": "npx tsx scripts/export-ml-features.ts"
+    "ml:export": "npx tsx scripts/export-ml-features.ts",
+    "enrich:precipitant": "npx tsx scripts/enrich-precipitant-v2.ts",
+    "enrich:precipitant:dry": "npx tsx scripts/enrich-precipitant-v2.ts --dry-run"
   },
   "dependencies": {
     "@ai-sdk/openai": "^1.1.0",
