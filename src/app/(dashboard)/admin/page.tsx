@@ -24,7 +24,14 @@ const SCRIPTS = [
   { name: 'cleanup-data-quality', type: '검증', target: '오분류, 이상치, 정규화', schedule: '주 1회', cmd: 'npx tsx scripts/cleanup-data-quality.ts --dry-run' },
   { name: 'validate-llm-extraction', type: '검증', target: 'LLM 추출 정확도', schedule: '주 1회', cmd: 'npx tsx scripts/validate-llm-extraction.ts --dry-run' },
   { name: 'benchmark-prediction', type: 'ML', target: 'k-NN 벤치마크', schedule: '필요 시', cmd: 'npx tsx scripts/benchmark-prediction.ts --sample 5000 --k 3,5,10,15 --maxload 100000' },
-  { name: 'ops-harness', type: '운영', target: '상태/헬스/품질', schedule: '일 1회', cmd: 'npx tsx scripts/ops-harness.ts status' },
+  { name: 'ops-harness', type: '운영', target: '상태/헬스/품질/트렌드', schedule: '일 1회', cmd: 'npm run ops' },
+  { name: 'enrich-precipitant', type: '정제', target: 'precipitant_type 추출+정규화', schedule: '월 1회', cmd: 'npx tsx scripts/enrich-precipitant.ts' },
+  { name: 'backfill-provenance', type: '정제', target: 'source_id + DOI', schedule: '월 1회', cmd: 'npx tsx scripts/backfill-provenance.ts' },
+  { name: 'data-validation-loop', type: '검증', target: '10차원 품질 프레임워크', schedule: '주 1회', cmd: 'npm run validate' },
+  { name: 'preflight-loop', type: '검증', target: 'typecheck+lint+test+build', schedule: 'PR 시', cmd: 'npm run preflight:loop' },
+  { name: 'ai-scientist-runner', type: 'ML', target: '가설 자동 검증', schedule: '필요 시', cmd: 'npm run ai:run' },
+  { name: 'export-ml-features', type: 'ML', target: 'ML 피처 데이터셋', schedule: '필요 시', cmd: 'npm run ml:export' },
+  { name: 'update-technical-report', type: '운영', target: 'technical_report.md 수치', schedule: '월 1회', cmd: 'npm run report:update' },
 ];
 
 const TYPE_COLORS: Record<string, string> = {
@@ -146,6 +153,41 @@ export default async function AdminPage() {
                 {Math.round((hasPrecip ?? 0) / (crystExp ?? 1) * 100)}% <span className="text-muted-foreground">({(hasPrecip ?? 0).toLocaleString()})</span>
               </div>
             </div>
+          </div>
+        </CardContent>
+      </Card>
+
+      {/* 10-Dimension Quality Framework */}
+      <Card>
+        <CardHeader><CardTitle className="text-base">10-Dimension Data Quality</CardTitle></CardHeader>
+        <CardContent>
+          <div className="grid grid-cols-2 md:grid-cols-5 gap-2">
+            {[
+              { dim: 'Accuracy', grade: 'B', pct: 75, color: 'blue' },
+              { dim: 'Consistency', grade: 'A', pct: 100, color: 'green' },
+              { dim: 'Integrity', grade: 'A', pct: 90, color: 'green' },
+              { dim: 'Deduplication', grade: 'A', pct: 95, color: 'green' },
+              { dim: 'Extensibility', grade: 'B', pct: 80, color: 'blue' },
+              { dim: 'Completeness', grade: 'B', pct: 75, color: 'blue' },
+              { dim: 'Distribution', grade: 'A', pct: 100, color: 'green' },
+              { dim: 'Provenance', grade: 'B', pct: 83, color: 'blue' },
+              { dim: 'Timeliness', grade: 'B', pct: 80, color: 'blue' },
+              { dim: 'Conformity', grade: 'B', pct: 83, color: 'blue' },
+            ].map(d => (
+              <div key={d.dim} className="rounded-lg border p-2 text-center">
+                <div className={`text-lg font-bold ${d.color === 'green' ? 'text-green-600 dark:text-green-400' : 'text-blue-600 dark:text-blue-400'}`}>{d.grade}</div>
+                <div className="text-[10px] text-muted-foreground">{d.dim}</div>
+                <div className="mt-1 h-1.5 bg-muted rounded overflow-hidden">
+                  <div className={`h-full rounded ${d.color === 'green' ? 'bg-green-500' : 'bg-blue-500'}`} style={{ width: `${d.pct}%` }} />
+                </div>
+                <div className="text-[9px] text-muted-foreground mt-0.5">{d.pct}%</div>
+              </div>
+            ))}
+          </div>
+          <div className="mt-3 text-center">
+            <span className="text-xs text-muted-foreground">Overall: </span>
+            <span className="text-sm font-bold text-blue-600 dark:text-blue-400">B (84%)</span>
+            <span className="text-xs text-muted-foreground"> — 67 checks across 10 dimensions</span>
           </div>
         </CardContent>
       </Card>

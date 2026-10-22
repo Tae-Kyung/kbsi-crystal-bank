@@ -267,11 +267,20 @@ export async function POST(request: Request) {
 
   // Precipitant 분석
   const precipBuckets: Record<string, { success: number; total: number }> = {};
+  const precipCategories: Record<string, { success: number; total: number }> = {};
   (crystData || []).forEach((c: any) => {
     if (!c.precipitant_type) return;
     if (!precipBuckets[c.precipitant_type]) precipBuckets[c.precipitant_type] = { success: 0, total: 0 };
     precipBuckets[c.precipitant_type].total++;
-    if (c.outcome === 'single_crystal' || c.outcome === 'diffraction_quality') precipBuckets[c.precipitant_type].success++;
+    const isSuccess = c.outcome === 'single_crystal' || c.outcome === 'diffraction_quality';
+    if (isSuccess) precipBuckets[c.precipitant_type].success++;
+
+    // Category aggregation
+    const pt = c.precipitant_type.toLowerCase();
+    const cat = pt.includes('peg') ? 'PEG' : (pt.includes('sulfate') || pt.includes('chloride') || pt.includes('phosphate') || pt.includes('citrate') || pt.includes('acetate') || pt.includes('formate') || pt.includes('tartrate') || pt.includes('malonate')) ? 'Salt' : (pt.includes('mpd') || pt.includes('isopropanol') || pt.includes('ethanol') || pt.includes('glycerol') || pt.includes('dmso')) ? 'Organic' : 'Other';
+    if (!precipCategories[cat]) precipCategories[cat] = { success: 0, total: 0 };
+    precipCategories[cat].total++;
+    if (isSuccess) precipCategories[cat].success++;
   });
 
   // Expression 분석
@@ -482,6 +491,9 @@ export async function POST(request: Request) {
       best_ph: bestPH.map(([range, v]) => ({ range, rate: Math.round(v.success / v.total * 100), total: v.total })),
       best_temperature: bestTemp.map(([label, v]) => ({ label, rate: Math.round(v.success / v.total * 100), total: v.total })),
       best_precipitant: bestPrecip.map(([name, v]) => ({ name, rate: Math.round(v.success / v.total * 100), total: v.total })),
+      precipitant_categories: Object.entries(precipCategories)
+        .sort((a, b) => b[1].total - a[1].total)
+        .map(([cat, v]) => ({ category: cat, rate: v.total > 0 ? Math.round(v.success / v.total * 100) : 0, total: v.total })),
       top_conditions: topConditions,
     },
     avoid: failPatterns,

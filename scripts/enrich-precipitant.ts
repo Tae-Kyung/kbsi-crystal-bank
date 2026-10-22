@@ -30,7 +30,7 @@ const PRECIPITANT_PATTERNS: [RegExp, string][] = [
   [/\bPEG[\s-]*MME[\s-]*(\d{3,5})\b/i, 'PEG MME $1'],
   [/\bPEG[\s-]*DME[\s-]*(\d{3,5})\b/i, 'PEG DME $1'],
   [/\bpolyethylene\s*glycol[\s-]*(\d{3,5})\b/i, 'PEG $1'],
-  [/\bPEG[\s-]*(\d)K\b/i, (m: string) => `PEG ${parseInt(m) * 1000}`],
+  [/\bPEG[\s-]*(\d)K\b/i, 'PEG_K_$1'],
   [/\bMPD\b/, 'MPD'],
   [/\b2-methyl-2,4-pentanediol\b/i, 'MPD'],
 
@@ -89,9 +89,6 @@ function extractPrecipitant(detail: string): string | null {
   for (const [pattern, replacement] of PRECIPITANT_PATTERNS) {
     const match = detail.match(pattern);
     if (match) {
-      if (typeof replacement === 'function') {
-        return (replacement as (m: string) => string)(match[1]);
-      }
       // Handle PEG with captured number
       if (replacement.includes('$1') && match[1]) {
         return replacement.replace('$1', match[1]);

@@ -42,7 +42,7 @@ interface HypothesisResult {
 }
 
 // ─── Statistical helper (calls Python) ───
-function runStats(testType: string, data: any): { p_value: number; statistic: number; effect_size?: number } {
+function runStats(testType: string, data: any): { p_value: number; statistic: number; effect_size: number } {
   const input = JSON.stringify({ test: testType, data });
   const result = execSync(`python -c "
 import json, sys
@@ -159,7 +159,7 @@ async function runPH001(): Promise<HypothesisResult> {
   const overallRate = observed.reduce((a, b) => a + b, 0) / totals.reduce((a, b) => a + b, 0);
   const expected = totals.map(t => Math.round(t * overallRate));
 
-  let stats = { p_value: 1.0, statistic: 0, effect_size: undefined as number | undefined };
+  let stats = { p_value: 1.0, statistic: 0, effect_size: 0 };
   if (observed.some(v => v > 0) && expected.some(v => v > 0)) {
     try {
       stats = runStats('chi2', { observed, expected });

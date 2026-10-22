@@ -103,6 +103,15 @@ export default async function DashboardPage() {
 
   const experimentalCryst = crystCount - syntheticTotal;
 
+  // 배치 3: 커버리지 메트릭 (precipitant, source_id)
+  const [precipCount, sourceIdCount] = await Promise.all([
+    countTable('kbsi_crystallization').then(() => supabase.from('kbsi_crystallization').select('id', { count: 'exact', head: true }).not('precipitant_type', 'is', null).then(r => r.count ?? 0)),
+    supabase.from('kbsi_crystallization').select('id', { count: 'exact', head: true }).not('source_id', 'is', null).then(r => r.count ?? 0),
+  ]);
+
+  const precipPct = crystCount > 0 ? (precipCount / crystCount * 100).toFixed(1) : '0';
+  const sourceIdPct = crystCount > 0 ? (sourceIdCount / crystCount * 100).toFixed(1) : '0';
+
   return (
     <div className="space-y-6">
       <h2 className="text-2xl font-bold">Dashboard</h2>
@@ -191,6 +200,29 @@ export default async function DashboardPage() {
             <div className="text-center p-3 rounded-lg bg-purple-50 dark:bg-purple-950">
               <div className="text-2xl font-bold text-purple-700 dark:text-purple-300">{syntheticTotal.toLocaleString()}</div>
               <div className="text-xs text-muted-foreground">합성 데이터</div>
+            </div>
+          </div>
+          <div className="grid grid-cols-2 md:grid-cols-3 gap-3 mt-3">
+            <div className="flex items-center gap-2 p-2 rounded-lg bg-muted/50">
+              <div className="text-xs text-muted-foreground">Precipitant</div>
+              <div className="flex-1 h-2 bg-muted rounded overflow-hidden">
+                <div className="h-full bg-amber-500 rounded" style={{ width: `${precipPct}%` }} />
+              </div>
+              <div className="text-xs font-mono font-medium">{precipPct}%</div>
+            </div>
+            <div className="flex items-center gap-2 p-2 rounded-lg bg-muted/50">
+              <div className="text-xs text-muted-foreground">Source ID</div>
+              <div className="flex-1 h-2 bg-muted rounded overflow-hidden">
+                <div className="h-full bg-emerald-500 rounded" style={{ width: `${sourceIdPct}%` }} />
+              </div>
+              <div className="text-xs font-mono font-medium">{sourceIdPct}%</div>
+            </div>
+            <div className="flex items-center gap-2 p-2 rounded-lg bg-muted/50">
+              <div className="text-xs text-muted-foreground">Experimental</div>
+              <div className="flex-1 h-2 bg-muted rounded overflow-hidden">
+                <div className="h-full bg-blue-500 rounded" style={{ width: `${(experimentalCryst / crystCount * 100).toFixed(0)}%` }} />
+              </div>
+              <div className="text-xs font-mono font-medium">{(experimentalCryst / crystCount * 100).toFixed(1)}%</div>
             </div>
           </div>
         </CardContent>

@@ -107,7 +107,7 @@ async function main() {
   // Update existing report
   let content = readFileSync(REPORT_PATH, 'utf-8');
   const marker = '## DB 최신 수치';
-  const oldMarkerRegex = /## DB 최신 수치.*?\n(?=## |\n---|\Z)/s;
+  const oldMarkerRegex = new RegExp('## DB 최신 수치.*?\\n(?=## |\\n---|$)', 's');
 
   if (oldMarkerRegex.test(content)) {
     content = content.replace(oldMarkerRegex, summary + '\n');
