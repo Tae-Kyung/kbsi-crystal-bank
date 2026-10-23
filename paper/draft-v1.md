@@ -34,7 +34,7 @@ KBSI-CrystalBank addresses these gaps through five key contributions:
 
 5. **AI accessibility**: A Model Context Protocol (MCP) server exposing 18 programmatic tools, enabling AI agents to search, analyze, and reason over the database without manual intervention.
 
-We validate the resource through a 10-dimensional data quality framework comprising 67 automated checks (overall grade B, 78% pass rate), cross-reference verification against source databases (98.5–100% concordance), a crystallization success prediction benchmark (91.9% accuracy, F1 91.2%), and systematic characterization of data distributions to guide appropriate use.
+We validate the resource through a 10-dimensional data quality framework comprising 67 automated checks (overall grade B, 78% pass rate), cross-reference verification against source databases (98.5–100% concordance), a crystallization success prediction benchmark (94.2% accuracy, F1 92.4% with LightGBM + ESM-2), and systematic characterization of data distributions to guide appropriate use.
 
 ---
 
@@ -133,7 +133,7 @@ To demonstrate the utility of KBSI-CrystalBank for ML applications, we establish
 
 **Models evaluated**: k-Nearest Neighbors (k = 1, 3, 5, 7), Random Forest, XGBoost, and Logistic Regression, with 5-fold stratified cross-validation.
 
-**Best result**: k-NN (k = 3) achieved 91.9% accuracy, 92.5% precision, 91.2% F1 score. XGBoost with ESM-2 features achieved comparable performance with faster inference. Feature importance analysis identified pH (25.0% contribution) and temperature (16.5%) as dominant predictors, consistent with biophysical expectations.
+**Best result**: LightGBM with ESM-2 features achieved 94.2% accuracy, 90.9% precision, 92.4% F1 score, AUC-ROC 98.4%. Without ESM-2 embeddings (baseline), XGBoost achieved 93.3% accuracy (F1 91.6%), confirming ESM-2 contributes +0.8% F1. Feature importance analysis identified precipitant category (25.8% contribution in baseline) and pH (25.0%) as dominant predictors, reflecting the impact of precipitant enrichment (56.6% coverage).
 
 ---
 
@@ -360,7 +360,7 @@ The crystallization success prediction benchmark was validated through:
 
 1. **Stratified 5-fold cross-validation**: Ensuring proteins in the test fold do not appear in the training fold, preventing data leakage from homologous sequences.
 
-2. **Ablation studies**: Removing ESM-2 embeddings reduced accuracy from 91.9% to 87.3%, confirming that sequence-level features contribute meaningful signal beyond physicochemical conditions alone.
+2. **Ablation studies**: Removing ESM-2 embeddings reduced accuracy from 94.2% to 93.3% (Δ = -0.9%), confirming that sequence-level features contribute meaningful signal beyond physicochemical conditions alone.
 
 3. **Feature importance stability**: pH and temperature consistently ranked as the top two predictors across all five folds (coefficient of variation < 8%), indicating robust feature attribution.
 

@@ -97,9 +97,9 @@ const translations = {
 
   // Landing — hero subtitle
   'hero.subtitle': {
-    ko: '전 세계 최초로 결정화 실패 데이터를 체계적으로 축적 — 116만건 데이터 기반 91.9% 예측 정확도',
-    en: 'The world\'s first systematic collection of crystallization failure data — 91.9% prediction accuracy based on 1.16M records',
-    zh: '全球首创系统性积累结晶失败数据 — 基于116万条数据的91.9%预测准确率',
+    ko: '전 세계 최초로 결정화 실패 데이터를 체계적으로 축적 — 116만건 데이터 기반 94.2% 예측 정확도',
+    en: 'The world\'s first systematic collection of crystallization failure data — 94.2% prediction accuracy based on 1.16M records',
+    zh: '全球首创系统性积累结晶失败数据 — 基于116万条数据的94.2%预测准确率',
   },
 
   // Landing — AI chatbot section

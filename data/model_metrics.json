@@ -1,0 +1,130 @@
+{
+  "date": "2026-10-23",
+  "data_size": 50000,
+  "train_size": 40000,
+  "test_size": 10000,
+  "positive_rate": 37.3,
+  "n_features": 1287,
+  "embedding": true,
+  "precipitant_coverage": "56.6%",
+  "results": {
+    "xgboost": {
+      "accuracy": 94.1,
+      "precision": 90.6,
+      "recall": 94.0,
+      "f1": 92.3,
+      "auc_roc": 98.4,
+      "time_sec": 48.0
+    },
+    "lightgbm": {
+      "accuracy": 94.2,
+      "precision": 90.9,
+      "recall": 94.0,
+      "f1": 92.4,
+      "auc_roc": 98.4,
+      "time_sec": 15.1
+    }
+  },
+  "top_features": [
+    {
+      "name": "precipitant_cat",
+      "importance": 0.0144
+    },
+    {
+      "name": "ph",
+      "importance": 0.0139
+    },
+    {
+      "name": "temperature",
+      "importance": 0.0124
+    },
+    {
+      "name": "additive",
+      "importance": 0.0098
+    },
+    {
+      "name": "precipitant_code",
+      "importance": 0.0058
+    },
+    {
+      "name": "emb_238",
+      "importance": 0.0043
+    },
+    {
+      "name": "protein_conc",
+      "importance": 0.0042
+    },
+    {
+      "name": "emb_721",
+      "importance": 0.0038
+    },
+    {
+      "name": "precipitant_conc",
+      "importance": 0.0035
+    },
+    {
+      "name": "emb_972",
+      "importance": 0.0034
+    },
+    {
+      "name": "emb_672",
+      "importance": 0.0033
+    },
+    {
+      "name": "emb_202",
+      "importance": 0.0032
+    },
+    {
+      "name": "emb_743",
+      "importance": 0.0031
+    },
+    {
+      "name": "emb_810",
+      "importance": 0.0029
+    },
+    {
+      "name": "emb_409",
+      "importance": 0.0026
+    },
+    {
+      "name": "emb_394",
+      "importance": 0.0022
+    },
+    {
+      "name": "emb_706",
+      "importance": 0.0022
+    },
+    {
+      "name": "emb_858",
+      "importance": 0.0021
+    },
+    {
+      "name": "emb_724",
+      "importance": 0.0018
+    },
+    {
+      "name": "emb_945",
+      "importance": 0.0018
+    }
+  ],
+  "confusion_matrix_xgb": [
+    [
+      5904,
+      364
+    ],
+    [
+      225,
+      3507
+    ]
+  ],
+  "confusion_matrix_lgb": [
+    [
+      5916,
+      352
+    ],
+    [
+      223,
+      3509
+    ]
+  ]
+}

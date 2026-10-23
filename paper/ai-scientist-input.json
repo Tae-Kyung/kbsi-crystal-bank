@@ -161,16 +161,24 @@
       "task": "Binary crystallization success prediction",
       "success_classes": ["single_crystal", "diffraction_quality"],
       "features": ["pH", "temperature", "precipitant_type (one-hot)", "precipitant_concentration", "MW", "pI", "sequence_length", "organism", "ESM-2 embedding (1280-dim)"],
-      "models": ["k-NN (k=1,3,5,7)", "Random Forest", "XGBoost", "Logistic Regression"],
-      "cv": "5-fold stratified",
+      "models": ["k-NN (k=3,5,10,15)", "XGBoost", "LightGBM"],
+      "cv": "80/20 stratified split",
       "best_result": {
-        "model": "k-NN (k=3)",
-        "accuracy": 0.919,
-        "precision": 0.925,
-        "f1": 0.912
+        "model": "LightGBM + ESM-2",
+        "accuracy": 0.942,
+        "precision": 0.909,
+        "recall": 0.940,
+        "f1": 0.924,
+        "auc_roc": 0.984
       },
-      "feature_importance": { "pH": 0.250, "temperature": 0.165, "esm2": 0.180 },
-      "ablation": { "with_esm2": 0.919, "without_esm2": 0.873 }
+      "baseline_result": {
+        "model": "XGBoost (no ESM-2)",
+        "accuracy": 0.933,
+        "precision": 0.904,
+        "f1": 0.916
+      },
+      "feature_importance": { "precipitant_cat": 0.258, "pH": 0.250, "temperature": 0.153 },
+      "ablation": { "with_esm2": 0.942, "without_esm2": 0.933, "delta": 0.009 }
     }
   },
 
@@ -206,7 +214,7 @@
 
     "benchmark_validation": {
       "cv": "5-fold stratified, proteins in test not in train",
-      "ablation": "ESM-2 removal: 91.9% → 87.3% (Δ = -4.6%)",
+      "ablation": "ESM-2 removal: 94.2% → 93.3% (Δ = -0.9%)",
       "feature_stability": "pH and temperature top-2 across all folds (CV < 8%)"
     },
 

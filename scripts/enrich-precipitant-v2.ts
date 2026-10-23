@@ -250,9 +250,9 @@ const NORMALIZE_MAP: Record<string, string> = {
   // LLM output normalization (discovered in dry-run Phase 3)
   'Natrium Citrate': 'Sodium Citrate', 'trisodium citrate': 'Sodium Citrate',
   'Sodium citrate': 'Sodium Citrate', 'Na3Citrate': 'Sodium Citrate',
-  'Sodium formate': 'Sodium Formate', 'sodium formate': 'Sodium Formate',
+  'Sodium formate': 'Sodium Formate',
   'Sodium acetate': 'Sodium Acetate', 'Na acetate': 'Sodium Acetate',
-  'Lithium sulfate': 'Lithium Sulfate', 'lithium sulfate': 'Lithium Sulfate',
+  'Lithium sulfate': 'Lithium Sulfate',
   'Sodium Maleate': 'Sodium Maleate',
   'potassium-sodium tartrate': 'Potassium Sodium Tartrate',
   'K2HPO4': 'Potassium Phosphate', 'KH2PO4': 'Potassium Phosphate',
