@@ -1286,3 +1286,50 @@ npm run ai:run / ai:list              # AI Scientist
 npm run ml:export                      # ML Features
 npm run report:update                  # Report
 ```
+
+---
+
+## 7. 데이터 확장 로드맵 (2026-10-23~)
+
+### 현재 데이터 현황 (2026-10-22 snapshot)
+| 테이블 | 건수 | 필드 커버리지 주요 갭 |
+|---|---:|---|
+| Crystallization | 1,161,043 | precipitant **56.6%**, buffer 15.5%, method 17.2% |
+| Expression | 29,153 | construct 286K 대비 **10%만 커버** |
+| Purification | 13,356 | construct 대비 **5%만 커버** |
+| Binding | 519,480 | ChEMBL 단일 소스 |
+| References | 126,331 | DOI 62.3% |
+| null_outcome | 15,324 | 미분류 상태 |
+
+### Phase D-1: Precipitant 80% 달성 (1순위)
+- **Phase 2 (PDB Re-fetch)**: condition_detail 없는 레코드에 RCSB API로 pdbx_details 복구
+- **Phase 3 (LLM Batch)**: regex 실패 텍스트를 gpt-4o-mini로 구조화 파싱
+- 스크립트: `npm run enrich:precipitant -- --phase 2,3 --llm-limit 20000`
+- 예상: 56.6% → 75~80%
+- 데이터 품질 재검증: `npm run validate`
+
+### Phase D-2: Expression/Purification 확장 (2순위)
+- **PDB entity 소스**: `_entity_src_gen.pdbx_host_org_scientific_name` 등에서 expression host 추출
+- 예상: Expression 29K → 150K+ (construct 286K의 ~50% 커버)
+- **논문 LLM 추출 확대**: harvest-papers-extended.ts로 Purification 추가 추출
+- 예상: Purification 13K → 20K+
+
+### Phase D-3: Negative Control 고도화 (3순위)
+- **단백질 family별 실패 분포 리샘플링**: 현재 합성 NC 927K → 실제 실패 패턴 기반 재생성
+- **null_outcome 정리**: 15,324건 소스 추적 → 실패/미확인 분류
+- 효과: 모델 Precision 향상 (현재 90.9%)
+
+### Phase D-4: 외부 소스 통합 (4순위)
+| 소스 | 대상 테이블 | 예상 추가량 | 난이도 |
+|---|---|---:|---|
+| BindingDB | Binding | +300K | 중간 |
+| BMRB (추가 shifts) | NMR Chemical Shifts | +500K | 낮음 |
+| DrugBank | Ligand | +10K | 낮음 |
+| PDBe REST API | Diffraction 메타 | +50K | 낮음 |
+| CrossRef (DOI 확장) | References | +10K | 낮음 |
+
+### Phase D-5: 모델 개선 (5순위)
+- Hyperparameter tuning (Optuna): 94.2% → 95%+
+- precipitant one-hot 인코딩 (top 30)
+- 5-fold stratified CV로 신뢰구간 산출
+- Neural Network (MLP) 실험
