@@ -14,23 +14,24 @@ import pg from 'pg';
 dotenv.config({ path: '.env.local' });
 
 // Lab PostgreSQL (primary for data scripts)
+const PG_CONFIG: pg.ClientConfig = {
+  host: '203.255.78.89',
+  port: 15432,
+  database: 'kbsi_crystal_bank',
+  user: 'kbsi_app',
+  password: 'SMmQhkEIeXivl5P0yrHWW1JhpwCcmWQg',
+  ssl: { rejectUnauthorized: false },
+};
+
 export function createPgClient(): pg.Client {
-  const client = new pg.Client({
-    connectionString: process.env.DATABASE_URL,
-    ssl: { rejectUnauthorized: false },
-  });
-  return client;
+  return new pg.Client(PG_CONFIG);
 }
 
 // Pool for concurrent operations
 let _pool: pg.Pool | null = null;
 export function getPgPool(): pg.Pool {
   if (!_pool) {
-    _pool = new pg.Pool({
-      connectionString: process.env.DATABASE_URL,
-      ssl: { rejectUnauthorized: false },
-      max: 10,
-    });
+    _pool = new pg.Pool({ ...PG_CONFIG, max: 10 });
   }
   return _pool;
 }

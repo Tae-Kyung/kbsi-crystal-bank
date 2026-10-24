@@ -18,10 +18,78 @@
 | Ligands | 182,285 |
 | Bindings | 382,576 |
 | Mutations | 8,184 |
-| ESM-2 Embeddings | 0 |
+| ESM-2 Embeddings | 214918 (99.1%) |
 | References | 126,331 |
 | Gene Names | 37,151 (62.6%) |
 | UniProt Mappings | 40,808 (68.8%) |
+
+### 데이터 커버리지
+
+| 필드 | 커버리지 |
+|------|----------|
+| pH | 99.4% (1,649,183) |
+| Temperature | 92.6% (1,536,335) |
+| Precipitant | 96.0% (1,593,796) |
+| Construct 중복 | 0건 |
+
+### 결정화 Outcome 분포
+
+| Outcome | 건수 | 비율 |
+|---------|------|------|
+| precipitate | 1,124,582 | 67.8% |
+| clear | 240,981 | 14.5% |
+| diffraction_quality | 164,134 | 9.9% |
+| phase_separation | 92,217 | 5.6% |
+| microcrystal | 37,584 | 2.3% |
+| single_crystal | 2 | 0.0% |
+
+### 데이터 출처 분포
+
+| Source | 건수 |
+|--------|------|
+| synthetic | 1,495,334 |
+| PDB | 164,066 |
+| TargetTrack | 77 |
+| unknown | 22 |
+| KBSI | 1 |
+
+### 구조결정 방법 분포
+
+| Method | 건수 |
+|--------|------|
+| X-ray | 165,354 |
+| Cryo-EM | 36,788 |
+| NMR | 14,644 |
+
+### Top 10 생물종 (결정화 기준)
+
+| Organism | Constructs | Crystallizations |
+|----------|-----------|-----------------|
+| Homo sapiens | 45,897 | 465,123 |
+| Escherichia coli | 6,411 | 63,139 |
+| Mus musculus | 5,186 | 53,538 |
+| Severe acute respiratory syndrome coronavirus 2 | 3,615 | 42,599 |
+| unknown | 3,173 | 28,669 |
+| Synthetic construct | 2,614 | 25,413 |
+| Rattus norvegicus | 2,309 | 22,843 |
+| Saccharomyces cerevisiae | 2,260 | 22,596 |
+| Bos taurus | 2,231 | 22,301 |
+| Gallus gallus | 1,850 | 17,371 |
+
+### Top 10 침전제
+
+| Precipitant | 건수 | 평균 농도 |
+|-------------|------|----------|
+| PEG 3350 | 306,119 | 25.85 |
+| PEG 4000 | 180,418 | 26.26 |
+| PEG 8000 | 128,515 | 21.15 |
+| Ammonium Sulfate | 126,879 | 126.55 |
+| MPD | 82,548 | 40.37 |
+| PEG 400 | 64,358 | 28.78 |
+| PEG 6000 | 60,864 | 22.02 |
+| PEG 20000 | 52,991 | 34.61 |
+| Isopropanol | 35,703 | 39.53 |
+| Ammonium sulfate | 35,079 | 58.39 |
 
 ## Technical Report: KBSI Protein Crystallization Bank — AI Data Hub
 
