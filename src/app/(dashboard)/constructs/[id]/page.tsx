@@ -191,6 +191,9 @@ export default async function ConstructDetailPage({
         </Card>
       )}
 
+      {/* Construct Hierarchy */}
+      <ConstructHierarchySection constructId={constructId} />
+
       {/* Sequences */}
       {(construct.seq_expression || construct.seq_final || construct.dna_sequence) && (
         <Card>
@@ -228,6 +231,64 @@ export default async function ConstructDetailPage({
         </Card>
       )}
     </div>
+  );
+}
+
+async function ConstructHierarchySection({ constructId }: { constructId: number }) {
+  let hierarchy: any[] = [];
+  try {
+    hierarchy = await query<any>(
+      'SELECT * FROM construct_hierarchy($1)',
+      [constructId]
+    );
+  } catch {
+    // Function may not exist on this DB instance
+    return null;
+  }
+
+  if (hierarchy.length <= 1) return null; // Only self, no parent/children
+
+  return (
+    <Card>
+      <CardHeader>
+        <CardTitle className="text-base">Construct Hierarchy</CardTitle>
+      </CardHeader>
+      <CardContent>
+        <div className="space-y-1">
+          {hierarchy.map((node: any, i: number) => {
+            const depth = node.depth ?? 0;
+            const isCurrent = node.id === constructId || node.construct_id === constructId;
+            return (
+              <div
+                key={i}
+                className={`flex items-center text-sm py-1.5 px-2 rounded ${isCurrent ? 'bg-primary/10 font-semibold' : 'hover:bg-muted/50'}`}
+                style={{ paddingLeft: `${depth * 24 + 8}px` }}
+              >
+                <span className="text-muted-foreground mr-2">
+                  {depth === 0 ? '/' : '└'}
+                </span>
+                {isCurrent ? (
+                  <span>{node.name || node.construct_name || `#${node.id || node.construct_id}`}</span>
+                ) : (
+                  <Link
+                    href={`/constructs/${node.id || node.construct_id}`}
+                    className="text-primary hover:underline"
+                  >
+                    {node.name || node.construct_name || `#${node.id || node.construct_id}`}
+                  </Link>
+                )}
+                {node.construct_type && (
+                  <Badge variant="outline" className="ml-2 text-[10px]">{node.construct_type}</Badge>
+                )}
+                {node.residues && (
+                  <span className="text-xs text-muted-foreground ml-2">({node.residues})</span>
+                )}
+              </div>
+            );
+          })}
+        </div>
+      </CardContent>
+    </Card>
   );
 }
 

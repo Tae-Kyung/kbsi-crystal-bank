@@ -319,6 +319,12 @@ export default async function ProteinDetailPage({
         </Card>
       )}
 
+      {/* Similar Proteins (ESM-2) */}
+      <SimilarProteinsSection proteinId={proteinId} constructs={constructs} />
+
+      {/* Condition Recommendations */}
+      <ConditionRecommendationsSection proteinId={proteinId} />
+
       <Card>
         <CardHeader className="flex flex-row items-center justify-between">
           <CardTitle className="text-base">
@@ -360,6 +366,126 @@ export default async function ProteinDetailPage({
         </CardContent>
       </Card>
     </div>
+  );
+}
+
+async function SimilarProteinsSection({ proteinId, constructs }: { proteinId: number; constructs: any[] }) {
+  if (constructs.length === 0) return null;
+
+  // Get the first construct_id for this protein
+  const firstConstruct = await queryOne<any>(
+    'SELECT id FROM kbsi_construct WHERE protein_id = $1 LIMIT 1',
+    [proteinId]
+  );
+  if (!firstConstruct) return null;
+
+  let similar: any[] = [];
+  try {
+    similar = await query<any>(
+      'SELECT * FROM find_similar_with_conditions($1, 0.8, 5)',
+      [firstConstruct.id]
+    );
+  } catch {
+    // Function may not exist on this DB instance
+    return null;
+  }
+
+  if (similar.length === 0) return null;
+
+  return (
+    <Card>
+      <CardHeader>
+        <CardTitle className="text-base">Similar Proteins (ESM-2)</CardTitle>
+      </CardHeader>
+      <CardContent>
+        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+          {similar.map((s: any, i: number) => (
+            <div key={i} className="rounded-lg border p-4 space-y-2 hover:shadow-md transition-shadow">
+              <div className="flex items-center justify-between">
+                <Link href={`/proteins/${s.protein_id || '#'}`} className="font-medium text-primary hover:underline truncate">
+                  {s.protein_name || s.abbreviation || `Protein #${s.protein_id}`}
+                </Link>
+                <Badge variant="secondary" className="text-xs ml-2 shrink-0">
+                  {(s.similarity * 100).toFixed(1)}%
+                </Badge>
+              </div>
+              {s.organism && (
+                <p className="text-xs text-muted-foreground italic truncate">{s.organism}</p>
+              )}
+              <div className="flex flex-wrap gap-1.5 text-xs">
+                {s.best_outcome && (
+                  <Badge variant={s.best_outcome === 'diffraction_quality' || s.best_outcome === 'single_crystal' ? 'default' : 'outline'} className="text-[10px]">
+                    {s.best_outcome}
+                  </Badge>
+                )}
+                {s.best_precipitant && (
+                  <span className="text-muted-foreground truncate max-w-[200px]" title={s.best_precipitant}>
+                    {s.best_precipitant}
+                  </span>
+                )}
+              </div>
+            </div>
+          ))}
+        </div>
+      </CardContent>
+    </Card>
+  );
+}
+
+async function ConditionRecommendationsSection({ proteinId }: { proteinId: number }) {
+  let recommendations: any[] = [];
+  try {
+    recommendations = await query<any>(
+      'SELECT * FROM recommend_conditions($1, 5)',
+      [proteinId]
+    );
+  } catch {
+    // Function may not exist on this DB instance
+    return null;
+  }
+
+  if (recommendations.length === 0) return null;
+
+  return (
+    <Card>
+      <CardHeader>
+        <CardTitle className="text-base">Condition Recommendations</CardTitle>
+      </CardHeader>
+      <CardContent>
+        <div className="rounded-md border overflow-hidden">
+          <table className="w-full text-sm">
+            <thead className="bg-muted/50">
+              <tr>
+                <th className="px-3 py-2 text-left font-medium">Precipitant</th>
+                <th className="px-3 py-2 text-left font-medium">Avg pH</th>
+                <th className="px-3 py-2 text-left font-medium">Avg Temp</th>
+                <th className="px-3 py-2 text-left font-medium">Success Rate</th>
+              </tr>
+            </thead>
+            <tbody className="divide-y">
+              {recommendations.map((r: any, i: number) => (
+                <tr key={i} className="hover:bg-muted/30">
+                  <td className="px-3 py-2 text-xs">{r.precipitant || r.precipitant_name || '-'}</td>
+                  <td className="px-3 py-2 text-xs font-mono">{r.avg_ph != null ? Number(r.avg_ph).toFixed(1) : '-'}</td>
+                  <td className="px-3 py-2 text-xs font-mono">{r.avg_temp != null ? `${Number(r.avg_temp).toFixed(0)} C` : '-'}</td>
+                  <td className="px-3 py-2 text-xs">
+                    <div className="flex items-center gap-2">
+                      <div className="w-16 h-2 rounded-full bg-gray-200 dark:bg-gray-700 overflow-hidden">
+                        <div
+                          className="h-full bg-green-500 rounded-full"
+                          style={{ width: `${Math.min(100, (r.success_rate != null ? Number(r.success_rate) * 100 : 0))}%` }}
+                        />
+                      </div>
+                      <span className="font-mono">{r.success_rate != null ? `${(Number(r.success_rate) * 100).toFixed(0)}%` : '-'}</span>
+                    </div>
+                  </td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        </div>
+      </CardContent>
+    </Card>
   );
 }
 

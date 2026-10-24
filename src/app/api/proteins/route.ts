@@ -11,30 +11,49 @@ export async function GET(request: NextRequest) {
   const offset = (page - 1) * limit;
 
   try {
-    const params: unknown[] = [];
-    let whereClause = '';
+    let total: number | null;
+    let data: any[];
 
     if (search) {
-      whereClause = `WHERE p.full_name ILIKE $1 OR p.abbreviation ILIKE $1 OR p.gene_name ILIKE $1`;
-      params.push(`%${search}%`);
+      // Full-text Search path
+      const countSql = `
+        SELECT COUNT(*) FROM search_proteins_fts($1, NULL) fts
+        JOIN kbsi_protein p ON p.id = fts.id
+      `;
+      total = await scalar<number>(countSql, [search]);
+
+      const dataSql = `
+        SELECT p.*,
+          fts.rank AS fts_rank,
+          COALESCE(
+            (SELECT json_agg(d.*) FROM kbsi_database_id d WHERE d.protein_id = p.id),
+            '[]'::json
+          ) AS kbsi_database_id,
+          (SELECT COUNT(*) FROM kbsi_construct c WHERE c.protein_id = p.id) AS construct_count
+        FROM search_proteins_fts($1, NULL) fts
+        JOIN kbsi_protein p ON p.id = fts.id
+        ORDER BY fts.rank DESC
+        LIMIT $2 OFFSET $3
+      `;
+      data = await query(dataSql, [search, limit, offset]);
+    } else {
+      // No search: return all with pagination
+      const countSql = `SELECT COUNT(*) FROM kbsi_protein p`;
+      total = await scalar<number>(countSql, []);
+
+      const dataSql = `
+        SELECT p.*,
+          COALESCE(
+            (SELECT json_agg(d.*) FROM kbsi_database_id d WHERE d.protein_id = p.id),
+            '[]'::json
+          ) AS kbsi_database_id,
+          (SELECT COUNT(*) FROM kbsi_construct c WHERE c.protein_id = p.id) AS construct_count
+        FROM kbsi_protein p
+        ORDER BY p.updated_at DESC
+        LIMIT $1 OFFSET $2
+      `;
+      data = await query(dataSql, [limit, offset]);
     }
-
-    const countSql = `SELECT COUNT(*) FROM kbsi_protein p ${whereClause}`;
-    const total = await scalar<number>(countSql, params);
-
-    const dataSql = `
-      SELECT p.*,
-        COALESCE(
-          (SELECT json_agg(d.*) FROM kbsi_database_id d WHERE d.protein_id = p.id),
-          '[]'::json
-        ) AS kbsi_database_id,
-        (SELECT COUNT(*) FROM kbsi_construct c WHERE c.protein_id = p.id) AS construct_count
-      FROM kbsi_protein p
-      ${whereClause}
-      ORDER BY p.updated_at DESC
-      LIMIT $${params.length + 1} OFFSET $${params.length + 2}
-    `;
-    const data = await query(dataSql, [...params, limit, offset]);
 
     return NextResponse.json({
       data,

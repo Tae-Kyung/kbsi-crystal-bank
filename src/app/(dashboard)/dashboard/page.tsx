@@ -1,4 +1,4 @@
-import { query, scalar } from '@/lib/db';
+import { query, queryOne, scalar } from '@/lib/db';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Dna, FlaskConical, Gem, Pill, Beaker, Link2, Microscope, Radiation, GitBranch, Radio } from 'lucide-react';
@@ -65,6 +65,25 @@ export default async function DashboardPage() {
   const failureTotal = oClear + oPrecip;
   const syntheticTotal = Object.values(syntheticMap).reduce((a, b) => a + b, 0);
   const experimentalCryst = crystCount - syntheticTotal;
+
+  // ─── IQR Stats + Top Proteins + Precipitant pH Profile ───
+  const [iqrPh, iqrTemp, iqrConc, topProteins, phProfile] = await Promise.all([
+    queryOne<{ median: number; q1: number; q3: number; iqr: number }>(
+      `SELECT * FROM iqr_stats(ARRAY(SELECT ph::float8 FROM kbsi_crystallization WHERE ph IS NOT NULL))`
+    ),
+    queryOne<{ median: number; q1: number; q3: number; iqr: number }>(
+      `SELECT * FROM iqr_stats(ARRAY(SELECT temperature::float8 FROM kbsi_crystallization WHERE temperature IS NOT NULL))`
+    ),
+    queryOne<{ median: number; q1: number; q3: number; iqr: number }>(
+      `SELECT * FROM iqr_stats(ARRAY(SELECT precipitant_conc::float8 FROM kbsi_crystallization WHERE precipitant_conc IS NOT NULL))`
+    ),
+    query<{ protein_name: string; organism: string; success_rate: number; total_trials: number }>(
+      `SELECT * FROM mv_protein_success_ranking LIMIT 10`
+    ),
+    query<{ ph_bucket: number; avg_success_rate: number; trial_count: number }>(
+      `SELECT * FROM mv_precipitant_ph_profile WHERE precipitant_type = 'PEG 3350' ORDER BY ph_bucket`
+    ),
+  ]);
 
   // ─── Scatter 샘플 + Recent proteins + 커버리지 ───
   const [heatmapData, recentProteins, precipCount, sourceIdCount] = await Promise.all([
@@ -219,6 +238,143 @@ export default async function DashboardPage() {
           </div>
         </CardContent>
       </Card>
+
+      {/* Crystallization Statistics (IQR) */}
+      <Card>
+        <CardHeader><CardTitle className="text-base">Crystallization Statistics (Median / IQR)</CardTitle></CardHeader>
+        <CardContent>
+          <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+            {[
+              { label: 'pH', median: iqrPh?.median ?? 0, q1: iqrPh?.q1 ?? 0, q3: iqrPh?.q3 ?? 0, min: 0, max: 14, color: 'bg-blue-500' },
+              { label: 'Temperature (°C)', median: iqrTemp?.median ?? 0, q1: iqrTemp?.q1 ?? 0, q3: iqrTemp?.q3 ?? 0, min: 0, max: 40, color: 'bg-orange-500' },
+              { label: 'Precipitant Conc (%)', median: iqrConc?.median ?? 0, q1: iqrConc?.q1 ?? 0, q3: iqrConc?.q3 ?? 0, min: 0, max: 100, color: 'bg-emerald-500' },
+            ].map(({ label, median, q1, q3, min, max, color }) => {
+              const range = max - min;
+              const leftPct = ((q1 - min) / range * 100).toFixed(1);
+              const widthPct = (((q3 - q1) / range) * 100).toFixed(1);
+              const medianPct = ((median - min) / range * 100).toFixed(1);
+              return (
+                <div key={label} className="p-4 rounded-lg border">
+                  <div className="text-sm font-medium mb-1">{label}</div>
+                  <div className="text-lg font-bold">
+                    {median.toFixed(1)}
+                    <span className="text-xs font-normal text-muted-foreground ml-2">
+                      IQR: {q1.toFixed(1)} – {q3.toFixed(1)}
+                    </span>
+                  </div>
+                  <div className="relative h-3 bg-muted rounded mt-2">
+                    {/* IQR range bar */}
+                    <div
+                      className={`absolute h-full ${color} rounded opacity-30`}
+                      style={{ left: `${leftPct}%`, width: `${widthPct}%` }}
+                    />
+                    {/* Median marker */}
+                    <div
+                      className={`absolute top-0 h-full w-1 ${color} rounded`}
+                      style={{ left: `${medianPct}%` }}
+                    />
+                  </div>
+                  <div className="flex justify-between text-[10px] text-muted-foreground mt-1">
+                    <span>{min}</span>
+                    <span>{max}</span>
+                  </div>
+                </div>
+              );
+            })}
+          </div>
+        </CardContent>
+      </Card>
+
+      {/* Top Proteins by Success Rate + Precipitant pH Profile */}
+      <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+        <Card>
+          <CardHeader><CardTitle className="text-base">Top Proteins by Success Rate</CardTitle></CardHeader>
+          <CardContent>
+            <div className="rounded-md border overflow-hidden">
+              <table className="w-full text-sm">
+                <thead className="bg-muted/50">
+                  <tr>
+                    <th className="px-3 py-2 text-left font-medium text-xs">#</th>
+                    <th className="px-3 py-2 text-left font-medium text-xs">Protein</th>
+                    <th className="px-3 py-2 text-left font-medium text-xs">Organism</th>
+                    <th className="px-3 py-2 text-right font-medium text-xs">Trials</th>
+                    <th className="px-3 py-2 text-right font-medium text-xs">Success</th>
+                  </tr>
+                </thead>
+                <tbody className="divide-y">
+                  {topProteins.map((p, i) => {
+                    const rate = Number(p.success_rate);
+                    const badgeColor = rate >= 80
+                      ? 'bg-green-100 text-green-800 dark:bg-green-900 dark:text-green-200'
+                      : rate >= 50
+                        ? 'bg-yellow-100 text-yellow-800 dark:bg-yellow-900 dark:text-yellow-200'
+                        : 'bg-red-100 text-red-800 dark:bg-red-900 dark:text-red-200';
+                    return (
+                      <tr key={i} className="hover:bg-muted/30">
+                        <td className="px-3 py-1.5 text-xs text-muted-foreground">{i + 1}</td>
+                        <td className="px-3 py-1.5 text-xs font-medium truncate max-w-[160px]">{p.protein_name}</td>
+                        <td className="px-3 py-1.5 text-xs text-muted-foreground italic truncate max-w-[120px]">{p.organism || '-'}</td>
+                        <td className="px-3 py-1.5 text-xs text-right font-mono">{Number(p.total_trials).toLocaleString()}</td>
+                        <td className="px-3 py-1.5 text-right">
+                          <span className={`inline-block px-1.5 py-0.5 rounded text-[10px] font-bold ${badgeColor}`}>
+                            {rate.toFixed(1)}%
+                          </span>
+                        </td>
+                      </tr>
+                    );
+                  })}
+                </tbody>
+              </table>
+            </div>
+          </CardContent>
+        </Card>
+
+        <Card>
+          <CardHeader>
+            <CardTitle className="text-base">
+              PEG 3350 — pH vs Success Rate
+              <span className="text-xs font-normal text-muted-foreground ml-2">
+                (precipitant pH profile)
+              </span>
+            </CardTitle>
+          </CardHeader>
+          <CardContent>
+            {phProfile.length === 0 ? (
+              <div className="text-sm text-muted-foreground text-center py-8">No data available</div>
+            ) : (
+              <div className="space-y-2">
+                {phProfile.map((row) => {
+                  const rate = Number(row.avg_success_rate);
+                  const barColor = rate >= 60
+                    ? 'bg-green-500'
+                    : rate >= 30
+                      ? 'bg-yellow-500'
+                      : 'bg-red-400';
+                  return (
+                    <div key={row.ph_bucket} className="flex items-center gap-3">
+                      <div className="w-16 text-xs text-right font-mono text-muted-foreground">
+                        pH {Number(row.ph_bucket).toFixed(1)}
+                      </div>
+                      <div className="flex-1 h-5 bg-muted rounded overflow-hidden relative">
+                        <div
+                          className={`h-full ${barColor} rounded transition-all`}
+                          style={{ width: `${Math.min(rate, 100)}%` }}
+                        />
+                        <span className="absolute inset-0 flex items-center justify-center text-[10px] font-bold mix-blend-difference text-white">
+                          {rate.toFixed(1)}%
+                        </span>
+                      </div>
+                      <div className="w-16 text-[10px] text-muted-foreground text-right">
+                        {Number(row.trial_count).toLocaleString()} trials
+                      </div>
+                    </div>
+                  );
+                })}
+              </div>
+            )}
+          </CardContent>
+        </Card>
+      </div>
 
       <Card>
         <CardHeader>

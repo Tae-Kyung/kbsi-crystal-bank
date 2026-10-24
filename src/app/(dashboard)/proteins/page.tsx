@@ -18,35 +18,62 @@ export default async function ProteinsPage({
   const search = params.search || '';
   const organism = params.organism || '';
 
-  // Build WHERE clauses
-  const conditions: string[] = [];
-  const values: unknown[] = [];
-  let paramIdx = 1;
+  // Use Full-text Search when search query is provided, ILIKE fallback for organism-only
+  let count: number | null;
+  let proteins: any[];
 
   if (search) {
-    conditions.push(`(full_name ILIKE $${paramIdx} OR abbreviation ILIKE $${paramIdx} OR gene_name ILIKE $${paramIdx})`);
-    values.push(`%${search}%`);
-    paramIdx++;
+    // FTS path: use search_proteins_fts RPC, then apply organism filter
+    const countSql = `
+      SELECT COUNT(*) FROM search_proteins_fts($1, NULL) fts
+      JOIN kbsi_protein p ON p.id = fts.id
+      ${organism ? 'WHERE p.organism ILIKE $2' : ''}
+    `;
+    const countParams: unknown[] = [search];
+    if (organism) countParams.push(`%${organism}%`);
+
+    const dataSql = `
+      SELECT p.id, p.full_name, p.abbreviation, p.gene_name, p.organism, p.updated_at,
+             fts.rank AS fts_rank
+      FROM search_proteins_fts($1, NULL) fts
+      JOIN kbsi_protein p ON p.id = fts.id
+      ${organism ? 'WHERE p.organism ILIKE $2' : ''}
+      ORDER BY fts.rank DESC
+      OFFSET $${organism ? 3 : 2} LIMIT $${organism ? 4 : 3}
+    `;
+    const dataParams: unknown[] = [search];
+    if (organism) dataParams.push(`%${organism}%`);
+    dataParams.push(offset, limit);
+
+    [count, proteins] = await Promise.all([
+      scalar<number>(countSql, countParams),
+      query(dataSql, dataParams),
+    ]);
+  } else {
+    // Non-FTS path: organism-only filter or no filter
+    const conditions: string[] = [];
+    const values: unknown[] = [];
+    let paramIdx = 1;
+
+    if (organism) {
+      conditions.push(`organism ILIKE $${paramIdx}`);
+      values.push(`%${organism}%`);
+      paramIdx++;
+    }
+
+    const whereClause = conditions.length > 0 ? `WHERE ${conditions.join(' AND ')}` : '';
+
+    [count, proteins] = await Promise.all([
+      scalar<number>(`SELECT COUNT(*) FROM kbsi_protein ${whereClause}`, values),
+      query(
+        `SELECT id, full_name, abbreviation, gene_name, organism, updated_at
+         FROM kbsi_protein ${whereClause}
+         ORDER BY updated_at DESC
+         OFFSET $${paramIdx} LIMIT $${paramIdx + 1}`,
+        [...values, offset, limit]
+      ),
+    ]);
   }
-
-  if (organism) {
-    conditions.push(`organism ILIKE $${paramIdx}`);
-    values.push(`%${organism}%`);
-    paramIdx++;
-  }
-
-  const whereClause = conditions.length > 0 ? `WHERE ${conditions.join(' AND ')}` : '';
-
-  const [count, proteins] = await Promise.all([
-    scalar<number>(`SELECT COUNT(*) FROM kbsi_protein ${whereClause}`, values),
-    query(
-      `SELECT id, full_name, abbreviation, gene_name, organism, updated_at
-       FROM kbsi_protein ${whereClause}
-       ORDER BY updated_at DESC
-       OFFSET $${paramIdx} LIMIT $${paramIdx + 1}`,
-      [...values, offset, limit]
-    ),
-  ]);
 
   const totalPages = Math.ceil((count ?? 0) / limit);
   const filterStr = [
@@ -82,6 +109,7 @@ export default async function ProteinsPage({
         <table className="w-full text-sm">
           <thead className="bg-muted/50">
             <tr>
+              {search && <th className="px-3 py-2 text-left font-medium">Relevance</th>}
               <th className="px-3 py-2 text-left font-medium">Name</th>
               <th className="px-3 py-2 text-left font-medium">Gene</th>
               <th className="px-3 py-2 text-left font-medium">Organism</th>
@@ -91,6 +119,11 @@ export default async function ProteinsPage({
           <tbody className="divide-y">
             {(proteins || []).map((p: any) => (
               <tr key={p.id} className="hover:bg-muted/30">
+                {search && (
+                  <td className="px-3 py-2 text-xs text-muted-foreground font-mono">
+                    {p.fts_rank != null ? p.fts_rank.toFixed(4) : '-'}
+                  </td>
+                )}
                 <td className="px-3 py-2">
                   <Link href={`/proteins/${p.id}`} className="text-primary hover:underline text-xs font-medium">
                     {p.abbreviation || p.full_name?.slice(0, 40) || `#${p.id}`}
@@ -107,7 +140,7 @@ export default async function ProteinsPage({
               </tr>
             ))}
             {(!proteins || proteins.length === 0) && (
-              <tr><td colSpan={4} className="px-3 py-8 text-center text-muted-foreground">데이터가 없습니다.</td></tr>
+              <tr><td colSpan={search ? 5 : 4} className="px-3 py-8 text-center text-muted-foreground">데이터가 없습니다.</td></tr>
             )}
           </tbody>
         </table>
