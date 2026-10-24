@@ -28,3 +28,11 @@ data/targettrack/*.csv
 
 # Ops metrics snapshots
 data/metrics-history/
+
+# Sensitive files
+docs/db-connection.md
+
+# LaTeX build artifacts
+paper/*.aux
+paper/*.log
+paper/*.out

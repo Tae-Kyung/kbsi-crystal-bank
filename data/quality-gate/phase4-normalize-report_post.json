@@ -1,0 +1,280 @@
+{
+  "timestamp": "2026-10-24T02:18:35.158Z",
+  "phase": "post",
+  "jobName": "phase4-normalize-report",
+  "metrics": [
+    {
+      "name": "crystallization.ph",
+      "dimension": "completeness",
+      "value": 1649183,
+      "total": 1659500,
+      "pct": 99.4,
+      "status": "pass"
+    },
+    {
+      "name": "crystallization.temperature",
+      "dimension": "completeness",
+      "value": 1536335,
+      "total": 1659500,
+      "pct": 92.6,
+      "status": "pass"
+    },
+    {
+      "name": "crystallization.precipitant",
+      "dimension": "completeness",
+      "value": 1593796,
+      "total": 1659500,
+      "pct": 96,
+      "status": "pass"
+    },
+    {
+      "name": "crystallization.outcome",
+      "dimension": "completeness",
+      "value": 1659500,
+      "total": 1659500,
+      "pct": 100,
+      "status": "pass"
+    },
+    {
+      "name": "pipeline.expression",
+      "dimension": "completeness",
+      "value": 210723,
+      "total": 216900,
+      "pct": 97.2,
+      "status": "pass"
+    },
+    {
+      "name": "pipeline.purification",
+      "dimension": "completeness",
+      "value": 11359,
+      "total": 216900,
+      "pct": 5.2,
+      "status": "warn"
+    },
+    {
+      "name": "pipeline.diffraction",
+      "dimension": "completeness",
+      "value": 337591,
+      "total": 216900,
+      "pct": 155.6,
+      "status": "pass"
+    },
+    {
+      "name": "orphan_constructs",
+      "dimension": "consistency",
+      "value": 216900,
+      "total": 216900,
+      "pct": 100,
+      "status": "pass"
+    },
+    {
+      "name": "outcome_has_source_type",
+      "dimension": "consistency",
+      "value": 1659500,
+      "total": 1659500,
+      "pct": 100,
+      "status": "pass"
+    },
+    {
+      "name": "ph_range_valid",
+      "dimension": "accuracy",
+      "value": 1659499,
+      "total": 1659500,
+      "pct": 100,
+      "status": "pass"
+    },
+    {
+      "name": "ph_range_high_valid",
+      "dimension": "accuracy",
+      "value": 1659500,
+      "total": 1659500,
+      "pct": 100,
+      "status": "pass"
+    },
+    {
+      "name": "temp_range_valid",
+      "dimension": "accuracy",
+      "value": 1659496,
+      "total": 1659500,
+      "pct": 100,
+      "status": "pass"
+    },
+    {
+      "name": "esm2_embedding",
+      "dimension": "integrity",
+      "value": 214918,
+      "total": 216900,
+      "pct": 99.1,
+      "status": "pass"
+    },
+    {
+      "name": "reference_linkage",
+      "dimension": "integrity",
+      "value": 126331,
+      "total": 216786,
+      "pct": 58.3,
+      "status": "pass"
+    },
+    {
+      "name": "exp_vs_synth_ratio",
+      "dimension": "distribution",
+      "value": 164166,
+      "total": 1659500,
+      "pct": 9.9,
+      "status": "pass"
+    },
+    {
+      "name": "success_rate_healthy",
+      "dimension": "distribution",
+      "value": 164136,
+      "total": 1659500,
+      "pct": 9.9,
+      "status": "pass"
+    },
+    {
+      "name": "source_type_coverage",
+      "dimension": "provenance",
+      "value": 1659500,
+      "total": 1659500,
+      "pct": 100,
+      "status": "pass"
+    },
+    {
+      "name": "source_db_coverage",
+      "dimension": "provenance",
+      "value": 1659478,
+      "total": 1659500,
+      "pct": 100,
+      "status": "pass"
+    },
+    {
+      "name": "outcome_enum_valid",
+      "dimension": "conformity",
+      "value": 1659500,
+      "total": 1659500,
+      "pct": 100,
+      "status": "pass"
+    },
+    {
+      "name": "source_type_enum_valid",
+      "dimension": "conformity",
+      "value": 1659500,
+      "total": 1659500,
+      "pct": 100,
+      "status": "pass"
+    },
+    {
+      "name": "consistency.expr_host_match",
+      "dimension": "consistency",
+      "value": 1569,
+      "total": 2331,
+      "pct": 67.3,
+      "status": "warn"
+    },
+    {
+      "name": "consistency.diffraction_has_success",
+      "dimension": "consistency",
+      "value": 1967,
+      "total": 2000,
+      "pct": 98.4,
+      "status": "pass"
+    },
+    {
+      "name": "logic.success_has_protein_conc",
+      "dimension": "consistency",
+      "value": 164133,
+      "total": 164136,
+      "pct": 100,
+      "status": "pass"
+    },
+    {
+      "name": "logic.no_extreme_ph_success",
+      "dimension": "consistency",
+      "value": 164135,
+      "total": 164136,
+      "pct": 100,
+      "status": "pass"
+    },
+    {
+      "name": "logic.no_subzero_success",
+      "dimension": "consistency",
+      "value": 163797,
+      "total": 164136,
+      "pct": 99.8,
+      "status": "pass"
+    },
+    {
+      "name": "source.db_has_condition_info",
+      "dimension": "consistency",
+      "value": 164039,
+      "total": 164088,
+      "pct": 100,
+      "status": "pass"
+    },
+    {
+      "name": "source.synth_has_outcome",
+      "dimension": "consistency",
+      "value": 1495334,
+      "total": 1495334,
+      "pct": 100,
+      "status": "pass"
+    },
+    {
+      "name": "dedup.construct",
+      "dimension": "deduplication",
+      "value": 44436,
+      "total": 50000,
+      "pct": 88.9,
+      "status": "fail"
+    },
+    {
+      "name": "dedup.expression",
+      "dimension": "deduplication",
+      "value": 45518,
+      "total": 50000,
+      "pct": 91,
+      "status": "warn"
+    },
+    {
+      "name": "dedup.crystallization",
+      "dimension": "deduplication",
+      "value": 43000,
+      "total": 50000,
+      "pct": 86,
+      "status": "warn"
+    },
+    {
+      "name": "dedup.diffraction",
+      "dimension": "deduplication",
+      "value": 44225,
+      "total": 50000,
+      "pct": 88.5,
+      "status": "warn"
+    }
+  ],
+  "summary": {
+    "pass": 25,
+    "warn": 5,
+    "fail": 1,
+    "total": 31,
+    "score": 81,
+    "grade": "B"
+  },
+  "tableCounts": {
+    "kbsi_protein": 59349,
+    "kbsi_construct": 216900,
+    "kbsi_structure": 216786,
+    "kbsi_crystallization": 1659500,
+    "kbsi_expression": 210723,
+    "kbsi_purification": 11359,
+    "kbsi_characterization": 5833,
+    "kbsi_diffraction": 337591,
+    "kbsi_nmr": 0,
+    "kbsi_nmr_chemical_shift": 2836767,
+    "kbsi_ligand": 182285,
+    "kbsi_binding": 0,
+    "kbsi_mutation": 8184,
+    "kbsi_embedding": 214918,
+    "kbsi_reference": 126331
+  }
+}
