@@ -18,12 +18,20 @@ import os, json, sys, time, warnings
 import numpy as np
 from pathlib import Path
 from dotenv import load_dotenv
-from supabase import create_client
+import psycopg2
+import psycopg2.extras
 
 warnings.filterwarnings("ignore", category=UserWarning)
 
 # --- Setup ---
 load_dotenv(Path(__file__).resolve().parent.parent / ".env.local")
+
+# Lab PostgreSQL (primary data source)
+pg_conn = psycopg2.connect(os.environ["DATABASE_URL"], sslmode="require")
+pg_conn.set_session(autocommit=True)
+
+# Supabase (for embeddings only, until pgvector is installed on Lab PG)
+from supabase import create_client
 sb = create_client(os.environ["NEXT_PUBLIC_SUPABASE_URL"],
                    os.environ.get("SUPABASE_SERVICE_ROLE_KEY", os.environ["NEXT_PUBLIC_SUPABASE_ANON_KEY"]))
 
@@ -73,26 +81,19 @@ print("D-5 Model Improvement: Optuna + 5-fold CV + One-hot + MLP")
 print(f"Limit: {fmt(LIMIT)}, Embedding: {'OFF' if NO_EMB else 'ON'}, Trials: {N_TRIALS}")
 print("=" * 70)
 
-print("\n[1/5] Loading crystallization data...")
-rows = []
-offset = 0
-PAGE = 1000
-while len(rows) < LIMIT:
-    resp = sb.table("kbsi_crystallization").select(
-        "construct_id, ph, temperature, precipitant_type, precipitant_conc, "
-        "protein_concentration, additive, outcome"
-    ).not_.is_("outcome", "null").range(offset, offset + PAGE - 1).execute()
-    if not resp.data:
-        break
-    rows.extend(resp.data)
-    offset += PAGE
-    if len(resp.data) < PAGE:
-        break
-    if len(rows) % 10000 == 0:
-        print(f"  {fmt(len(rows))} loaded...", end="\r")
-
-rows = rows[:LIMIT]
-print(f"  Loaded: {fmt(len(rows))} crystallization records")
+print("\n[1/5] Loading crystallization data from Lab PostgreSQL...")
+t_load = time.time()
+with pg_conn.cursor(cursor_factory=psycopg2.extras.RealDictCursor) as cur:
+    cur.execute("""
+        SELECT construct_id, ph, temperature, precipitant_type, precipitant_conc,
+               protein_concentration, additive, outcome
+        FROM kbsi_crystallization
+        WHERE outcome IS NOT NULL
+        ORDER BY id
+        LIMIT %s
+    """, (LIMIT,))
+    rows = cur.fetchall()
+print(f"  Loaded: {fmt(len(rows))} crystallization records ({time.time()-t_load:.1f}s)")
 
 # --- Load embeddings ---
 emb_map = {}
