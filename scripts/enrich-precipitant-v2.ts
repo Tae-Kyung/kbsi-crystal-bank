@@ -513,6 +513,27 @@ async function phase2_directQuery(stats: PhaseStats): Promise<PhaseStats> {
 
   console.log('  Step 1: Collecting crystallization IDs missing precipitant + condition_detail...');
 
+  // Pre-load construct→pdb mapping to avoid per-batch lookups (1000/page due to Supabase row limit)
+  console.log('  Pre-loading construct→pdb_id mapping...');
+  const constructToPdb: Record<number, string> = {};
+  let structOffset = 0;
+  const STRUCT_PAGE = 1000;
+  while (true) {
+    const { data: structures } = await supabase
+      .from('kbsi_structure')
+      .select('construct_id, pdb_id')
+      .not('pdb_id', 'is', null)
+      .range(structOffset, structOffset + STRUCT_PAGE - 1);
+    if (!structures || structures.length === 0) break;
+    for (const s of structures) {
+      if (s.pdb_id) constructToPdb[s.construct_id] = s.pdb_id;
+    }
+    if (structures.length < STRUCT_PAGE) break;
+    structOffset += STRUCT_PAGE;
+    if (structOffset % 50000 === 0) console.log(`    ...loaded ${Object.keys(constructToPdb).length} mappings`);
+  }
+  console.log(`  Pre-loaded ${Object.keys(constructToPdb).length} construct→pdb mappings`);
+
   while (hasMore) {
     const { data, error } = await supabase
       .from('kbsi_crystallization')
@@ -525,28 +546,11 @@ async function phase2_directQuery(stats: PhaseStats): Promise<PhaseStats> {
     if (error) { console.error('  Query error:', error.message); break; }
     if (!data || data.length === 0) { hasMore = false; break; }
 
-    // Collect unique construct_ids to look up pdb_ids
-    const constructIds = [...new Set(data.map(r => r.construct_id))];
-
-    // Lookup pdb_id via structure table (lightweight, no deep join)
-    const { data: structures } = await supabase
-      .from('kbsi_structure')
-      .select('construct_id, pdb_id')
-      .in('construct_id', constructIds)
-      .not('pdb_id', 'is', null);
-
-    if (structures) {
-      const constructToPdb: Record<number, string> = {};
-      for (const s of structures) {
-        if (s.pdb_id) constructToPdb[s.construct_id] = s.pdb_id;
-      }
-
-      for (const row of data) {
-        const pdbId = constructToPdb[row.construct_id];
-        if (pdbId && !seenPdb.has(pdbId)) {
-          if (!pdbToIds[pdbId]) pdbToIds[pdbId] = [];
-          pdbToIds[pdbId].push(row.id);
-        }
+    for (const row of data) {
+      const pdbId = constructToPdb[row.construct_id];
+      if (pdbId && !seenPdb.has(pdbId)) {
+        if (!pdbToIds[pdbId]) pdbToIds[pdbId] = [];
+        pdbToIds[pdbId].push(row.id);
       }
     }
 

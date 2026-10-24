@@ -1,0 +1,282 @@
+{
+  "date": "2026-10-24",
+  "version": "D-5 Optuna",
+  "data_size": 50000,
+  "train_size": 40000,
+  "test_size": 10000,
+  "positive_rate": 10.0,
+  "n_features": 1316,
+  "n_base_features": 36,
+  "embedding": true,
+  "optuna_trials": 50,
+  "results": {
+    "LightGBM-Optuna": {
+      "accuracy": 94.2,
+      "precision": 79.7,
+      "recall": 56.6,
+      "f1": 66.2,
+      "auc_roc": 94.7,
+      "time_sec": 18.8,
+      "confusion_matrix": [
+        [
+          8860,
+          144
+        ],
+        [
+          432,
+          564
+        ]
+      ]
+    },
+    "XGBoost-Optuna": {
+      "accuracy": 94.3,
+      "precision": 81.8,
+      "recall": 55.0,
+      "f1": 65.8,
+      "auc_roc": 94.7,
+      "time_sec": 49.3,
+      "confusion_matrix": [
+        [
+          8882,
+          122
+        ],
+        [
+          448,
+          548
+        ]
+      ]
+    },
+    "LightGBM-Base": {
+      "accuracy": 94.0,
+      "precision": 82.5,
+      "recall": 51.0,
+      "f1": 63.0,
+      "auc_roc": 95.1,
+      "time_sec": 13.2,
+      "confusion_matrix": [
+        [
+          8896,
+          108
+        ],
+        [
+          488,
+          508
+        ]
+      ]
+    },
+    "MLP": {
+      "accuracy": 91.4,
+      "precision": 61.3,
+      "recall": 37.3,
+      "f1": 46.4,
+      "auc_roc": 86.8,
+      "time_sec": 175.8,
+      "confusion_matrix": [
+        [
+          8769,
+          235
+        ],
+        [
+          624,
+          372
+        ]
+      ]
+    }
+  },
+  "cv_results": {
+    "LightGBM-Optuna": {
+      "acc": {
+        "mean": 94.0,
+        "std": 0.1
+      },
+      "prec": {
+        "mean": 77.3,
+        "std": 0.6
+      },
+      "rec": {
+        "mean": 56.2,
+        "std": 1.5
+      },
+      "f1": {
+        "mean": 65.1,
+        "std": 1.1
+      },
+      "auc": {
+        "mean": 94.4,
+        "std": 0.4
+      }
+    },
+    "XGBoost-Optuna": {
+      "acc": {
+        "mean": 94.0,
+        "std": 0.2
+      },
+      "prec": {
+        "mean": 79.2,
+        "std": 1.5
+      },
+      "rec": {
+        "mean": 54.3,
+        "std": 1.5
+      },
+      "f1": {
+        "mean": 64.4,
+        "std": 1.5
+      },
+      "auc": {
+        "mean": 94.4,
+        "std": 0.4
+      }
+    },
+    "LightGBM-Base": {
+      "acc": {
+        "mean": 93.9,
+        "std": 0.2
+      },
+      "prec": {
+        "mean": 81.6,
+        "std": 1.6
+      },
+      "rec": {
+        "mean": 50.7,
+        "std": 1.6
+      },
+      "f1": {
+        "mean": 62.5,
+        "std": 1.4
+      },
+      "auc": {
+        "mean": 94.6,
+        "std": 0.4
+      }
+    },
+    "MLP": {
+      "acc": {
+        "mean": 91.4,
+        "std": 0.2
+      },
+      "prec": {
+        "mean": 60.9,
+        "std": 1.6
+      },
+      "rec": {
+        "mean": 39.9,
+        "std": 3.7
+      },
+      "f1": {
+        "mean": 48.1,
+        "std": 2.7
+      },
+      "auc": {
+        "mean": 87.2,
+        "std": 0.7
+      }
+    }
+  },
+  "best_params": {
+    "lightgbm": {
+      "n_estimators": 693,
+      "max_depth": 5,
+      "learning_rate": 0.2848249574288867,
+      "subsample": 0.9178158393875805,
+      "colsample_bytree": 0.6137305253709574,
+      "min_child_samples": 48,
+      "reg_alpha": 0.00030852644964433597,
+      "reg_lambda": 0.04132395945025892,
+      "num_leaves": 51
+    },
+    "xgboost": {
+      "n_estimators": 287,
+      "max_depth": 8,
+      "learning_rate": 0.20934101836597246,
+      "subsample": 0.9846560445894454,
+      "colsample_bytree": 0.9282307295516066,
+      "min_child_weight": 4,
+      "reg_alpha": 0.009520946031978565,
+      "reg_lambda": 0.01603717806720987,
+      "gamma": 0.1908480479610492
+    }
+  },
+  "top_features": [
+    {
+      "name": "ph",
+      "importance": 0.0669
+    },
+    {
+      "name": "precipitant_conc",
+      "importance": 0.0405
+    },
+    {
+      "name": "temperature",
+      "importance": 0.0336
+    },
+    {
+      "name": "precipitant_cat",
+      "importance": 0.0141
+    },
+    {
+      "name": "protein_conc",
+      "importance": 0.01
+    },
+    {
+      "name": "additive",
+      "importance": 0.0058
+    },
+    {
+      "name": "onehot_Ammonium Sulfate",
+      "importance": 0.0029
+    },
+    {
+      "name": "onehot_MPD",
+      "importance": 0.0029
+    },
+    {
+      "name": "onehot_PEG 20000",
+      "importance": 0.0028
+    },
+    {
+      "name": "onehot_Sodium Formate",
+      "importance": 0.0018
+    },
+    {
+      "name": "onehot_Potassium Phosphate",
+      "importance": 0.0017
+    },
+    {
+      "name": "onehot_Isopropanol",
+      "importance": 0.0017
+    },
+    {
+      "name": "onehot_Sodium Chloride",
+      "importance": 0.0016
+    },
+    {
+      "name": "emb_1097",
+      "importance": 0.0016
+    },
+    {
+      "name": "emb_513",
+      "importance": 0.0016
+    },
+    {
+      "name": "onehot_Sodium Citrate",
+      "importance": 0.0016
+    },
+    {
+      "name": "emb_531",
+      "importance": 0.0015
+    },
+    {
+      "name": "emb_348",
+      "importance": 0.0015
+    },
+    {
+      "name": "emb_866",
+      "importance": 0.0015
+    },
+    {
+      "name": "emb_70",
+      "importance": 0.0014
+    }
+  ]
+}

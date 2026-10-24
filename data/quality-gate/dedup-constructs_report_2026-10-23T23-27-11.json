@@ -1,0 +1,798 @@
+{
+  "jobName": "dedup-constructs",
+  "pre": {
+    "timestamp": "2026-10-23T20:01:23.668Z",
+    "phase": "pre",
+    "jobName": "dedup-constructs",
+    "metrics": [
+      {
+        "name": "crystallization.ph",
+        "dimension": "completeness",
+        "value": 2316908,
+        "total": 2329153,
+        "pct": 99.5,
+        "status": "pass"
+      },
+      {
+        "name": "crystallization.temperature",
+        "dimension": "completeness",
+        "value": 2153622,
+        "total": 2329153,
+        "pct": 92.5,
+        "status": "pass"
+      },
+      {
+        "name": "crystallization.precipitant",
+        "dimension": "completeness",
+        "value": 2217776,
+        "total": 2329153,
+        "pct": 95.2,
+        "status": "pass"
+      },
+      {
+        "name": "crystallization.outcome",
+        "dimension": "completeness",
+        "value": 2329153,
+        "total": 2329153,
+        "pct": 100,
+        "status": "pass"
+      },
+      {
+        "name": "pipeline.expression",
+        "dimension": "completeness",
+        "value": 278830,
+        "total": 286581,
+        "pct": 97.3,
+        "status": "pass"
+      },
+      {
+        "name": "pipeline.purification",
+        "dimension": "completeness",
+        "value": 13356,
+        "total": 286581,
+        "pct": 4.7,
+        "status": "warn"
+      },
+      {
+        "name": "pipeline.diffraction",
+        "dimension": "completeness",
+        "value": 478202,
+        "total": 286581,
+        "pct": 166.9,
+        "status": "pass"
+      },
+      {
+        "name": "orphan_constructs",
+        "dimension": "consistency",
+        "value": 286581,
+        "total": 286581,
+        "pct": 100,
+        "status": "pass"
+      },
+      {
+        "name": "outcome_has_source_type",
+        "dimension": "consistency",
+        "value": 2329153,
+        "total": 2329153,
+        "pct": 100,
+        "status": "pass"
+      },
+      {
+        "name": "ph_range_valid",
+        "dimension": "accuracy",
+        "value": 2329152,
+        "total": 2329153,
+        "pct": 100,
+        "status": "pass"
+      },
+      {
+        "name": "ph_range_high_valid",
+        "dimension": "accuracy",
+        "value": 2329153,
+        "total": 2329153,
+        "pct": 100,
+        "status": "pass"
+      },
+      {
+        "name": "temp_range_valid",
+        "dimension": "accuracy",
+        "value": 2329146,
+        "total": 2329153,
+        "pct": 100,
+        "status": "pass"
+      },
+      {
+        "name": "esm2_embedding",
+        "dimension": "integrity",
+        "value": 284184,
+        "total": 286581,
+        "pct": 99.2,
+        "status": "pass"
+      },
+      {
+        "name": "reference_linkage",
+        "dimension": "integrity",
+        "value": 126331,
+        "total": 286454,
+        "pct": 44.1,
+        "status": "warn"
+      },
+      {
+        "name": "exp_vs_synth_ratio",
+        "dimension": "distribution",
+        "value": 233655,
+        "total": 2329153,
+        "pct": 10,
+        "status": "pass"
+      },
+      {
+        "name": "success_rate_healthy",
+        "dimension": "distribution",
+        "value": 233622,
+        "total": 2329153,
+        "pct": 10,
+        "status": "pass"
+      },
+      {
+        "name": "source_type_coverage",
+        "dimension": "provenance",
+        "value": 2329153,
+        "total": 2329153,
+        "pct": 100,
+        "status": "pass"
+      },
+      {
+        "name": "source_db_coverage",
+        "dimension": "provenance",
+        "value": 2329131,
+        "total": 2329153,
+        "pct": 100,
+        "status": "pass"
+      },
+      {
+        "name": "outcome_enum_valid",
+        "dimension": "conformity",
+        "value": 2329153,
+        "total": 2329153,
+        "pct": 100,
+        "status": "pass"
+      },
+      {
+        "name": "source_type_enum_valid",
+        "dimension": "conformity",
+        "value": 2329153,
+        "total": 2329153,
+        "pct": 100,
+        "status": "pass"
+      }
+    ],
+    "summary": {
+      "pass": 18,
+      "warn": 2,
+      "fail": 0,
+      "total": 20,
+      "score": 90,
+      "grade": "A"
+    },
+    "tableCounts": {
+      "kbsi_protein": 59349,
+      "kbsi_construct": 286581,
+      "kbsi_structure": 286454,
+      "kbsi_crystallization": 2329153,
+      "kbsi_expression": 278830,
+      "kbsi_purification": 13356,
+      "kbsi_characterization": 7195,
+      "kbsi_diffraction": 478202,
+      "kbsi_nmr": 0,
+      "kbsi_nmr_chemical_shift": 2836767,
+      "kbsi_ligand": 182285,
+      "kbsi_binding": 0,
+      "kbsi_mutation": 10922,
+      "kbsi_embedding": 284184,
+      "kbsi_reference": 126331
+    }
+  },
+  "post": {
+    "timestamp": "2026-10-23T23:27:11.474Z",
+    "phase": "post",
+    "jobName": "dedup-constructs",
+    "metrics": [
+      {
+        "name": "crystallization.ph",
+        "dimension": "completeness",
+        "value": 1649183,
+        "total": 1659500,
+        "pct": 99.4,
+        "status": "pass"
+      },
+      {
+        "name": "crystallization.temperature",
+        "dimension": "completeness",
+        "value": 1536335,
+        "total": 1659500,
+        "pct": 92.6,
+        "status": "pass"
+      },
+      {
+        "name": "crystallization.precipitant",
+        "dimension": "completeness",
+        "value": 1589985,
+        "total": 1659500,
+        "pct": 95.8,
+        "status": "pass"
+      },
+      {
+        "name": "crystallization.outcome",
+        "dimension": "completeness",
+        "value": 1659500,
+        "total": 1659500,
+        "pct": 100,
+        "status": "pass"
+      },
+      {
+        "name": "pipeline.expression",
+        "dimension": "completeness",
+        "value": 210723,
+        "total": 216900,
+        "pct": 97.2,
+        "status": "pass"
+      },
+      {
+        "name": "pipeline.purification",
+        "dimension": "completeness",
+        "value": 11359,
+        "total": 216900,
+        "pct": 5.2,
+        "status": "warn"
+      },
+      {
+        "name": "pipeline.diffraction",
+        "dimension": "completeness",
+        "value": 337591,
+        "total": 216900,
+        "pct": 155.6,
+        "status": "pass"
+      },
+      {
+        "name": "orphan_constructs",
+        "dimension": "consistency",
+        "value": 216900,
+        "total": 216900,
+        "pct": 100,
+        "status": "pass"
+      },
+      {
+        "name": "outcome_has_source_type",
+        "dimension": "consistency",
+        "value": 1659500,
+        "total": 1659500,
+        "pct": 100,
+        "status": "pass"
+      },
+      {
+        "name": "ph_range_valid",
+        "dimension": "accuracy",
+        "value": 1659499,
+        "total": 1659500,
+        "pct": 100,
+        "status": "pass"
+      },
+      {
+        "name": "ph_range_high_valid",
+        "dimension": "accuracy",
+        "value": 1659500,
+        "total": 1659500,
+        "pct": 100,
+        "status": "pass"
+      },
+      {
+        "name": "temp_range_valid",
+        "dimension": "accuracy",
+        "value": 1659496,
+        "total": 1659500,
+        "pct": 100,
+        "status": "pass"
+      },
+      {
+        "name": "esm2_embedding",
+        "dimension": "integrity",
+        "value": 214918,
+        "total": 216900,
+        "pct": 99.1,
+        "status": "pass"
+      },
+      {
+        "name": "reference_linkage",
+        "dimension": "integrity",
+        "value": 126331,
+        "total": 216786,
+        "pct": 58.3,
+        "status": "pass"
+      },
+      {
+        "name": "exp_vs_synth_ratio",
+        "dimension": "distribution",
+        "value": 164166,
+        "total": 1659500,
+        "pct": 9.9,
+        "status": "pass"
+      },
+      {
+        "name": "success_rate_healthy",
+        "dimension": "distribution",
+        "value": 164136,
+        "total": 1659500,
+        "pct": 9.9,
+        "status": "pass"
+      },
+      {
+        "name": "source_type_coverage",
+        "dimension": "provenance",
+        "value": 1659500,
+        "total": 1659500,
+        "pct": 100,
+        "status": "pass"
+      },
+      {
+        "name": "source_db_coverage",
+        "dimension": "provenance",
+        "value": 1659478,
+        "total": 1659500,
+        "pct": 100,
+        "status": "pass"
+      },
+      {
+        "name": "outcome_enum_valid",
+        "dimension": "conformity",
+        "value": 1659500,
+        "total": 1659500,
+        "pct": 100,
+        "status": "pass"
+      },
+      {
+        "name": "source_type_enum_valid",
+        "dimension": "conformity",
+        "value": 1659500,
+        "total": 1659500,
+        "pct": 100,
+        "status": "pass"
+      },
+      {
+        "name": "consistency.expr_host_match",
+        "dimension": "consistency",
+        "value": 1569,
+        "total": 2331,
+        "pct": 67.3,
+        "status": "warn"
+      },
+      {
+        "name": "consistency.diffraction_has_success",
+        "dimension": "consistency",
+        "value": 1936,
+        "total": 2000,
+        "pct": 96.8,
+        "status": "pass"
+      },
+      {
+        "name": "logic.success_has_protein_conc",
+        "dimension": "consistency",
+        "value": 164133,
+        "total": 164136,
+        "pct": 100,
+        "status": "pass"
+      },
+      {
+        "name": "logic.no_extreme_ph_success",
+        "dimension": "consistency",
+        "value": 164135,
+        "total": 164136,
+        "pct": 100,
+        "status": "pass"
+      },
+      {
+        "name": "logic.no_subzero_success",
+        "dimension": "consistency",
+        "value": 163797,
+        "total": 164136,
+        "pct": 99.8,
+        "status": "pass"
+      },
+      {
+        "name": "source.db_has_condition_info",
+        "dimension": "consistency",
+        "value": 164039,
+        "total": 164088,
+        "pct": 100,
+        "status": "pass"
+      },
+      {
+        "name": "source.synth_has_outcome",
+        "dimension": "consistency",
+        "value": 1495334,
+        "total": 1495334,
+        "pct": 100,
+        "status": "pass"
+      },
+      {
+        "name": "dedup.construct",
+        "dimension": "deduplication",
+        "value": 45490,
+        "total": 50000,
+        "pct": 91,
+        "status": "warn"
+      },
+      {
+        "name": "dedup.expression",
+        "dimension": "deduplication",
+        "value": 45518,
+        "total": 50000,
+        "pct": 91,
+        "status": "warn"
+      },
+      {
+        "name": "dedup.crystallization",
+        "dimension": "deduplication",
+        "value": 39758,
+        "total": 50000,
+        "pct": 79.5,
+        "status": "fail"
+      },
+      {
+        "name": "dedup.diffraction",
+        "dimension": "deduplication",
+        "value": 45006,
+        "total": 50000,
+        "pct": 90,
+        "status": "warn"
+      }
+    ],
+    "summary": {
+      "pass": 25,
+      "warn": 5,
+      "fail": 1,
+      "total": 31,
+      "score": 81,
+      "grade": "B"
+    },
+    "tableCounts": {
+      "kbsi_protein": 59349,
+      "kbsi_construct": 216900,
+      "kbsi_structure": 216786,
+      "kbsi_crystallization": 1659500,
+      "kbsi_expression": 210723,
+      "kbsi_purification": 11359,
+      "kbsi_characterization": 5833,
+      "kbsi_diffraction": 337591,
+      "kbsi_nmr": 0,
+      "kbsi_nmr_chemical_shift": 2836767,
+      "kbsi_ligand": 182285,
+      "kbsi_binding": 0,
+      "kbsi_mutation": 8184,
+      "kbsi_embedding": 214918,
+      "kbsi_reference": 126331
+    }
+  },
+  "diff": [
+    {
+      "metric": "crystallization.ph",
+      "dimension": "completeness",
+      "before": 99.5,
+      "after": 99.4,
+      "delta": -0.1,
+      "deltaPct": -0.1,
+      "statusBefore": "pass",
+      "statusAfter": "pass",
+      "verdict": "stable"
+    },
+    {
+      "metric": "crystallization.temperature",
+      "dimension": "completeness",
+      "before": 92.5,
+      "after": 92.6,
+      "delta": 0.1,
+      "deltaPct": 0.1,
+      "statusBefore": "pass",
+      "statusAfter": "pass",
+      "verdict": "stable"
+    },
+    {
+      "metric": "crystallization.precipitant",
+      "dimension": "completeness",
+      "before": 95.2,
+      "after": 95.8,
+      "delta": 0.6,
+      "deltaPct": 0.6,
+      "statusBefore": "pass",
+      "statusAfter": "pass",
+      "verdict": "improved"
+    },
+    {
+      "metric": "crystallization.outcome",
+      "dimension": "completeness",
+      "before": 100,
+      "after": 100,
+      "delta": 0,
+      "deltaPct": 0,
+      "statusBefore": "pass",
+      "statusAfter": "pass",
+      "verdict": "stable"
+    },
+    {
+      "metric": "pipeline.expression",
+      "dimension": "completeness",
+      "before": 97.3,
+      "after": 97.2,
+      "delta": -0.1,
+      "deltaPct": -0.1,
+      "statusBefore": "pass",
+      "statusAfter": "pass",
+      "verdict": "stable"
+    },
+    {
+      "metric": "pipeline.purification",
+      "dimension": "completeness",
+      "before": 4.7,
+      "after": 5.2,
+      "delta": 0.5,
+      "deltaPct": 10.6,
+      "statusBefore": "warn",
+      "statusAfter": "warn",
+      "verdict": "stable"
+    },
+    {
+      "metric": "pipeline.diffraction",
+      "dimension": "completeness",
+      "before": 166.9,
+      "after": 155.6,
+      "delta": -11.3,
+      "deltaPct": -6.8,
+      "statusBefore": "pass",
+      "statusAfter": "pass",
+      "verdict": "degraded"
+    },
+    {
+      "metric": "orphan_constructs",
+      "dimension": "consistency",
+      "before": 100,
+      "after": 100,
+      "delta": 0,
+      "deltaPct": 0,
+      "statusBefore": "pass",
+      "statusAfter": "pass",
+      "verdict": "stable"
+    },
+    {
+      "metric": "outcome_has_source_type",
+      "dimension": "consistency",
+      "before": 100,
+      "after": 100,
+      "delta": 0,
+      "deltaPct": 0,
+      "statusBefore": "pass",
+      "statusAfter": "pass",
+      "verdict": "stable"
+    },
+    {
+      "metric": "ph_range_valid",
+      "dimension": "accuracy",
+      "before": 100,
+      "after": 100,
+      "delta": 0,
+      "deltaPct": 0,
+      "statusBefore": "pass",
+      "statusAfter": "pass",
+      "verdict": "stable"
+    },
+    {
+      "metric": "ph_range_high_valid",
+      "dimension": "accuracy",
+      "before": 100,
+      "after": 100,
+      "delta": 0,
+      "deltaPct": 0,
+      "statusBefore": "pass",
+      "statusAfter": "pass",
+      "verdict": "stable"
+    },
+    {
+      "metric": "temp_range_valid",
+      "dimension": "accuracy",
+      "before": 100,
+      "after": 100,
+      "delta": 0,
+      "deltaPct": 0,
+      "statusBefore": "pass",
+      "statusAfter": "pass",
+      "verdict": "stable"
+    },
+    {
+      "metric": "esm2_embedding",
+      "dimension": "integrity",
+      "before": 99.2,
+      "after": 99.1,
+      "delta": -0.1,
+      "deltaPct": -0.1,
+      "statusBefore": "pass",
+      "statusAfter": "pass",
+      "verdict": "stable"
+    },
+    {
+      "metric": "reference_linkage",
+      "dimension": "integrity",
+      "before": 44.1,
+      "after": 58.3,
+      "delta": 14.2,
+      "deltaPct": 32.2,
+      "statusBefore": "warn",
+      "statusAfter": "pass",
+      "verdict": "improved"
+    },
+    {
+      "metric": "exp_vs_synth_ratio",
+      "dimension": "distribution",
+      "before": 10,
+      "after": 9.9,
+      "delta": -0.1,
+      "deltaPct": -1,
+      "statusBefore": "pass",
+      "statusAfter": "pass",
+      "verdict": "stable"
+    },
+    {
+      "metric": "success_rate_healthy",
+      "dimension": "distribution",
+      "before": 10,
+      "after": 9.9,
+      "delta": -0.1,
+      "deltaPct": -1,
+      "statusBefore": "pass",
+      "statusAfter": "pass",
+      "verdict": "stable"
+    },
+    {
+      "metric": "source_type_coverage",
+      "dimension": "provenance",
+      "before": 100,
+      "after": 100,
+      "delta": 0,
+      "deltaPct": 0,
+      "statusBefore": "pass",
+      "statusAfter": "pass",
+      "verdict": "stable"
+    },
+    {
+      "metric": "source_db_coverage",
+      "dimension": "provenance",
+      "before": 100,
+      "after": 100,
+      "delta": 0,
+      "deltaPct": 0,
+      "statusBefore": "pass",
+      "statusAfter": "pass",
+      "verdict": "stable"
+    },
+    {
+      "metric": "outcome_enum_valid",
+      "dimension": "conformity",
+      "before": 100,
+      "after": 100,
+      "delta": 0,
+      "deltaPct": 0,
+      "statusBefore": "pass",
+      "statusAfter": "pass",
+      "verdict": "stable"
+    },
+    {
+      "metric": "source_type_enum_valid",
+      "dimension": "conformity",
+      "before": 100,
+      "after": 100,
+      "delta": 0,
+      "deltaPct": 0,
+      "statusBefore": "pass",
+      "statusAfter": "pass",
+      "verdict": "stable"
+    },
+    {
+      "metric": "table:kbsi_construct",
+      "dimension": "volume",
+      "before": 286581,
+      "after": 216900,
+      "delta": -69681,
+      "deltaPct": -24.3,
+      "statusBefore": "n/a",
+      "statusAfter": "n/a",
+      "verdict": "degraded"
+    },
+    {
+      "metric": "table:kbsi_structure",
+      "dimension": "volume",
+      "before": 286454,
+      "after": 216786,
+      "delta": -69668,
+      "deltaPct": -24.3,
+      "statusBefore": "n/a",
+      "statusAfter": "n/a",
+      "verdict": "degraded"
+    },
+    {
+      "metric": "table:kbsi_crystallization",
+      "dimension": "volume",
+      "before": 2329153,
+      "after": 1659500,
+      "delta": -669653,
+      "deltaPct": -28.8,
+      "statusBefore": "n/a",
+      "statusAfter": "n/a",
+      "verdict": "degraded"
+    },
+    {
+      "metric": "table:kbsi_expression",
+      "dimension": "volume",
+      "before": 278830,
+      "after": 210723,
+      "delta": -68107,
+      "deltaPct": -24.4,
+      "statusBefore": "n/a",
+      "statusAfter": "n/a",
+      "verdict": "degraded"
+    },
+    {
+      "metric": "table:kbsi_purification",
+      "dimension": "volume",
+      "before": 13356,
+      "after": 11359,
+      "delta": -1997,
+      "deltaPct": -15,
+      "statusBefore": "n/a",
+      "statusAfter": "n/a",
+      "verdict": "degraded"
+    },
+    {
+      "metric": "table:kbsi_characterization",
+      "dimension": "volume",
+      "before": 7195,
+      "after": 5833,
+      "delta": -1362,
+      "deltaPct": -18.9,
+      "statusBefore": "n/a",
+      "statusAfter": "n/a",
+      "verdict": "degraded"
+    },
+    {
+      "metric": "table:kbsi_diffraction",
+      "dimension": "volume",
+      "before": 478202,
+      "after": 337591,
+      "delta": -140611,
+      "deltaPct": -29.4,
+      "statusBefore": "n/a",
+      "statusAfter": "n/a",
+      "verdict": "degraded"
+    },
+    {
+      "metric": "table:kbsi_mutation",
+      "dimension": "volume",
+      "before": 10922,
+      "after": 8184,
+      "delta": -2738,
+      "deltaPct": -25.1,
+      "statusBefore": "n/a",
+      "statusAfter": "n/a",
+      "verdict": "degraded"
+    },
+    {
+      "metric": "table:kbsi_embedding",
+      "dimension": "volume",
+      "before": 284184,
+      "after": 214918,
+      "delta": -69266,
+      "deltaPct": -24.4,
+      "statusBefore": "n/a",
+      "statusAfter": "n/a",
+      "verdict": "degraded"
+    }
+  ],
+  "verdict": "WARN",
+  "summary": "Score: 90% → 81% (-9%) | Improved: 2 metrics | Degraded: 1 metrics"
+}
