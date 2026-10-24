@@ -1,4 +1,4 @@
-import { createServiceClient } from '@/lib/supabase/service';
+import { query, scalar } from '@/lib/db';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Dna, FlaskConical, Gem, Pill, Beaker, Link2, Microscope, Radiation, GitBranch, Radio } from 'lucide-react';
@@ -8,115 +8,107 @@ import { DataInsights } from '@/components/charts/data-insights';
 import { PipelineSankey } from '@/components/charts/pipeline-sankey';
 import Link from 'next/link';
 
-// ISR: 10초 캐시 (RPC 2.4초 + 클라이언트 네비게이션 대응)
-export const revalidate = 10;
+// ISR: 30초 캐시 (Lab PG는 빠르므로 여유 있게)
+export const revalidate = 30;
 
 export default async function DashboardPage() {
-  const supabase = createServiceClient();
+  // ─── 기본 통계: Materialized View에서 즉시 조회 ───
+  const dashRow = await query('SELECT * FROM mv_dashboard_stats').then(r => r[0] as any);
+
+  const proteinCount = Number(dashRow?.proteins ?? 0);
+  const constructCount = Number(dashRow?.constructs ?? 0);
+  const crystCount = Number(dashRow?.crystallizations ?? 0);
+  const structCount = Number(dashRow?.structures ?? 0);
+  const exprCount = Number(dashRow?.expressions ?? 0);
+  const diffrCount = Number(dashRow?.diffractions ?? 0);
+  const ligandCount = Number(dashRow?.ligands ?? 0);
+
+  // MV에 없는 나머지 카운트
+  const [purifCount, charCount, bindingCount, mutationCount, nmrCount] = await Promise.all([
+    scalar<number>('SELECT COUNT(*) FROM kbsi_purification'),
+    scalar<number>('SELECT COUNT(*) FROM kbsi_characterization'),
+    scalar<number>('SELECT COUNT(*) FROM kbsi_construct_ligand'),
+    scalar<number>('SELECT COUNT(*) FROM kbsi_mutation'),
+    scalar<number>('SELECT COUNT(*) FROM kbsi_nmr_experiment'),
+  ]);
+
+  // ─── Outcome 분포: 단일 쿼리로 ───
+  const outcomeRows = await query<{ outcome: string; total: number; synthetic: number }>(
+    `SELECT outcome,
+       COUNT(*) AS total,
+       COUNT(*) FILTER (WHERE source_type = 'synthetic') AS synthetic
+     FROM kbsi_crystallization
+     WHERE outcome IS NOT NULL
+     GROUP BY outcome
+     ORDER BY total DESC`
+  );
+
+  const outcomeMap: Record<string, number> = {};
+  const syntheticMap: Record<string, number> = {};
+  for (const r of outcomeRows) {
+    outcomeMap[r.outcome] = Number(r.total);
+    syntheticMap[r.outcome] = Number(r.synthetic);
+  }
 
   const OUTCOMES = ['clear', 'precipitate', 'phase_separation', 'microcrystal', 'single_crystal', 'diffraction_quality'] as const;
-  const SAMPLE_PER_OUTCOME = 400;
+  const outcomeDistData = OUTCOMES.map(outcome => ({
+    outcome,
+    real: (outcomeMap[outcome] ?? 0) - (syntheticMap[outcome] ?? 0),
+    synthetic: syntheticMap[outcome] ?? 0,
+  })).filter(d => d.real + d.synthetic > 0);
 
-  // ─── Stats: 개별 경량 쿼리 (RPC 타임아웃 대비) ───
-  const countTable = async (table: string, filter?: { col: string; val: string }) => {
-    let q = supabase.from(table).select('id', { count: 'exact', head: true }) as any;
-    if (filter) q = q.eq(filter.col, filter.val);
-    const { count } = await q;
-    return count ?? 0;
-  };
+  const oClear = outcomeMap['clear'] ?? 0;
+  const oPrecip = outcomeMap['precipitate'] ?? 0;
+  const oSingle = outcomeMap['single_crystal'] ?? 0;
+  const oDiffr = outcomeMap['diffraction_quality'] ?? 0;
+  const successTotal = oSingle + oDiffr;
+  const failureTotal = oClear + oPrecip;
+  const syntheticTotal = Object.values(syntheticMap).reduce((a, b) => a + b, 0);
+  const experimentalCryst = crystCount - syntheticTotal;
 
-  // 배치 1: 기본 stats (가벼운 테이블 우선)
-  const [proteinCount, constructCount, exprCount, purifCount, charCount, crystCount, diffrCount, structCount, ligandCount, bindingCount, mutationCount, nmrCount] = await Promise.all([
-    countTable('kbsi_protein'),
-    countTable('kbsi_construct'),
-    countTable('kbsi_expression'),
-    countTable('kbsi_purification'),
-    countTable('kbsi_characterization'),
-    countTable('kbsi_crystallization'),
-    countTable('kbsi_diffraction'),
-    countTable('kbsi_structure'),
-    countTable('kbsi_ligand'),
-    countTable('kbsi_construct_ligand'),
-    countTable('kbsi_mutation'),
-    countTable('kbsi_nmr_experiment'),
+  // ─── Scatter 샘플 + Recent proteins + 커버리지 ───
+  const [heatmapData, recentProteins, precipCount, sourceIdCount] = await Promise.all([
+    query<{ ph: number; temperature: number; outcome: string; precipitant_type: string; source_type: string }>(
+      `SELECT ph, temperature, outcome, precipitant_type, source_type
+       FROM (
+         SELECT *, ROW_NUMBER() OVER (PARTITION BY outcome ORDER BY random()) AS rn
+         FROM kbsi_crystallization
+         WHERE ph IS NOT NULL AND temperature IS NOT NULL AND outcome IS NOT NULL
+       ) sub
+       WHERE rn <= 400`
+    ),
+    query<{ id: number; full_name: string; abbreviation: string; organism: string; updated_at: string; construct_count: number }>(
+      `SELECT p.id, p.full_name, p.abbreviation, p.organism, p.updated_at,
+         (SELECT COUNT(*) FROM kbsi_construct WHERE protein_id = p.id) AS construct_count
+       FROM kbsi_protein p
+       ORDER BY p.updated_at DESC
+       LIMIT 5`
+    ),
+    scalar<number>("SELECT COUNT(*) FROM kbsi_crystallization WHERE precipitant_type IS NOT NULL"),
+    scalar<number>("SELECT COUNT(*) FROM kbsi_crystallization WHERE source_id IS NOT NULL"),
   ]);
 
-  // 배치 2: outcome + source + scatter + recent
-  const [
-    oClear, oPrecip, oPhase, oMicro, oSingle, oDiffr,
-    sClear, sPrecip, sPhase, sMicro, sSingle, sDiffr,
-    heatmapPages, recentProteinsRes,
-  ] = await Promise.all([
-    countTable('kbsi_crystallization', { col: 'outcome', val: 'clear' }),
-    countTable('kbsi_crystallization', { col: 'outcome', val: 'precipitate' }),
-    countTable('kbsi_crystallization', { col: 'outcome', val: 'phase_separation' }),
-    countTable('kbsi_crystallization', { col: 'outcome', val: 'microcrystal' }),
-    countTable('kbsi_crystallization', { col: 'outcome', val: 'single_crystal' }),
-    countTable('kbsi_crystallization', { col: 'outcome', val: 'diffraction_quality' }),
-    supabase.from('kbsi_crystallization').select('id', { count: 'exact', head: true }).eq('outcome', 'clear').eq('source_type', 'synthetic').then(r => r.count ?? 0),
-    supabase.from('kbsi_crystallization').select('id', { count: 'exact', head: true }).eq('outcome', 'precipitate').eq('source_type', 'synthetic').then(r => r.count ?? 0),
-    supabase.from('kbsi_crystallization').select('id', { count: 'exact', head: true }).eq('outcome', 'phase_separation').eq('source_type', 'synthetic').then(r => r.count ?? 0),
-    supabase.from('kbsi_crystallization').select('id', { count: 'exact', head: true }).eq('outcome', 'microcrystal').eq('source_type', 'synthetic').then(r => r.count ?? 0),
-    supabase.from('kbsi_crystallization').select('id', { count: 'exact', head: true }).eq('outcome', 'single_crystal').eq('source_type', 'synthetic').then(r => r.count ?? 0),
-    supabase.from('kbsi_crystallization').select('id', { count: 'exact', head: true }).eq('outcome', 'diffraction_quality').eq('source_type', 'synthetic').then(r => r.count ?? 0),
-    // Scatter 샘플
-    Promise.all(OUTCOMES.map(async (outcome) => {
-      const { data } = await supabase
-        .from('kbsi_crystallization')
-        .select('ph, temperature, outcome, precipitant_type, source_type')
-        .eq('outcome', outcome).not('ph', 'is', null).not('temperature', 'is', null)
-        .limit(SAMPLE_PER_OUTCOME);
-      return data || [];
-    })),
-    // Recent proteins
-    supabase.from('kbsi_protein').select('id, full_name, abbreviation, organism, updated_at, kbsi_construct(count)').order('updated_at', { ascending: false }).limit(5),
-  ]);
+  const precipPct = crystCount > 0 ? (Number(precipCount) / crystCount * 100).toFixed(1) : '0';
+  const sourceIdPct = crystCount > 0 ? (Number(sourceIdCount) / crystCount * 100).toFixed(1) : '0';
 
   const stats = [
     { label: 'Proteins', value: proteinCount, icon: Dna },
     { label: 'Constructs', value: constructCount, icon: FlaskConical },
     { label: 'Crystallizations', value: crystCount, icon: Gem },
-    { label: 'Diffractions', value: diffrCount, icon: Radiation },
+    { label: 'Diffractions', value: Number(diffrCount), icon: Radiation },
     { label: 'Structures', value: structCount, icon: Pill },
-    { label: 'Characterizations', value: charCount, icon: Microscope },
+    { label: 'Characterizations', value: Number(charCount), icon: Microscope },
     { label: 'Ligands', value: ligandCount, icon: Beaker },
-    { label: 'Bindings', value: bindingCount, icon: Link2 },
-    { label: 'NMR', value: nmrCount, icon: Radio },
-    { label: 'Mutations', value: mutationCount, icon: GitBranch },
+    { label: 'Bindings', value: Number(bindingCount), icon: Link2 },
+    { label: 'NMR', value: Number(nmrCount), icon: Radio },
+    { label: 'Mutations', value: Number(mutationCount), icon: GitBranch },
   ];
-
-  // Outcome 분포
-  const outcomeMap = { clear: oClear, precipitate: oPrecip, phase_separation: oPhase, microcrystal: oMicro, single_crystal: oSingle, diffraction_quality: oDiffr };
-  const syntheticMap = { clear: sClear, precipitate: sPrecip, phase_separation: sPhase, microcrystal: sMicro, single_crystal: sSingle, diffraction_quality: sDiffr };
-  const outcomeDistData = OUTCOMES.map((outcome) => {
-    const total = outcomeMap[outcome] ?? 0;
-    const synthetic = syntheticMap[outcome] ?? 0;
-    return { outcome, real: total - synthetic, synthetic };
-  }).filter(dd => dd.real + dd.synthetic > 0);
-
-  const heatmapData = heatmapPages.flat();
-  const recentProteins = recentProteinsRes.data;
-
-  const successTotal = oSingle + oDiffr;
-  const failureTotal = oClear + oPrecip;
-  const syntheticTotal = sClear + sPrecip + sPhase + sMicro + sSingle + sDiffr;
-
-  const experimentalCryst = crystCount - syntheticTotal;
-
-  // 배치 3: 커버리지 메트릭 (precipitant, source_id)
-  const [precipCount, sourceIdCount] = await Promise.all([
-    countTable('kbsi_crystallization').then(() => supabase.from('kbsi_crystallization').select('id', { count: 'exact', head: true }).not('precipitant_type', 'is', null).then(r => r.count ?? 0)),
-    supabase.from('kbsi_crystallization').select('id', { count: 'exact', head: true }).not('source_id', 'is', null).then(r => r.count ?? 0),
-  ]);
-
-  const precipPct = crystCount > 0 ? (precipCount / crystCount * 100).toFixed(1) : '0';
-  const sourceIdPct = crystCount > 0 ? (sourceIdCount / crystCount * 100).toFixed(1) : '0';
 
   return (
     <div className="space-y-6">
       <h2 className="text-2xl font-bold">Dashboard</h2>
 
-      {/* Stats Cards — 2행 5열 */}
+      {/* Stats Cards */}
       <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-5 gap-3">
         {stats.map(({ label, value, icon: Icon }) => (
           <Card key={label}>
@@ -141,12 +133,12 @@ export default async function DashboardPage() {
         </CardHeader>
         <CardContent>
           <div className="grid grid-cols-1 md:grid-cols-5 gap-3">
-            {(recentProteins || []).map((p: any) => (
+            {recentProteins.map((p) => (
               <Link key={p.id} href={`/proteins/${p.id}`}>
                 <div className="rounded-lg border p-3 hover:shadow-md transition-shadow cursor-pointer">
                   <div className="font-medium text-sm truncate">{p.abbreviation || p.full_name?.slice(0, 15)}</div>
                   <div className="text-xs text-muted-foreground italic truncate">{p.organism || '-'}</div>
-                  <div className="text-xs text-muted-foreground mt-1">{p.kbsi_construct?.[0]?.count ?? 0} constructs</div>
+                  <div className="text-xs text-muted-foreground mt-1">{p.construct_count ?? 0} constructs</div>
                 </div>
               </Link>
             ))}
@@ -161,13 +153,13 @@ export default async function DashboardPage() {
           <CardContent>
             <PipelineSankey data={{
               expression: exprCount,
-              purification: purifCount,
-              characterization: charCount,
+              purification: Number(purifCount),
+              characterization: Number(charCount),
               crystallization: crystCount,
-              diffraction: diffrCount,
+              diffraction: Number(diffrCount),
               structure: structCount,
               ligands: ligandCount,
-              bindings: bindingCount,
+              bindings: Number(bindingCount),
             }} />
           </CardContent>
         </Card>
@@ -263,15 +255,15 @@ export default async function DashboardPage() {
                   { type: 'Proteins', count: stats[0].value, source: 'PDB, TargetTrack' },
                   { type: 'Constructs', count: stats[1].value, source: 'PDB, TargetTrack' },
                   { type: 'Expression', count: exprCount, source: 'PubMed (LLM extraction)' },
-                  { type: 'Purification', count: purifCount, source: 'PubMed (LLM extraction)' },
-                  { type: 'Characterization', count: charCount, source: 'PubMed (LLM extraction)' },
+                  { type: 'Purification', count: Number(purifCount), source: 'PubMed (LLM extraction)' },
+                  { type: 'Characterization', count: Number(charCount), source: 'PubMed (LLM extraction)' },
                   { type: 'Crystallization', count: crystCount, source: `Experimental ${experimentalCryst.toLocaleString()} + Synthetic ${syntheticTotal.toLocaleString()}` },
-                  { type: 'Diffraction', count: diffrCount, source: 'PDB API + PubMed' },
+                  { type: 'Diffraction', count: Number(diffrCount), source: 'PDB API + PubMed' },
                   { type: 'Structures', count: structCount, source: 'PDB (X-ray + Cryo-EM + NMR)' },
-                  { type: 'NMR Experiments', count: nmrCount, source: 'PDB NMR metadata (spectrometer, spectra)' },
+                  { type: 'NMR Experiments', count: Number(nmrCount), source: 'PDB NMR metadata (spectrometer, spectra)' },
                   { type: 'Ligands', count: ligandCount, source: 'PDB HET + ChEMBL' },
-                  { type: 'Bindings', count: bindingCount, source: 'PDB co-crystal + ChEMBL IC50/Kd' },
-                  { type: 'Mutations', count: mutationCount, source: 'PDB pdbx_mutation (point mutations)' },
+                  { type: 'Bindings', count: Number(bindingCount), source: 'PDB co-crystal + ChEMBL IC50/Kd' },
+                  { type: 'Mutations', count: Number(mutationCount), source: 'PDB pdbx_mutation (point mutations)' },
                 ].map(row => (
                   <tr key={row.type} className="hover:bg-muted/30">
                     <td className="px-4 py-2 font-medium text-xs">{row.type}</td>
