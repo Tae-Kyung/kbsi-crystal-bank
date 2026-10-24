@@ -20,7 +20,7 @@
 | Mutations | 8,184 |
 | ESM-2 Embeddings | 214918 (99.1%) |
 | References | 126,331 |
-| Gene Names | 37,151 (62.6%) |
+| Gene Names | 40,467 (68.2%) |
 | UniProt Mappings | 40,808 (68.8%) |
 
 ### 데이터 커버리지
@@ -80,16 +80,16 @@
 
 | Precipitant | 건수 | 평균 농도 |
 |-------------|------|----------|
-| PEG 3350 | 306,119 | 25.85 |
-| PEG 4000 | 180,418 | 26.26 |
-| PEG 8000 | 128,515 | 21.15 |
-| Ammonium Sulfate | 126,879 | 126.55 |
+| PEG 3350 | 307,322 | 25.87 |
+| PEG 4000 | 180,819 | 26.26 |
+| Ammonium Sulfate | 163,307 | 111.10 |
+| PEG 8000 | 130,419 | 21.18 |
 | MPD | 82,548 | 40.37 |
-| PEG 400 | 64,358 | 28.78 |
-| PEG 6000 | 60,864 | 22.02 |
+| PEG 400 | 65,390 | 28.65 |
+| PEG 6000 | 61,765 | 22.03 |
 | PEG 20000 | 52,991 | 34.61 |
 | Isopropanol | 35,703 | 39.53 |
-| Ammonium sulfate | 35,079 | 58.39 |
+| Sodium Chloride | 34,740 | 163.02 |
 
 ## Technical Report: KBSI Protein Crystallization Bank — AI Data Hub
 

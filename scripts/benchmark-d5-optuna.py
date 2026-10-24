@@ -30,13 +30,11 @@ load_dotenv(Path(__file__).resolve().parent.parent / ".env.local")
 pg_conn = psycopg2.connect(os.environ["DATABASE_URL"], sslmode="require")
 pg_conn.set_session(autocommit=True)
 
-# Supabase (for embeddings only, until pgvector is installed on Lab PG)
-from supabase import create_client
-sb = create_client(os.environ["NEXT_PUBLIC_SUPABASE_URL"],
-                   os.environ.get("SUPABASE_SERVICE_ROLE_KEY", os.environ["NEXT_PUBLIC_SUPABASE_ANON_KEY"]))
+# Supabase no longer needed — embeddings are on Lab PG
 
 args = sys.argv[1:]
 QUICK = "--quick" in args
+BALANCED = "--balanced" in args
 LIMIT = int(next((a.split("=")[1] for a in args if a.startswith("--limit")), "20000" if QUICK else "50000"))
 NO_EMB = "--no-embedding" in args
 N_TRIALS = int(next((a.split("=")[1] for a in args if a.startswith("--trials")), "20" if QUICK else "50"))
@@ -78,40 +76,58 @@ def fmt(n): return f"{n:,.0f}"
 # ================================================================
 print("=" * 70)
 print("D-5 Model Improvement: Optuna + 5-fold CV + One-hot + MLP")
-print(f"Limit: {fmt(LIMIT)}, Embedding: {'OFF' if NO_EMB else 'ON'}, Trials: {N_TRIALS}")
+print(f"Limit: {fmt(LIMIT)}, Embedding: {'OFF' if NO_EMB else 'ON'}, Trials: {N_TRIALS}, Balanced: {BALANCED}")
 print("=" * 70)
 
 print("\n[1/5] Loading crystallization data from Lab PostgreSQL...")
 t_load = time.time()
 with pg_conn.cursor(cursor_factory=psycopg2.extras.RealDictCursor) as cur:
-    cur.execute("""
-        SELECT construct_id, ph, temperature, precipitant_type, precipitant_conc,
-               protein_concentration, additive, outcome
-        FROM kbsi_crystallization
-        WHERE outcome IS NOT NULL
-        ORDER BY id
-        LIMIT %s
-    """, (LIMIT,))
+    if BALANCED:
+        # 균형 데이터셋: positive와 negative를 동수로 샘플링
+        half = LIMIT // 2
+        cur.execute("""
+            (SELECT construct_id, ph, temperature, precipitant_type, precipitant_conc,
+                    protein_concentration, additive, outcome
+             FROM kbsi_crystallization
+             WHERE outcome IN ('single_crystal', 'diffraction_quality')
+             ORDER BY random()
+             LIMIT %s)
+            UNION ALL
+            (SELECT construct_id, ph, temperature, precipitant_type, precipitant_conc,
+                    protein_concentration, additive, outcome
+             FROM kbsi_crystallization
+             WHERE outcome IN ('clear', 'precipitate', 'phase_separation', 'microcrystal')
+             ORDER BY random()
+             LIMIT %s)
+        """, (half, half))
+    else:
+        cur.execute("""
+            SELECT construct_id, ph, temperature, precipitant_type, precipitant_conc,
+                   protein_concentration, additive, outcome
+            FROM kbsi_crystallization
+            WHERE outcome IS NOT NULL
+            ORDER BY id
+            LIMIT %s
+        """, (LIMIT,))
     rows = cur.fetchall()
 print(f"  Loaded: {fmt(len(rows))} crystallization records ({time.time()-t_load:.1f}s)")
 
-# --- Load embeddings ---
+# --- Load embeddings from Lab PG ---
 emb_map = {}
 if not NO_EMB:
-    print("\n[2/5] Loading ESM-2 embeddings...")
+    print("\n[2/5] Loading ESM-2 embeddings from Lab PostgreSQL...")
+    t_emb = time.time()
     construct_ids = list(set(r["construct_id"] for r in rows))
-    BATCH = 500
-    loaded = 0
-    for i in range(0, len(construct_ids), BATCH):
-        batch_ids = construct_ids[i:i+BATCH]
-        resp = sb.table("kbsi_embedding").select("construct_id, embedding").in_("construct_id", batch_ids).execute()
-        if resp.data:
-            for e in resp.data:
-                emb_map[e["construct_id"]] = json.loads(e["embedding"])
-                loaded += 1
-        if loaded % 5000 == 0 and loaded > 0:
-            print(f"  {fmt(loaded)} embeddings loaded...", end="\r")
-    print(f"  Embeddings: {fmt(len(emb_map))} / {fmt(len(construct_ids))} ({len(emb_map)/len(construct_ids)*100:.1f}%)")
+    with pg_conn.cursor() as cur:
+        cur.execute("""
+            SELECT construct_id, embedding::text
+            FROM kbsi_embedding
+            WHERE construct_id = ANY(%s)
+        """, (construct_ids,))
+        for cid, emb_text in cur.fetchall():
+            # embedding::text returns "[0.1,0.2,...]"
+            emb_map[cid] = json.loads(emb_text)
+    print(f"  Embeddings: {fmt(len(emb_map))} / {fmt(len(construct_ids))} ({len(emb_map)/len(construct_ids)*100:.1f}%) ({time.time()-t_emb:.1f}s)")
 else:
     print("\n[2/5] Skipping embeddings (--no-embedding)")
 
