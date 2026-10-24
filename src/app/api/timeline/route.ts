@@ -1,54 +1,38 @@
 import { NextResponse } from 'next/server';
-import { createServiceClient } from '@/lib/supabase/service';
+import { query } from '@/lib/db';
 
 /**
- * GET /api/timeline — 연도별 PDB 구조 등록 추이
+ * GET /api/timeline -- 연도별 PDB 구조 등록 추이
  * performed_on 필드에서 연도 추출 후 집계
  */
 export async function GET() {
-  const supabase = createServiceClient();
+  try {
+    // Direct SQL aggregation -- no pagination needed
+    const rows = await query<{ year: number; count: number }>(
+      `SELECT EXTRACT(YEAR FROM performed_on)::int AS year, COUNT(*)::int AS count
+       FROM kbsi_structure
+       WHERE performed_on IS NOT NULL
+         AND EXTRACT(YEAR FROM performed_on) >= 1970
+         AND EXTRACT(YEAR FROM performed_on) <= 2030
+       GROUP BY year
+       ORDER BY year`
+    );
 
-  // 페이지네이션으로 전체 데이터 수집 (Supabase 1000건 제한 우회)
-  const yearCounts: Record<string, number> = {};
-  let offset = 0;
-  const PAGE = 1000;
-
-  while (true) {
-    const { data } = await supabase
-      .from('kbsi_structure')
-      .select('performed_on')
-      .not('performed_on', 'is', null)
-      .order('id')
-      .range(offset, offset + PAGE - 1);
-
-    if (!data || data.length === 0) break;
-
-    data.forEach((s: any) => {
-      const year = s.performed_on?.slice(0, 4);
-      if (!year || year < '1970' || year > '2030') return;
-      yearCounts[year] = (yearCounts[year] || 0) + 1;
+    let cumulative = 0;
+    const timelineWithCumulative = rows.map(t => {
+      cumulative += t.count;
+      return { ...t, cumulative };
     });
 
-    if (data.length < PAGE) break;
-    offset += PAGE;
+    const total = rows.reduce((a, b) => a + b.count, 0);
+
+    return NextResponse.json({
+      timeline: timelineWithCumulative,
+      total,
+    }, {
+      headers: { 'Cache-Control': 'public, max-age=3600' },
+    });
+  } catch (err: any) {
+    return NextResponse.json({ error: err.message }, { status: 500 });
   }
-
-  const timeline = Object.entries(yearCounts)
-    .map(([year, count]) => ({ year: parseInt(year), count }))
-    .sort((a, b) => a.year - b.year);
-
-  let cumulative = 0;
-  const timelineWithCumulative = timeline.map(t => {
-    cumulative += t.count;
-    return { ...t, cumulative };
-  });
-
-  const total = Object.values(yearCounts).reduce((a, b) => a + b, 0);
-
-  return NextResponse.json({
-    timeline: timelineWithCumulative,
-    total,
-  }, {
-    headers: { 'Cache-Control': 'public, max-age=3600' },
-  });
 }

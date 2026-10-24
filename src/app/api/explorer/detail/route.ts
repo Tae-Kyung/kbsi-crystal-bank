@@ -1,19 +1,20 @@
 import { NextResponse } from 'next/server';
-import { createServiceClient } from '@/lib/supabase/service';
+import { query, scalar } from '@/lib/db';
 
 export async function GET(request: Request) {
   const { searchParams } = new URL(request.url);
   const constructId = searchParams.get('construct_id');
   const proteinId = searchParams.get('protein_id');
 
-  const supabase = createServiceClient();
-
   let cIds: number[] = [];
   if (constructId) {
     cIds = [parseInt(constructId)];
   } else if (proteinId) {
-    const { data } = await supabase.from('kbsi_construct').select('id').eq('protein_id', parseInt(proteinId)).limit(500);
-    cIds = (data || []).map((c: any) => c.id);
+    const rows = await query<{ id: number }>(
+      'SELECT id FROM kbsi_construct WHERE protein_id = $1 LIMIT 500',
+      [parseInt(proteinId)]
+    );
+    cIds = rows.map((c) => c.id);
   }
 
   if (cIds.length === 0) {
@@ -21,24 +22,24 @@ export async function GET(request: Request) {
   }
 
   const [expr, purif, char, cryst, diffr, struct, nmr, lig] = await Promise.all([
-    supabase.from('kbsi_expression').select('id', { count: 'exact', head: true }).in('construct_id', cIds),
-    supabase.from('kbsi_purification').select('id', { count: 'exact', head: true }).in('construct_id', cIds),
-    supabase.from('kbsi_characterization').select('id', { count: 'exact', head: true }).in('construct_id', cIds),
-    supabase.from('kbsi_crystallization').select('id', { count: 'exact', head: true }).in('construct_id', cIds),
-    supabase.from('kbsi_diffraction').select('id', { count: 'exact', head: true }).in('construct_id', cIds),
-    supabase.from('kbsi_structure').select('id', { count: 'exact', head: true }).in('construct_id', cIds),
-    supabase.from('kbsi_nmr_experiment').select('id', { count: 'exact', head: true }).in('construct_id', cIds),
-    supabase.from('kbsi_construct_ligand').select('id', { count: 'exact', head: true }).in('construct_id', cIds),
+    scalar<number>('SELECT COUNT(*) FROM kbsi_expression WHERE construct_id = ANY($1)', [cIds]),
+    scalar<number>('SELECT COUNT(*) FROM kbsi_purification WHERE construct_id = ANY($1)', [cIds]),
+    scalar<number>('SELECT COUNT(*) FROM kbsi_characterization WHERE construct_id = ANY($1)', [cIds]),
+    scalar<number>('SELECT COUNT(*) FROM kbsi_crystallization WHERE construct_id = ANY($1)', [cIds]),
+    scalar<number>('SELECT COUNT(*) FROM kbsi_diffraction WHERE construct_id = ANY($1)', [cIds]),
+    scalar<number>('SELECT COUNT(*) FROM kbsi_structure WHERE construct_id = ANY($1)', [cIds]),
+    scalar<number>('SELECT COUNT(*) FROM kbsi_nmr_experiment WHERE construct_id = ANY($1)', [cIds]),
+    scalar<number>('SELECT COUNT(*) FROM kbsi_construct_ligand WHERE construct_id = ANY($1)', [cIds]),
   ]);
 
   return NextResponse.json({
-    expression: expr.count ?? 0,
-    purification: purif.count ?? 0,
-    characterization: char.count ?? 0,
-    crystallization: cryst.count ?? 0,
-    diffraction: diffr.count ?? 0,
-    structure: struct.count ?? 0,
-    nmr: nmr.count ?? 0,
-    ligands: lig.count ?? 0,
+    expression: expr ?? 0,
+    purification: purif ?? 0,
+    characterization: char ?? 0,
+    crystallization: cryst ?? 0,
+    diffraction: diffr ?? 0,
+    structure: struct ?? 0,
+    nmr: nmr ?? 0,
+    ligands: lig ?? 0,
   });
 }

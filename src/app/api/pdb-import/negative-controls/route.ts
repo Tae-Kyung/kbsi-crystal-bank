@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { createClient } from '@/lib/supabase/server';
+import { query, scalar } from '@/lib/db';
 
 /**
  * 성공 조건에서 변형하여 실패 가능성 높은 조건을 생성하는 전략
@@ -116,22 +116,18 @@ function randomBetween(min: number, max: number) {
  * GET /api/pdb-import/negative-controls — 생성 가능한 Negative Control 미리보기
  */
 export async function GET() {
-  const supabase = await createClient();
-
   // 성공 조건 중 구조화 필드가 있는 레코드
-  const { data: successes, error } = await (supabase.from('kbsi_crystallization') as any)
-    .select('id, construct_id, precipitant_type, precipitant_conc, precipitant_unit, buffer_type, ph, temperature, salt_type, salt_conc, protein_concentration, additive, outcome')
-    .in('outcome', ['diffraction_quality', 'single_crystal'])
-    .not('precipitant_type', 'is', null);
-
-  if (error) {
-    return NextResponse.json({ error: error.message }, { status: 500 });
-  }
+  const successes = await query(
+    `SELECT id, construct_id, precipitant_type, precipitant_conc, precipitant_unit, buffer_type, ph, temperature, salt_type, salt_conc, protein_concentration, additive, outcome
+     FROM kbsi_crystallization
+     WHERE outcome IN ('diffraction_quality', 'single_crystal')
+       AND precipitant_type IS NOT NULL`
+  );
 
   // 이미 생성된 synthetic 수
-  const { count: existingSynthetic } = await (supabase.from('kbsi_crystallization') as any)
-    .select('id', { count: 'exact', head: true })
-    .eq('source_type', 'synthetic');
+  const existingSynthetic = await scalar<number>(
+    "SELECT COUNT(*) FROM kbsi_crystallization WHERE source_type = 'synthetic'"
+  );
 
   // 각 성공 조건에 적용 가능한 전략 계산
   let totalPossible = 0;
@@ -162,18 +158,15 @@ export async function GET() {
  * body: { strategies?: string[] } — 미지정 시 전체 전략 적용
  */
 export async function POST(request: NextRequest) {
-  const supabase = await createClient();
   const body = await request.json();
   const selectedStrategies = body.strategies as string[] | undefined;
 
-  const { data: successes, error } = await (supabase.from('kbsi_crystallization') as any)
-    .select('id, construct_id, precipitant_type, precipitant_conc, precipitant_unit, buffer_type, ph, temperature, salt_type, salt_conc, protein_concentration, additive, outcome')
-    .in('outcome', ['diffraction_quality', 'single_crystal'])
-    .not('precipitant_type', 'is', null);
-
-  if (error) {
-    return NextResponse.json({ error: error.message }, { status: 500 });
-  }
+  const successes = await query(
+    `SELECT id, construct_id, precipitant_type, precipitant_conc, precipitant_unit, buffer_type, ph, temperature, salt_type, salt_conc, protein_concentration, additive, outcome
+     FROM kbsi_crystallization
+     WHERE outcome IN ('diffraction_quality', 'single_crystal')
+       AND precipitant_type IS NOT NULL`
+  );
 
   const strategies = selectedStrategies
     ? PERTURBATION_STRATEGIES.filter((s) => selectedStrategies.includes(s.name))
@@ -198,14 +191,28 @@ export async function POST(request: NextRequest) {
     return NextResponse.json({ message: '생성 가능한 Negative Control이 없습니다', created: 0 });
   }
 
-  // 배치 삽입
-  const { data: inserted, error: insertErr } = await (supabase.from('kbsi_crystallization') as any)
-    .insert(inserts)
-    .select('id');
+  // 배치 삽입 — build multi-row INSERT
+  // Get column names from first insert
+  const cols = Object.keys(inserts[0]);
+  const valuePlaceholders: string[] = [];
+  const allValues: unknown[] = [];
+  let paramIdx = 1;
 
-  if (insertErr) {
-    return NextResponse.json({ error: insertErr.message }, { status: 500 });
+  for (const row of inserts) {
+    const rowPlaceholders: string[] = [];
+    for (const col of cols) {
+      rowPlaceholders.push(`$${paramIdx++}`);
+      allValues.push(row[col] ?? null);
+    }
+    valuePlaceholders.push(`(${rowPlaceholders.join(', ')})`);
   }
+
+  const inserted = await query<{ id: number }>(
+    `INSERT INTO kbsi_crystallization (${cols.join(', ')})
+     VALUES ${valuePlaceholders.join(', ')}
+     RETURNING id`,
+    allValues
+  );
 
   return NextResponse.json({
     message: `${(inserted || []).length}건의 Negative Control 생성 완료`,
@@ -221,14 +228,10 @@ export async function POST(request: NextRequest) {
  * DELETE /api/pdb-import/negative-controls — synthetic 데이터 전체 삭제
  */
 export async function DELETE() {
-  const supabase = await createClient();
-
-  const { error } = await (supabase.from('kbsi_crystallization') as any)
-    .delete()
-    .eq('source_type', 'synthetic');
-
-  if (error) {
-    return NextResponse.json({ error: error.message }, { status: 500 });
+  try {
+    await query("DELETE FROM kbsi_crystallization WHERE source_type = 'synthetic'");
+  } catch (err: any) {
+    return NextResponse.json({ error: err.message }, { status: 500 });
   }
 
   return NextResponse.json({ message: 'Synthetic 데이터 전체 삭제 완료' });

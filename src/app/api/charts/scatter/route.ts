@@ -1,5 +1,5 @@
 import { NextRequest } from 'next/server';
-import { createServiceClient } from '@/lib/supabase/service';
+import { query, scalar } from '@/lib/db';
 
 /**
  * GET /api/charts/scatter — 서버에서 결정화 pH×Temperature Scatter SVG 생성
@@ -15,46 +15,48 @@ export async function GET(request: NextRequest) {
   const height = parseInt(searchParams.get('height') || '600');
   const sourceFilter = searchParams.get('source') || 'all';
 
-  const supabase = createServiceClient();
-
   // outcome별 균등 샘플링 (시각적으로 5K~10K 포인트면 충분)
   const OUTCOMES = ['clear', 'precipitate', 'phase_separation', 'microcrystal', 'single_crystal', 'diffraction_quality'];
   const SAMPLE_PER_OUTCOME = 1000;
-  let allData: any[] = [];
+
+  const sourceClause = sourceFilter === 'real'
+    ? "AND source_type != 'synthetic'"
+    : sourceFilter === 'synthetic'
+      ? "AND source_type = 'synthetic'"
+      : '';
 
   const pages = await Promise.all(
     OUTCOMES.map(async (outcome) => {
-      let query = supabase
-        .from('kbsi_crystallization')
-        .select('ph, temperature, outcome, source_type')
-        .eq('outcome', outcome)
-        .not('ph', 'is', null)
-        .not('temperature', 'is', null)
-        .limit(SAMPLE_PER_OUTCOME);
-
-      if (sourceFilter === 'real') query = query.neq('source_type', 'synthetic');
-      if (sourceFilter === 'synthetic') query = query.eq('source_type', 'synthetic');
-
-      const { data } = await query;
+      const data = await query(
+        `SELECT ph, temperature, outcome, source_type
+         FROM kbsi_crystallization
+         WHERE outcome = $1
+           AND ph IS NOT NULL
+           AND temperature IS NOT NULL
+           ${sourceClause}
+         LIMIT $2`,
+        [outcome, SAMPLE_PER_OUTCOME]
+      );
       return data || [];
     })
   );
-  allData = pages.flat();
+  const allData = pages.flat();
 
   // 전체 건수도 가져옴 (범례 표시용)
-  const countsPromises = OUTCOMES.map(async (outcome) => {
-    let query = supabase
-      .from('kbsi_crystallization')
-      .select('id', { count: 'exact', head: true })
-      .eq('outcome', outcome)
-      .not('ph', 'is', null)
-      .not('temperature', 'is', null);
-    if (sourceFilter === 'real') query = query.neq('source_type', 'synthetic');
-    if (sourceFilter === 'synthetic') query = query.eq('source_type', 'synthetic');
-    const { count } = await query;
-    return { outcome, count: count ?? 0 };
-  });
-  const totalCounts = await Promise.all(countsPromises);
+  const totalCounts = await Promise.all(
+    OUTCOMES.map(async (outcome) => {
+      const count = await scalar<number>(
+        `SELECT COUNT(*)
+         FROM kbsi_crystallization
+         WHERE outcome = $1
+           AND ph IS NOT NULL
+           AND temperature IS NOT NULL
+           ${sourceClause}`,
+        [outcome]
+      );
+      return { outcome, count: count ?? 0 };
+    })
+  );
   const totalCountMap: Record<string, number> = {};
   for (const { outcome, count } of totalCounts) totalCountMap[outcome] = count;
 

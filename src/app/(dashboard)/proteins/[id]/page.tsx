@@ -1,6 +1,6 @@
 import Link from 'next/link';
 import { notFound } from 'next/navigation';
-import { createClient } from '@/lib/supabase/server';
+import { query, queryOne, scalar } from '@/lib/db';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
@@ -13,19 +13,19 @@ export default async function ProteinDetailPage({
   params: Promise<{ id: string }>;
 }) {
   const { id } = await params;
-  const supabase = await createClient();
+  const proteinId = parseInt(id);
 
-  const { data, error } = await supabase
-    .from('kbsi_protein')
-    .select('*, kbsi_database_id(*), kbsi_construct(*)')
-    .eq('id', parseInt(id))
-    .single();
+  const protein = await queryOne<any>(
+    'SELECT * FROM kbsi_protein WHERE id = $1',
+    [proteinId]
+  );
 
-  if (error || !data) return notFound();
+  if (!protein) return notFound();
 
-  const protein = data as any;
-  const dbIds = protein.kbsi_database_id ?? [];
-  const constructs = protein.kbsi_construct ?? [];
+  const [dbIds, constructs] = await Promise.all([
+    query<any>('SELECT * FROM kbsi_database_id WHERE protein_id = $1', [proteinId]),
+    query<any>('SELECT * FROM kbsi_construct WHERE protein_id = $1', [proteinId]),
+  ]);
 
   // Experiment counts for this protein's constructs
   const constructIds = constructs.map((c: any) => c.id);
@@ -33,24 +33,45 @@ export default async function ProteinDetailPage({
   let exprCount = 0, purifCount = 0, charCount = 0, crystCount = 0, diffrCount = 0, structCount = 0;
   let ligandBindings: any[] = [];
   if (constructIds.length > 0) {
-    const [{ count: totalCryst }, { count: successCryst }, { count: ec }, { count: pc }, { count: cc }, { count: dc }, { count: sc }, { data: bindings }] = await Promise.all([
-      supabase.from('kbsi_crystallization').select('id', { count: 'exact', head: true }).in('construct_id', constructIds),
-      supabase.from('kbsi_crystallization').select('id', { count: 'exact', head: true }).in('construct_id', constructIds).or('outcome.eq.diffraction_quality,outcome.eq.single_crystal'),
-      supabase.from('kbsi_expression').select('id', { count: 'exact', head: true }).in('construct_id', constructIds),
-      supabase.from('kbsi_purification').select('id', { count: 'exact', head: true }).in('construct_id', constructIds),
-      supabase.from('kbsi_characterization').select('id', { count: 'exact', head: true }).in('construct_id', constructIds),
-      supabase.from('kbsi_diffraction').select('id', { count: 'exact', head: true }).in('construct_id', constructIds),
-      supabase.from('kbsi_structure').select('id', { count: 'exact', head: true }).in('construct_id', constructIds),
-      supabase.from('kbsi_construct_ligand').select('id, binding_kd, binding_ic50, source_db, source_id, kbsi_ligand(id, name, smiles, mw, source_db, source_id), kbsi_construct(id, name)').in('construct_id', constructIds).limit(50),
+    const placeholders = constructIds.map((_: any, i: number) => `$${i + 1}`).join(',');
+    const [totalCryst, successCryst, ec, pc, cc, dc, sc, bindings] = await Promise.all([
+      scalar<number>(`SELECT COUNT(*) FROM kbsi_crystallization WHERE construct_id IN (${placeholders})`, constructIds),
+      scalar<number>(`SELECT COUNT(*) FROM kbsi_crystallization WHERE construct_id IN (${placeholders}) AND outcome IN ('diffraction_quality','single_crystal')`, constructIds),
+      scalar<number>(`SELECT COUNT(*) FROM kbsi_expression WHERE construct_id IN (${placeholders})`, constructIds),
+      scalar<number>(`SELECT COUNT(*) FROM kbsi_purification WHERE construct_id IN (${placeholders})`, constructIds),
+      scalar<number>(`SELECT COUNT(*) FROM kbsi_characterization WHERE construct_id IN (${placeholders})`, constructIds),
+      scalar<number>(`SELECT COUNT(*) FROM kbsi_diffraction WHERE construct_id IN (${placeholders})`, constructIds),
+      scalar<number>(`SELECT COUNT(*) FROM kbsi_structure WHERE construct_id IN (${placeholders})`, constructIds),
+      query<any>(
+        `SELECT cl.id, cl.binding_kd, cl.binding_ic50, cl.source_db, cl.source_id,
+                l.id AS ligand_id, l.name AS ligand_name, l.smiles AS ligand_smiles, l.mw AS ligand_mw, l.source_db AS ligand_source_db, l.source_id AS ligand_source_id,
+                c.id AS construct_id, c.name AS construct_name
+         FROM kbsi_construct_ligand cl
+         LEFT JOIN kbsi_ligand l ON l.id = cl.ligand_id
+         LEFT JOIN kbsi_construct c ON c.id = cl.construct_id
+         WHERE cl.construct_id IN (${placeholders})
+         LIMIT 50`,
+        constructIds
+      ),
     ]);
-    crystSummary = { total: totalCryst ?? 0, success: successCryst ?? 0, failure: (totalCryst ?? 0) - (successCryst ?? 0) };
-    exprCount = ec ?? 0;
-    purifCount = pc ?? 0;
-    charCount = cc ?? 0;
-    crystCount = totalCryst ?? 0;
-    diffrCount = dc ?? 0;
-    structCount = sc ?? 0;
-    ligandBindings = bindings ?? [];
+    crystSummary = { total: Number(totalCryst) ?? 0, success: Number(successCryst) ?? 0, failure: (Number(totalCryst) ?? 0) - (Number(successCryst) ?? 0) };
+    exprCount = Number(ec) ?? 0;
+    purifCount = Number(pc) ?? 0;
+    charCount = Number(cc) ?? 0;
+    crystCount = Number(totalCryst) ?? 0;
+    diffrCount = Number(dc) ?? 0;
+    structCount = Number(sc) ?? 0;
+    // Reshape ligandBindings to match the old nested structure
+    ligandBindings = bindings.map((b: any) => ({
+      id: b.id,
+      binding_kd: b.binding_kd,
+      binding_ic50: b.binding_ic50,
+      source_db: b.source_db,
+      source_id: b.source_id,
+      construct_id: b.construct_id,
+      kbsi_ligand: { id: b.ligand_id, name: b.ligand_name, smiles: b.ligand_smiles, mw: b.ligand_mw, source_db: b.ligand_source_db, source_id: b.ligand_source_id },
+      kbsi_construct: { id: b.construct_id, name: b.construct_name },
+    }));
   }
   const successRate = crystSummary.total > 0 ? Math.round((crystSummary.success / crystSummary.total) * 100) : 0;
 

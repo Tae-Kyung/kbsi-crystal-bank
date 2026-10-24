@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { createClient } from '@/lib/supabase/server';
+import { query, queryOne } from '@/lib/db';
 import { fetchPDBEntry, searchPDB } from '@/lib/external/pdb';
 import { fetchUniProtEntry } from '@/lib/external/uniprot';
 
@@ -10,11 +10,11 @@ import { fetchUniProtEntry } from '@/lib/external/uniprot';
 export async function GET(request: NextRequest) {
   const { searchParams } = new URL(request.url);
   const pdbId = searchParams.get('pdb_id');
-  const query = searchParams.get('q');
+  const q = searchParams.get('q');
 
-  if (query) {
+  if (q) {
     const limit = parseInt(searchParams.get('limit') || '10');
-    const results = await searchPDB(query, limit);
+    const results = await searchPDB(q, limit);
     return NextResponse.json({ results });
   }
 
@@ -130,13 +130,11 @@ export async function POST(request: NextRequest) {
 }
 
 async function importSinglePdb(pdbId: string) {
-  const supabase = await createClient();
-
   // Check if PDB ID already imported
-  const { data: existingStructure } = await (supabase.from('kbsi_structure') as any)
-    .select('id, pdb_id')
-    .eq('pdb_id', pdbId.toUpperCase())
-    .maybeSingle();
+  const existingStructure = await queryOne<{ id: number; pdb_id: string }>(
+    'SELECT id, pdb_id FROM kbsi_structure WHERE pdb_id = $1',
+    [pdbId.toUpperCase()]
+  );
 
   if (existingStructure) {
     const err: any = new Error(`PDB ${pdbId} is already imported (structure id: ${existingStructure.id})`);
@@ -161,96 +159,85 @@ async function importSinglePdb(pdbId: string) {
 
   // 1. Create or find protein
   const proteinName = entry.polymerEntities[0]?.name || entry.title;
-  const { data: existingProtein } = await (supabase.from('kbsi_protein') as any)
-    .select('id')
-    .eq('full_name', proteinName)
-    .eq('organism', entry.organism || '')
-    .maybeSingle();
+  const existingProtein = await queryOne<{ id: number }>(
+    'SELECT id FROM kbsi_protein WHERE full_name = $1 AND organism = $2',
+    [proteinName, entry.organism || '']
+  );
 
   let proteinId: number;
   if (existingProtein) {
     proteinId = existingProtein.id;
   } else {
-    const { data: newProtein, error: proteinErr } = await (supabase.from('kbsi_protein') as any)
-      .insert({
-        full_name: proteinName,
-        abbreviation: uniprotData?.geneName || null,
-        gene_name: uniprotData?.geneName || null,
-        organism: entry.organism || uniprotData?.organism || null,
-      })
-      .select('id')
-      .single();
-    if (proteinErr) throw new Error(proteinErr.message);
+    const newProtein = await queryOne<{ id: number }>(
+      `INSERT INTO kbsi_protein (full_name, abbreviation, gene_name, organism)
+       VALUES ($1, $2, $3, $4)
+       RETURNING id`,
+      [proteinName, uniprotData?.geneName || null, uniprotData?.geneName || null, entry.organism || uniprotData?.organism || null]
+    );
+    if (!newProtein) throw new Error('Failed to insert protein');
     proteinId = newProtein.id;
   }
 
   // 2. Create construct
-  const { data: construct, error: constructErr } = await (supabase.from('kbsi_construct') as any)
-    .insert({
-      protein_id: proteinId,
-      name: `${entry.pdbId} construct`,
-      seq_final: entry.polymerEntities[0]?.sequence || null,
-      expression_system: entry.expressionSystem?.host || null,
-      vector: entry.expressionSystem?.vector || null,
-      construct_type: 'full-length',
-    })
-    .select('id')
-    .single();
-  if (constructErr) throw new Error(constructErr.message);
+  const construct = await queryOne<{ id: number }>(
+    `INSERT INTO kbsi_construct (protein_id, name, seq_final, expression_system, vector, construct_type)
+     VALUES ($1, $2, $3, $4, $5, $6)
+     RETURNING id`,
+    [proteinId, `${entry.pdbId} construct`, entry.polymerEntities[0]?.sequence || null, entry.expressionSystem?.host || null, entry.expressionSystem?.vector || null, 'full-length']
+  );
+  if (!construct) throw new Error('Failed to insert construct');
   const constructId = construct.id;
 
   const created: string[] = ['protein', 'construct'];
 
   // 3. Create expression record (if expression system info available)
   if (entry.expressionSystem) {
-    const { error: exprErr } = await (supabase.from('kbsi_expression') as any)
-      .insert({
-        construct_id: constructId,
-        source_type: 'database',
-        host: entry.expressionSystem.host,
-        strain: entry.expressionSystem.strain,
-      });
-    if (!exprErr) created.push('expression');
+    try {
+      await query(
+        `INSERT INTO kbsi_expression (construct_id, source_type, host, strain)
+         VALUES ($1, $2, $3, $4)`,
+        [constructId, 'database', entry.expressionSystem.host, entry.expressionSystem.strain]
+      );
+      created.push('expression');
+    } catch { /* ignore */ }
   }
 
   // 4. Create crystallization record
   if (entry.crystallization) {
-    const { error: crystErr } = await (supabase.from('kbsi_crystallization') as any)
-      .insert({
-        construct_id: constructId,
-        source_type: 'database',
-        ph: entry.crystallization.ph,
-        temperature: entry.crystallization.temperature != null
-          ? Math.round(entry.crystallization.temperature * 10) / 10
-          : null,
-        outcome: 'diffraction_quality',
-        condition_detail: [
-          entry.crystallization.method,
-          entry.crystallization.details,
-        ].filter(Boolean).join(' — '),
-      });
-    if (!crystErr) created.push('crystallization');
+    try {
+      await query(
+        `INSERT INTO kbsi_crystallization (construct_id, source_type, ph, temperature, outcome, condition_detail)
+         VALUES ($1, $2, $3, $4, $5, $6)`,
+        [
+          constructId, 'database', entry.crystallization.ph,
+          entry.crystallization.temperature != null ? Math.round(entry.crystallization.temperature * 10) / 10 : null,
+          'diffraction_quality',
+          [entry.crystallization.method, entry.crystallization.details].filter(Boolean).join(' — '),
+        ]
+      );
+      created.push('crystallization');
+    } catch { /* ignore */ }
   }
 
   // 5. Create structure record
-  const { error: structErr } = await (supabase.from('kbsi_structure') as any)
-    .insert({
-      construct_id: constructId,
-      source_type: 'database',
-      method: normalizeMethod(entry.method),
-      resolution: entry.resolution,
-      pdb_id: entry.pdbId,
-    });
-  if (!structErr) created.push('structure');
+  try {
+    await query(
+      `INSERT INTO kbsi_structure (construct_id, source_type, method, resolution, pdb_id)
+       VALUES ($1, $2, $3, $4, $5)`,
+      [constructId, 'database', normalizeMethod(entry.method), entry.resolution, entry.pdbId]
+    );
+    created.push('structure');
+  } catch { /* ignore */ }
 
   // 6. Store external database IDs
   if (uniprotAccession) {
-    await (supabase.from('kbsi_database_id') as any)
-      .insert({
-        protein_id: proteinId,
-        db_name: 'UniProt',
-        db_value: uniprotAccession,
-      });
+    try {
+      await query(
+        `INSERT INTO kbsi_database_id (protein_id, db_name, db_value)
+         VALUES ($1, $2, $3)`,
+        [proteinId, 'UniProt', uniprotAccession]
+      );
+    } catch { /* ignore */ }
   }
 
   return {

@@ -1,30 +1,37 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { createClient } from '@/lib/supabase/server';
+import { query, queryOne } from '@/lib/db';
 import { constructUpdateSchema } from '@/lib/validations/protein';
 
 type Params = { params: Promise<{ id: string }> };
 
 export async function GET(_request: NextRequest, { params }: Params) {
   const { id } = await params;
-  const supabase = await createClient();
 
-  const { data, error } = await supabase
-    .from('kbsi_construct')
-    .select('*, kbsi_protein(full_name, abbreviation), kbsi_mutation(*)')
-    .eq('id', parseInt(id))
-    .single();
+  try {
+    const data = await queryOne(
+      `SELECT c.*,
+        (SELECT row_to_json(sub) FROM (SELECT full_name, abbreviation FROM kbsi_protein WHERE id = c.protein_id) sub) AS kbsi_protein,
+        COALESCE(
+          (SELECT json_agg(m.*) FROM kbsi_mutation m WHERE m.construct_id = c.id),
+          '[]'::json
+        ) AS kbsi_mutation
+      FROM kbsi_construct c
+      WHERE c.id = $1`,
+      [parseInt(id)]
+    );
 
-  if (error) {
-    const status = error.code === 'PGRST116' ? 404 : 500;
-    return NextResponse.json({ error: error.message }, { status });
+    if (!data) {
+      return NextResponse.json({ error: 'Not found' }, { status: 404 });
+    }
+
+    return NextResponse.json({ data });
+  } catch (err: any) {
+    return NextResponse.json({ error: err.message }, { status: 500 });
   }
-
-  return NextResponse.json({ data });
 }
 
 export async function PUT(request: NextRequest, { params }: Params) {
   const { id } = await params;
-  const supabase = await createClient();
   const body = await request.json();
 
   const parsed = constructUpdateSchema.safeParse(body);
@@ -35,33 +42,33 @@ export async function PUT(request: NextRequest, { params }: Params) {
     );
   }
 
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any
-  const { data, error } = await (supabase.from('kbsi_construct') as any)
-    .update(parsed.data)
-    .eq('id', parseInt(id))
-    .select()
-    .single();
+  try {
+    const fields = Object.keys(parsed.data);
+    const values = Object.values(parsed.data);
+    const setClause = fields.map((f, i) => `${f} = $${i + 1}`).join(', ');
 
-  if (error) {
-    const status = error.code === 'PGRST116' ? 404 : 500;
-    return NextResponse.json({ error: error.message }, { status });
+    const data = await queryOne(
+      `UPDATE kbsi_construct SET ${setClause} WHERE id = $${fields.length + 1} RETURNING *`,
+      [...values, parseInt(id)]
+    );
+
+    if (!data) {
+      return NextResponse.json({ error: 'Not found' }, { status: 404 });
+    }
+
+    return NextResponse.json({ data });
+  } catch (err: any) {
+    return NextResponse.json({ error: err.message }, { status: 500 });
   }
-
-  return NextResponse.json({ data });
 }
 
 export async function DELETE(_request: NextRequest, { params }: Params) {
   const { id } = await params;
-  const supabase = await createClient();
 
-  const { error } = await supabase
-    .from('kbsi_construct')
-    .delete()
-    .eq('id', parseInt(id));
-
-  if (error) {
-    return NextResponse.json({ error: error.message }, { status: 500 });
+  try {
+    await query('DELETE FROM kbsi_construct WHERE id = $1', [parseInt(id)]);
+    return new NextResponse(null, { status: 204 });
+  } catch (err: any) {
+    return NextResponse.json({ error: err.message }, { status: 500 });
   }
-
-  return new NextResponse(null, { status: 204 });
 }

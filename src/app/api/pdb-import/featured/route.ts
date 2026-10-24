@@ -1,29 +1,27 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { createClient } from '@/lib/supabase/server';
+import { query, queryOne } from '@/lib/db';
 import { fetchPDBEntry } from '@/lib/external/pdb';
 
 /**
  * GET /api/pdb-import/featured — DB에서 추천 단백질 목록 + 등록 여부
  */
 export async function GET() {
-  const supabase = await createClient();
-
-  // DB에서 추천 목록 조회
-  const { data: featuredList, error } = await (supabase.from('kbsi_featured_protein') as any)
-    .select('pdb_id, name, organism, method, resolution, description')
-    .order('id', { ascending: true });
-
-  if (error) {
-    return NextResponse.json({ error: error.message }, { status: 500 });
-  }
+  const featuredList = await query(
+    `SELECT pdb_id, name, organism, method, resolution, description
+     FROM kbsi_featured_protein
+     ORDER BY id`
+  );
 
   // 이미 등록된 PDB ID 목록 조회
   const pdbIds = (featuredList || []).map((p: any) => p.pdb_id);
-  const { data: imported } = await (supabase.from('kbsi_structure') as any)
-    .select('pdb_id')
-    .in('pdb_id', pdbIds);
+  const imported = pdbIds.length > 0
+    ? await query<{ pdb_id: string }>(
+        'SELECT pdb_id FROM kbsi_structure WHERE pdb_id = ANY($1)',
+        [pdbIds]
+      )
+    : [];
 
-  const importedSet = new Set((imported || []).map((r: any) => r.pdb_id));
+  const importedSet = new Set((imported || []).map((r) => r.pdb_id));
 
   const results = (featuredList || []).map((p: any) => ({
     pdbId: p.pdb_id,
@@ -43,7 +41,6 @@ export async function GET() {
  * body: { pdbId: string }
  */
 export async function POST(request: NextRequest) {
-  const supabase = await createClient();
   const { pdbId } = await request.json();
 
   if (!pdbId || !/^[0-9][A-Za-z0-9]{3}$/.test(pdbId)) {
@@ -53,10 +50,10 @@ export async function POST(request: NextRequest) {
   const id = pdbId.toUpperCase();
 
   // 중복 확인
-  const { data: existing } = await (supabase.from('kbsi_featured_protein') as any)
-    .select('id')
-    .eq('pdb_id', id)
-    .maybeSingle();
+  const existing = await queryOne<{ id: number }>(
+    'SELECT id FROM kbsi_featured_protein WHERE pdb_id = $1',
+    [id]
+  );
 
   if (existing) {
     return NextResponse.json({ error: `${id}는 이미 추천 목록에 있습니다` }, { status: 409 });
@@ -68,18 +65,14 @@ export async function POST(request: NextRequest) {
     return NextResponse.json({ error: `PDB에서 ${id}를 찾을 수 없습니다` }, { status: 404 });
   }
 
-  const { error: insertError } = await (supabase.from('kbsi_featured_protein') as any)
-    .insert({
-      pdb_id: id,
-      name: entry.polymerEntities[0]?.name || entry.title,
-      organism: entry.organism || null,
-      method: entry.method,
-      resolution: entry.resolution,
-      description: entry.title,
-    });
-
-  if (insertError) {
-    return NextResponse.json({ error: insertError.message }, { status: 500 });
+  try {
+    await query(
+      `INSERT INTO kbsi_featured_protein (pdb_id, name, organism, method, resolution, description)
+       VALUES ($1, $2, $3, $4, $5, $6)`,
+      [id, entry.polymerEntities[0]?.name || entry.title, entry.organism || null, entry.method, entry.resolution, entry.title]
+    );
+  } catch (err: any) {
+    return NextResponse.json({ error: err.message }, { status: 500 });
   }
 
   return NextResponse.json({ message: `${id} 추천 목록에 추가됨` }, { status: 201 });
@@ -90,15 +83,15 @@ export async function POST(request: NextRequest) {
  * body: { pdbId: string }
  */
 export async function DELETE(request: NextRequest) {
-  const supabase = await createClient();
   const { pdbId } = await request.json();
 
-  const { error } = await (supabase.from('kbsi_featured_protein') as any)
-    .delete()
-    .eq('pdb_id', pdbId.toUpperCase());
-
-  if (error) {
-    return NextResponse.json({ error: error.message }, { status: 500 });
+  try {
+    await query(
+      'DELETE FROM kbsi_featured_protein WHERE pdb_id = $1',
+      [pdbId.toUpperCase()]
+    );
+  } catch (err: any) {
+    return NextResponse.json({ error: err.message }, { status: 500 });
   }
 
   return NextResponse.json({ message: `${pdbId} 추천 목록에서 제거됨` });

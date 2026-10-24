@@ -1,37 +1,27 @@
 import Link from 'next/link';
-import { createClient } from '@/lib/supabase/server';
+import { scalar } from '@/lib/db';
 import { Card, CardContent } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
 
 export default async function ExperimentsPage() {
-  const supabase = await createClient();
-
-  const [
-    { count: exprCount },
-    { count: purCount },
-    { count: crystCount },
-    { count: charCount },
-    { count: diffCount },
-    { count: structCount },
-    { count: nmrCount },
-  ] = await Promise.all([
-    supabase.from('kbsi_expression').select('*', { count: 'exact', head: true }),
-    supabase.from('kbsi_purification').select('*', { count: 'exact', head: true }),
-    supabase.from('kbsi_crystallization').select('*', { count: 'exact', head: true }),
-    supabase.from('kbsi_characterization').select('*', { count: 'exact', head: true }),
-    supabase.from('kbsi_diffraction').select('*', { count: 'exact', head: true }),
-    supabase.from('kbsi_structure').select('*', { count: 'exact', head: true }),
-    supabase.from('kbsi_nmr_experiment').select('*', { count: 'exact', head: true }),
+  const [exprCount, purCount, crystCount, charCount, diffCount, structCount, nmrCount] = await Promise.all([
+    scalar<number>('SELECT COUNT(*) FROM kbsi_expression'),
+    scalar<number>('SELECT COUNT(*) FROM kbsi_purification'),
+    scalar<number>('SELECT COUNT(*) FROM kbsi_crystallization'),
+    scalar<number>('SELECT COUNT(*) FROM kbsi_characterization'),
+    scalar<number>('SELECT COUNT(*) FROM kbsi_diffraction'),
+    scalar<number>('SELECT COUNT(*) FROM kbsi_structure'),
+    scalar<number>('SELECT COUNT(*) FROM kbsi_nmr_experiment'),
   ]);
 
   const categories = [
-    { name: 'Expression', slug: 'expression', desc: '발현 실험', count: exprCount ?? 0, color: 'bg-green-100 text-green-800 dark:bg-green-900 dark:text-green-200', extra: '논문 추출 활성' },
-    { name: 'Purification', slug: 'purification', desc: '정제 실험', count: purCount ?? 0, color: 'bg-blue-100 text-blue-800 dark:bg-blue-900 dark:text-blue-200', extra: '논문 추출 활성' },
-    { name: 'Crystallization', slug: 'crystallization', desc: '결정화 실험', count: crystCount ?? 0, color: 'bg-purple-100 text-purple-800 dark:bg-purple-900 dark:text-purple-200', extra: '' },
-    { name: 'Characterization', slug: 'characterization', desc: '특성분석', count: charCount ?? 0, color: 'bg-orange-100 text-orange-800 dark:bg-orange-900 dark:text-orange-200', extra: '논문 추출 활성' },
-    { name: 'Diffraction', slug: 'diffraction', desc: '회절 실험', count: diffCount ?? 0, color: 'bg-red-100 text-red-800 dark:bg-red-900 dark:text-red-200', extra: 'PDB + 논문 추출' },
-    { name: 'Structure', slug: 'structure', desc: '구조결정', count: structCount ?? 0, color: 'bg-cyan-100 text-cyan-800 dark:bg-cyan-900 dark:text-cyan-200', extra: 'X-ray + Cryo-EM + NMR' },
-    { name: 'NMR', slug: 'nmr', desc: 'NMR 실험', count: nmrCount ?? 0, color: 'bg-indigo-100 text-indigo-800 dark:bg-indigo-900 dark:text-indigo-200', extra: 'PDB NMR metadata' },
+    { name: 'Expression', slug: 'expression', desc: '발현 실험', count: Number(exprCount) ?? 0, color: 'bg-green-100 text-green-800 dark:bg-green-900 dark:text-green-200', extra: '논문 추출 활성' },
+    { name: 'Purification', slug: 'purification', desc: '정제 실험', count: Number(purCount) ?? 0, color: 'bg-blue-100 text-blue-800 dark:bg-blue-900 dark:text-blue-200', extra: '논문 추출 활성' },
+    { name: 'Crystallization', slug: 'crystallization', desc: '결정화 실험', count: Number(crystCount) ?? 0, color: 'bg-purple-100 text-purple-800 dark:bg-purple-900 dark:text-purple-200', extra: '' },
+    { name: 'Characterization', slug: 'characterization', desc: '특성분석', count: Number(charCount) ?? 0, color: 'bg-orange-100 text-orange-800 dark:bg-orange-900 dark:text-orange-200', extra: '논문 추출 활성' },
+    { name: 'Diffraction', slug: 'diffraction', desc: '회절 실험', count: Number(diffCount) ?? 0, color: 'bg-red-100 text-red-800 dark:bg-red-900 dark:text-red-200', extra: 'PDB + 논문 추출' },
+    { name: 'Structure', slug: 'structure', desc: '구조결정', count: Number(structCount) ?? 0, color: 'bg-cyan-100 text-cyan-800 dark:bg-cyan-900 dark:text-cyan-200', extra: 'X-ray + Cryo-EM + NMR' },
+    { name: 'NMR', slug: 'nmr', desc: 'NMR 실험', count: Number(nmrCount) ?? 0, color: 'bg-indigo-100 text-indigo-800 dark:bg-indigo-900 dark:text-indigo-200', extra: 'PDB NMR metadata' },
   ];
 
   return (

@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { createServiceClient } from '@/lib/supabase/service';
+import { query } from '@/lib/db';
 
 /**
  * GET /api/export/benchmark-dataset
@@ -16,49 +16,33 @@ export async function GET(request: NextRequest) {
   const includeSynthetic = searchParams.get('include_synthetic') !== 'false';
   const limit = parseInt(searchParams.get('limit') || '999999');
 
-  const supabase = createServiceClient();
+  const syntheticClause = includeSynthetic ? '' : "AND cr.source_type != 'synthetic'";
 
-  // pagination으로 전량 조회
-  let allData: any[] = [];
-  let offset = 0;
-  const PAGE = 1000;
-
-  while (allData.length < limit) {
-    let query = supabase
-      .from('kbsi_crystallization')
-      .select(`
-        id, construct_id, ph, temperature,
-        precipitant_type, precipitant_conc, precipitant_unit,
-        buffer_type, salt_type, salt_conc,
-        protein_concentration, additive, outcome,
-        source_type, source_db, source_id,
-        kbsi_construct(name, protein_id, expression_system,
-          kbsi_protein(full_name, organism))
-      `)
-      .not('outcome', 'is', null)
-      .range(offset, offset + PAGE - 1);
-
-    if (!includeSynthetic) {
-      query = query.neq('source_type', 'synthetic');
-    }
-
-    const { data, error } = await query;
-    if (error) return NextResponse.json({ error: error.message }, { status: 500 });
-    if (!data || data.length === 0) break;
-    allData = allData.concat(data);
-    if (data.length < PAGE) break;
-    offset += PAGE;
-  }
-
-  allData = allData.slice(0, limit);
+  // Single query with JOIN instead of pagination + nested selects
+  const allData = await query(
+    `SELECT cr.id, cr.construct_id, cr.ph, cr.temperature,
+            cr.precipitant_type, cr.precipitant_conc, cr.precipitant_unit,
+            cr.buffer_type, cr.salt_type, cr.salt_conc,
+            cr.protein_concentration, cr.additive, cr.outcome,
+            cr.source_type, cr.source_db, cr.source_id,
+            c.name AS construct_name, c.protein_id, c.expression_system,
+            p.full_name AS protein_name, p.organism
+     FROM kbsi_crystallization cr
+     JOIN kbsi_construct c ON c.id = cr.construct_id
+     JOIN kbsi_protein p ON p.id = c.protein_id
+     WHERE cr.outcome IS NOT NULL
+     ${syntheticClause}
+     LIMIT $1`,
+    [limit]
+  );
 
   // 플랫 구조로 변환
-  const flatData = allData.map((r: any) => ({
+  const flatData = (allData || []).map((r: any) => ({
     id: r.id,
-    protein_name: r.kbsi_construct?.kbsi_protein?.full_name || null,
-    organism: r.kbsi_construct?.kbsi_protein?.organism || null,
-    construct_name: r.kbsi_construct?.name || null,
-    expression_system: r.kbsi_construct?.expression_system || null,
+    protein_name: r.protein_name || null,
+    organism: r.organism || null,
+    construct_name: r.construct_name || null,
+    expression_system: r.expression_system || null,
     ph: r.ph,
     temperature: r.temperature,
     precipitant_type: r.precipitant_type,

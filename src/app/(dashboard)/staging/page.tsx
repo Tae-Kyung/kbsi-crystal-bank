@@ -1,4 +1,4 @@
-import { createClient } from '@/lib/supabase/server';
+import { query, scalar } from '@/lib/db';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
@@ -6,13 +6,44 @@ import { StagingReviewList } from '@/components/staging/staging-review-list';
 import { ExtractionForm } from '@/components/staging/extraction-form';
 
 export default async function StagingPage() {
-  const supabase = await createClient();
-
-  const [pending, approved, rejected] = await Promise.all([
-    supabase.from('kbsi_extraction_staging').select('*, kbsi_reference(title, doi, year)', { count: 'exact' }).eq('review_status', 'pending').order('extraction_date', { ascending: false }),
-    supabase.from('kbsi_extraction_staging').select('*, kbsi_reference(title, doi, year)', { count: 'exact' }).eq('review_status', 'approved').order('reviewed_at', { ascending: false }).limit(50),
-    supabase.from('kbsi_extraction_staging').select('*, kbsi_reference(title, doi, year)', { count: 'exact' }).eq('review_status', 'rejected').order('reviewed_at', { ascending: false }).limit(50),
+  const [pendingData, pendingCount, approvedData, approvedCount, rejectedData, rejectedCount] = await Promise.all([
+    query<any>(
+      `SELECT s.*, r.title AS ref_title, r.doi AS ref_doi, r.year AS ref_year
+       FROM kbsi_extraction_staging s
+       LEFT JOIN kbsi_reference r ON r.id = s.reference_id
+       WHERE s.review_status = 'pending'
+       ORDER BY s.extraction_date DESC`
+    ),
+    scalar<number>(`SELECT COUNT(*) FROM kbsi_extraction_staging WHERE review_status = 'pending'`),
+    query<any>(
+      `SELECT s.*, r.title AS ref_title, r.doi AS ref_doi, r.year AS ref_year
+       FROM kbsi_extraction_staging s
+       LEFT JOIN kbsi_reference r ON r.id = s.reference_id
+       WHERE s.review_status = 'approved'
+       ORDER BY s.reviewed_at DESC
+       LIMIT 50`
+    ),
+    scalar<number>(`SELECT COUNT(*) FROM kbsi_extraction_staging WHERE review_status = 'approved'`),
+    query<any>(
+      `SELECT s.*, r.title AS ref_title, r.doi AS ref_doi, r.year AS ref_year
+       FROM kbsi_extraction_staging s
+       LEFT JOIN kbsi_reference r ON r.id = s.reference_id
+       WHERE s.review_status = 'rejected'
+       ORDER BY s.reviewed_at DESC
+       LIMIT 50`
+    ),
+    scalar<number>(`SELECT COUNT(*) FROM kbsi_extraction_staging WHERE review_status = 'rejected'`),
   ]);
+
+  // Reshape to match old nested structure (kbsi_reference nested)
+  const reshapeRow = (row: any) => ({
+    ...row,
+    kbsi_reference: row.ref_title ? { title: row.ref_title, doi: row.ref_doi, year: row.ref_year } : null,
+  });
+
+  const pending = { data: pendingData.map(reshapeRow), count: Number(pendingCount) };
+  const approved = { data: approvedData.map(reshapeRow), count: Number(approvedCount) };
+  const rejected = { data: rejectedData.map(reshapeRow), count: Number(rejectedCount) };
 
   return (
     <div className="space-y-6">

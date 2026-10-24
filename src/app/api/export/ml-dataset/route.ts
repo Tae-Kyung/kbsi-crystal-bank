@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { createClient } from '@/lib/supabase/server';
+import { query } from '@/lib/db';
 
 /**
  * GET /api/export/ml-dataset — ML 학습용 결정화 조건 데이터셋 export
@@ -10,35 +10,28 @@ import { createClient } from '@/lib/supabase/server';
  *   outcome_binary: false (default) | true (success/failure 이진 분류)
  */
 export async function GET(request: NextRequest) {
-  const supabase = await createClient();
   const { searchParams } = new URL(request.url);
   const format = searchParams.get('format') || 'json';
   const includeSynthetic = searchParams.get('include_synthetic') !== 'false';
   const outcomeBinary = searchParams.get('outcome_binary') === 'true';
 
-  let query = (supabase.from('kbsi_crystallization') as any)
-    .select(`
-      id, construct_id, source_type, outcome,
-      precipitant_type, precipitant_conc, precipitant_unit,
-      buffer_type, ph, temperature,
-      salt_type, salt_conc,
-      protein_concentration, additive, drop_ratio,
-      construct:kbsi_construct!inner(
-        name, expression_system,
-        protein:kbsi_protein!inner(full_name, organism)
-      )
-    `)
-    .not('outcome', 'is', null);
+  const syntheticClause = includeSynthetic ? '' : "AND cr.source_type != 'synthetic'";
 
-  if (!includeSynthetic) {
-    query = query.neq('source_type', 'synthetic');
-  }
-
-  const { data, error } = await query.order('id');
-
-  if (error) {
-    return NextResponse.json({ error: error.message }, { status: 500 });
-  }
+  const data = await query(
+    `SELECT cr.id, cr.construct_id, cr.source_type, cr.outcome,
+            cr.precipitant_type, cr.precipitant_conc, cr.precipitant_unit,
+            cr.buffer_type, cr.ph, cr.temperature,
+            cr.salt_type, cr.salt_conc,
+            cr.protein_concentration, cr.additive, cr.drop_ratio,
+            c.name AS construct_name, c.expression_system,
+            p.full_name AS protein_name, p.organism
+     FROM kbsi_crystallization cr
+     JOIN kbsi_construct c ON c.id = cr.construct_id
+     JOIN kbsi_protein p ON p.id = c.protein_id
+     WHERE cr.outcome IS NOT NULL
+     ${syntheticClause}
+     ORDER BY cr.id`
+  );
 
   if (!data || data.length === 0) {
     return NextResponse.json({ error: 'No data found' }, { status: 404 });
@@ -48,9 +41,9 @@ export async function GET(request: NextRequest) {
   const rows = data.map((r: any) => {
     const base: Record<string, any> = {
       id: r.id,
-      protein_name: r.construct?.protein?.full_name || '',
-      organism: r.construct?.protein?.organism || '',
-      expression_system: r.construct?.expression_system || '',
+      protein_name: r.protein_name || '',
+      organism: r.organism || '',
+      expression_system: r.expression_system || '',
       source_type: r.source_type,
       precipitant_type: r.precipitant_type || '',
       precipitant_conc: r.precipitant_conc,

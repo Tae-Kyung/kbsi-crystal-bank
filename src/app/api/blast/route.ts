@@ -1,5 +1,5 @@
 import { NextResponse } from 'next/server';
-import { createServiceClient } from '@/lib/supabase/service';
+import { query } from '@/lib/db';
 
 const BLAST_API = 'https://blast.ncbi.nlm.nih.gov/blast/Blast.cgi';
 
@@ -97,17 +97,22 @@ export async function POST(request: Request) {
     }).slice(0, 20);
 
     // 4. KBSI DB에서 매칭
-    const supabase = createServiceClient();
     const pdbIds = uniqueMatches.map((m: any) => m.pdb_id);
 
     let kbsiData: any[] = [];
     if (pdbIds.length > 0) {
-      const { data } = await supabase
-        .from('kbsi_structure')
-        .select('pdb_id, construct_id, resolution, method, kbsi_construct(id, name, protein_id, expression_system, theoretical_mw, kbsi_protein(full_name, abbreviation, organism))')
-        .in('pdb_id', pdbIds)
-        .limit(50);
-      kbsiData = data || [];
+      kbsiData = await query(
+        `SELECT s.pdb_id, s.construct_id, s.resolution, s.method,
+                c.id AS "construct.id", c.name AS "construct.name", c.protein_id AS "construct.protein_id",
+                c.expression_system AS "construct.expression_system", c.theoretical_mw AS "construct.theoretical_mw",
+                p.full_name AS "protein.full_name", p.abbreviation AS "protein.abbreviation", p.organism AS "protein.organism"
+         FROM kbsi_structure s
+         JOIN kbsi_construct c ON c.id = s.construct_id
+         JOIN kbsi_protein p ON p.id = c.protein_id
+         WHERE s.pdb_id = ANY($1)
+         LIMIT 50`,
+        [pdbIds]
+      );
     }
 
     // 5. BLAST 결과 + KBSI 데이터 통합
@@ -117,10 +122,10 @@ export async function POST(request: Request) {
         ...m,
         in_kbsi: !!kbsi,
         construct_id: kbsi?.construct_id,
-        protein: kbsi?.kbsi_construct?.kbsi_protein?.abbreviation || kbsi?.kbsi_construct?.kbsi_protein?.full_name?.slice(0, 30),
-        organism: kbsi?.kbsi_construct?.kbsi_protein?.organism,
-        expression_system: kbsi?.kbsi_construct?.expression_system,
-        mw: kbsi?.kbsi_construct?.theoretical_mw ? Math.round(kbsi.kbsi_construct.theoretical_mw / 1000 * 10) / 10 : null,
+        protein: kbsi?.['protein.abbreviation'] || kbsi?.['protein.full_name']?.slice(0, 30),
+        organism: kbsi?.['protein.organism'],
+        expression_system: kbsi?.['construct.expression_system'],
+        mw: kbsi?.['construct.theoretical_mw'] ? Math.round(kbsi['construct.theoretical_mw'] / 1000 * 10) / 10 : null,
         resolution: kbsi?.resolution,
       };
     });

@@ -1,6 +1,6 @@
 import Link from 'next/link';
 import { notFound } from 'next/navigation';
-import { createClient } from '@/lib/supabase/server';
+import { query, scalar } from '@/lib/db';
 import { Card, CardContent } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
@@ -68,63 +68,83 @@ export default async function ExperimentTypePage({
   const limit = 50;
   const offset = (page - 1) * limit;
 
-  const supabase = await createClient();
-
   // construct_id 필터링을 위한 construct 조회
   let filterConstructIds: number[] | null = null;
   if (proteinFilter) {
-    // eslint-disable-next-line @typescript-eslint/no-explicit-any
-    const { data: matchedProteins } = await (supabase as any)
-      .from('kbsi_protein')
-      .select('id')
-      .or(`full_name.ilike.%${proteinFilter}%,abbreviation.ilike.%${proteinFilter}%,gene_name.ilike.%${proteinFilter}%`)
-      .limit(20);
-    if (matchedProteins && matchedProteins.length > 0) {
+    const matchedProteins = await query<any>(
+      `SELECT id FROM kbsi_protein
+       WHERE full_name ILIKE $1 OR abbreviation ILIKE $1 OR gene_name ILIKE $1
+       LIMIT 20`,
+      [`%${proteinFilter}%`]
+    );
+    if (matchedProteins.length > 0) {
       const proteinIds = matchedProteins.map((p: any) => p.id);
-      // eslint-disable-next-line @typescript-eslint/no-explicit-any
-      const { data: matchedConstructs } = await (supabase as any)
-        .from('kbsi_construct')
-        .select('id')
-        .in('protein_id', proteinIds)
-        .limit(500);
-      filterConstructIds = (matchedConstructs || []).map((c: any) => c.id);
+      const placeholders = proteinIds.map((_: any, i: number) => `$${i + 1}`).join(',');
+      const matchedConstructs = await query<any>(
+        `SELECT id FROM kbsi_construct WHERE protein_id IN (${placeholders}) LIMIT 500`,
+        proteinIds
+      );
+      filterConstructIds = matchedConstructs.map((c: any) => c.id);
     } else {
       filterConstructIds = [];
     }
   }
 
-  // count + data 쿼리
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any
-  let countQuery = supabase.from(config.table).select('id', { count: 'exact', head: true }) as any;
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any
-  let dataQuery = (supabase.from(config.table) as any)
-    .select('*, kbsi_construct(name, protein_id, kbsi_protein(full_name, abbreviation))');
+  // Build WHERE clauses
+  const conditions: string[] = [];
+  const values: unknown[] = [];
+  let paramIdx = 1;
 
   if (constructFilter) {
     const cIds = constructFilter.split(',').map(Number).filter(n => !isNaN(n));
     if (cIds.length === 1) {
-      countQuery = countQuery.eq('construct_id', cIds[0]);
-      dataQuery = dataQuery.eq('construct_id', cIds[0]);
+      conditions.push(`e.construct_id = $${paramIdx}`);
+      values.push(cIds[0]);
+      paramIdx++;
     } else if (cIds.length > 1) {
-      countQuery = countQuery.in('construct_id', cIds);
-      dataQuery = dataQuery.in('construct_id', cIds);
+      const placeholders = cIds.map((_, i) => `$${paramIdx + i}`).join(',');
+      conditions.push(`e.construct_id IN (${placeholders})`);
+      values.push(...cIds);
+      paramIdx += cIds.length;
     }
   } else if (filterConstructIds !== null) {
     if (filterConstructIds.length === 0) {
-      // 매칭 없음 → 빈 결과
       filterConstructIds = [-1];
     }
-    countQuery = countQuery.in('construct_id', filterConstructIds.slice(0, 100));
-    dataQuery = dataQuery.in('construct_id', filterConstructIds.slice(0, 100));
+    const sliced = filterConstructIds.slice(0, 100);
+    const placeholders = sliced.map((_, i) => `$${paramIdx + i}`).join(',');
+    conditions.push(`e.construct_id IN (${placeholders})`);
+    values.push(...sliced);
+    paramIdx += sliced.length;
   }
 
-  const [{ count }, { data }] = await Promise.all([
-    countQuery,
-    dataQuery.order('created_at', { ascending: false }).range(offset, offset + limit - 1),
+  const whereClause = conditions.length > 0 ? `WHERE ${conditions.join(' AND ')}` : '';
+
+  const [count, data] = await Promise.all([
+    scalar<number>(`SELECT COUNT(*) FROM ${config.table} e ${whereClause}`, values),
+    query<any>(
+      `SELECT e.*, c.name AS construct_name, c.protein_id,
+              p.full_name AS protein_full_name, p.abbreviation AS protein_abbreviation
+       FROM ${config.table} e
+       LEFT JOIN kbsi_construct c ON c.id = e.construct_id
+       LEFT JOIN kbsi_protein p ON p.id = c.protein_id
+       ${whereClause}
+       ORDER BY e.created_at DESC
+       OFFSET $${paramIdx} LIMIT $${paramIdx + 1}`,
+      [...values, offset, limit]
+    ),
   ]);
 
-  const totalPages = Math.ceil((count ?? 0) / limit);
-  const records = (data || []) as any[];
+  const totalPages = Math.ceil((Number(count) ?? 0) / limit);
+  // Reshape records to match old nested structure
+  const records = (data || []).map((r: any) => ({
+    ...r,
+    kbsi_construct: {
+      name: r.construct_name,
+      protein_id: r.protein_id,
+      kbsi_protein: r.protein_full_name ? { full_name: r.protein_full_name, abbreviation: r.protein_abbreviation } : null,
+    },
+  }));
 
   return (
     <div className="space-y-4">
@@ -134,7 +154,7 @@ export default async function ExperimentTypePage({
             <Link href="/experiments" className="text-muted-foreground hover:text-foreground text-sm">&larr; Experiments</Link>
           </div>
           <h2 className="text-2xl font-bold mt-1">{config.title}</h2>
-          <p className="text-muted-foreground">{config.desc} — {(count ?? 0).toLocaleString()}건</p>
+          <p className="text-muted-foreground">{config.desc} — {(Number(count) ?? 0).toLocaleString()}건</p>
         </div>
       </div>
 
@@ -246,7 +266,7 @@ export default async function ExperimentTypePage({
       {totalPages > 1 && (
         <div className="flex items-center justify-between">
           <p className="text-sm text-muted-foreground">
-            총 {(count ?? 0).toLocaleString()}건 (페이지 {page} / {totalPages.toLocaleString()})
+            총 {(Number(count) ?? 0).toLocaleString()}건 (페이지 {page} / {totalPages.toLocaleString()})
           </p>
           <div className="flex items-center gap-2">
             <Link href={`/experiments/${type}?page=1${proteinFilter ? `&protein=${proteinFilter}` : ''}${constructFilter ? `&construct_id=${constructFilter}` : ''}`}>

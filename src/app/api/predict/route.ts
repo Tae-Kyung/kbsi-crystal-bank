@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { createClient } from '@/lib/supabase/server';
+import { query } from '@/lib/db';
 import { extractFeatures, findKNearest, estimateSuccessProbability } from '@/lib/ml/features';
 
 /**
@@ -10,7 +10,6 @@ import { extractFeatures, findKNearest, estimateSuccessProbability } from '@/lib
  * Body: { protein_concentration, precipitant_type, precipitant_conc, ph, temperature, additive }
  */
 export async function POST(request: NextRequest) {
-  const supabase = await createClient();
   const body = await request.json();
 
   const queryCondition = {
@@ -23,54 +22,53 @@ export async function POST(request: NextRequest) {
     outcome: null,
   };
 
-  // DB에서 검증된 결정화 데이터만 fetch
-  const { data, error } = await supabase
-    .from('kbsi_crystallization')
-    .select('protein_concentration, precipitant_type, precipitant_conc, ph, temperature, additive, outcome')
-    .not('outcome', 'is', null);
+  try {
+    // DB에서 검증된 결정화 데이터만 fetch
+    const crystData = await query<any>(
+      `SELECT protein_concentration, precipitant_type, precipitant_conc, ph, temperature, additive, outcome
+       FROM kbsi_crystallization
+       WHERE outcome IS NOT NULL`
+    );
 
-  const crystData = (data ?? []) as any[];
+    if (!crystData || crystData.length < 5) {
+      return NextResponse.json({
+        prediction: null,
+        message: `Insufficient data (${crystData?.length ?? 0} records). Need at least 5 for prediction.`,
+      });
+    }
 
-  if (error) {
-    return NextResponse.json({ error: error.message }, { status: 500 });
-  }
+    const queryFeatures = extractFeatures(queryCondition);
+    const datasetFeatures = crystData.map((r: any) => extractFeatures(r));
 
-  if (!crystData || crystData.length < 5) {
+    // k 값: 데이터의 제곱근 (일반적 휴리스틱), 최소 3 최대 20
+    const k = Math.max(3, Math.min(20, Math.round(Math.sqrt(crystData.length))));
+    const neighbors = findKNearest(queryFeatures, datasetFeatures, k);
+    const probability = estimateSuccessProbability(neighbors);
+
+    // 각 outcome별 분포
+    const outcomeDistribution: Record<string, number> = {};
+    for (const n of neighbors) {
+      const outcome = crystData[n.index]?.outcome || 'unknown';
+      outcomeDistribution[outcome] = (outcomeDistribution[outcome] || 0) + 1;
+    }
+
+    // 가장 가까운 성공 사례의 조건
+    const bestMatch = neighbors.find((n) => n.features.outcome_rank >= 4);
+
     return NextResponse.json({
-      prediction: null,
-      message: `Insufficient data (${crystData?.length ?? 0} records). Need at least 5 for prediction.`,
+      prediction: {
+        success_probability: Math.round(probability * 100),
+        confidence: crystData.length >= 50 ? 'high' : crystData.length >= 20 ? 'medium' : 'low',
+        k_used: k,
+        data_points_total: crystData.length,
+      },
+      outcome_distribution: outcomeDistribution,
+      best_match: bestMatch
+        ? { ...crystData[bestMatch.index], distance: Math.round(bestMatch.distance * 100) / 100 }
+        : null,
+      query: queryCondition,
     });
+  } catch (err: any) {
+    return NextResponse.json({ error: err.message }, { status: 500 });
   }
-
-  const queryFeatures = extractFeatures(queryCondition);
-  const datasetFeatures = crystData.map((r) => extractFeatures(r));
-
-  // k 값: 데이터의 제곱근 (일반적 휴리스틱), 최소 3 최대 20
-  const k = Math.max(3, Math.min(20, Math.round(Math.sqrt(crystData.length))));
-  const neighbors = findKNearest(queryFeatures, datasetFeatures, k);
-  const probability = estimateSuccessProbability(neighbors);
-
-  // 각 outcome별 분포
-  const outcomeDistribution: Record<string, number> = {};
-  for (const n of neighbors) {
-    const outcome = crystData[n.index]?.outcome || 'unknown';
-    outcomeDistribution[outcome] = (outcomeDistribution[outcome] || 0) + 1;
-  }
-
-  // 가장 가까운 성공 사례의 조건
-  const bestMatch = neighbors.find((n) => n.features.outcome_rank >= 4);
-
-  return NextResponse.json({
-    prediction: {
-      success_probability: Math.round(probability * 100),
-      confidence: crystData.length >= 50 ? 'high' : crystData.length >= 20 ? 'medium' : 'low',
-      k_used: k,
-      data_points_total: crystData.length,
-    },
-    outcome_distribution: outcomeDistribution,
-    best_match: bestMatch
-      ? { ...crystData[bestMatch.index], distance: Math.round(bestMatch.distance * 100) / 100 }
-      : null,
-    query: queryCondition,
-  });
 }

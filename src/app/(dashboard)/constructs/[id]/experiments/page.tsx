@@ -1,5 +1,5 @@
 import { notFound } from 'next/navigation';
-import { createClient } from '@/lib/supabase/server';
+import { query, queryOne } from '@/lib/db';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { ExpressionTab } from '@/components/experiments/expression-tab';
 import { CrystallizationTab } from '@/components/experiments/crystallization-tab';
@@ -15,48 +15,60 @@ export default async function ExperimentsPage({
 }) {
   const { id } = await params;
   const constructId = parseInt(id);
-  const supabase = await createClient();
 
   // Verify construct exists
-  const { data: constructData, error } = await supabase
-    .from('kbsi_construct')
-    .select('id, name, kbsi_protein(abbreviation, full_name)')
-    .eq('id', constructId)
-    .single();
+  const constructData = await queryOne<any>(
+    `SELECT c.id, c.name, p.abbreviation AS protein_abbreviation, p.full_name AS protein_full_name
+     FROM kbsi_construct c
+     LEFT JOIN kbsi_protein p ON p.id = c.protein_id
+     WHERE c.id = $1`,
+    [constructId]
+  );
 
-  if (error || !constructData) return notFound();
+  if (!constructData) return notFound();
 
-  const construct = constructData as any;
+  const construct = constructData;
 
   // Fetch all experiment data in parallel
   const [expressions, purifications, crystallizations, characterizations, structures, nmrExperiments] = await Promise.all([
-    supabase.from('kbsi_expression').select('*').eq('construct_id', constructId).order('attempt_number'),
-    supabase.from('kbsi_purification').select('*').eq('construct_id', constructId).order('attempt_number'),
-    supabase.from('kbsi_crystallization').select('*').eq('construct_id', constructId).order('attempt_number'),
-    supabase.from('kbsi_characterization').select('*').eq('construct_id', constructId).order('method'),
-    supabase.from('kbsi_structure').select('*').eq('construct_id', constructId).order('created_at'),
-    supabase.from('kbsi_nmr_experiment').select('*, kbsi_nmr_spectrum(id, spectrum_type)').eq('construct_id', constructId).order('created_at'),
+    query<any>('SELECT * FROM kbsi_expression WHERE construct_id = $1 ORDER BY attempt_number', [constructId]),
+    query<any>('SELECT * FROM kbsi_purification WHERE construct_id = $1 ORDER BY attempt_number', [constructId]),
+    query<any>('SELECT * FROM kbsi_crystallization WHERE construct_id = $1 ORDER BY attempt_number', [constructId]),
+    query<any>('SELECT * FROM kbsi_characterization WHERE construct_id = $1 ORDER BY method', [constructId]),
+    query<any>('SELECT * FROM kbsi_structure WHERE construct_id = $1 ORDER BY created_at', [constructId]),
+    query<any>(
+      `SELECT n.*, json_agg(json_build_object('id', s.id, 'spectrum_type', s.spectrum_type)) FILTER (WHERE s.id IS NOT NULL) AS spectra
+       FROM kbsi_nmr_experiment n
+       LEFT JOIN kbsi_nmr_spectrum s ON s.nmr_experiment_id = n.id
+       WHERE n.construct_id = $1
+       GROUP BY n.id
+       ORDER BY n.created_at`,
+      [constructId]
+    ),
   ]);
 
+  // Reshape NMR data to match old structure (kbsi_nmr_spectrum nested)
+  const nmrList = nmrExperiments.map((n: any) => ({
+    ...n,
+    kbsi_nmr_spectrum: n.spectra || [],
+  }));
+
   // Chemical shift summaries for NMR experiments
-  const nmrList = nmrExperiments.data ?? [];
   const bmrbIds = nmrList.map((n: any) => n.bmrb_id).filter(Boolean);
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   let csSummaries: Record<string, any> = {};
   if (bmrbIds.length > 0) {
-    // eslint-disable-next-line @typescript-eslint/no-explicit-any
-    const { data: csData } = await (supabase as any)
-      .from('kbsi_nmr_cs_summary')
-      .select('*')
-      .in('bmrb_id', bmrbIds);
-    if (csData) {
-      for (const cs of csData as any[]) {
-        csSummaries[cs.bmrb_id] = cs;
-      }
+    const placeholders = bmrbIds.map((_: any, i: number) => `$${i + 1}`).join(',');
+    const csData = await query<any>(
+      `SELECT * FROM kbsi_nmr_cs_summary WHERE bmrb_id IN (${placeholders})`,
+      bmrbIds
+    );
+    for (const cs of csData) {
+      csSummaries[cs.bmrb_id] = cs;
     }
   }
 
-  const protein = (construct as any).kbsi_protein;
+  const protein = { abbreviation: construct.protein_abbreviation, full_name: construct.protein_full_name };
 
   return (
     <div className="space-y-4">
@@ -72,42 +84,42 @@ export default async function ExperimentsPage({
       <Tabs defaultValue="expression">
         <TabsList className="flex-wrap">
           <TabsTrigger value="expression">
-            Expression ({expressions.data?.length ?? 0})
+            Expression ({expressions.length})
           </TabsTrigger>
           <TabsTrigger value="purification">
-            Purification ({purifications.data?.length ?? 0})
+            Purification ({purifications.length})
           </TabsTrigger>
           <TabsTrigger value="crystallization">
-            Crystallization ({crystallizations.data?.length ?? 0})
+            Crystallization ({crystallizations.length})
           </TabsTrigger>
           <TabsTrigger value="characterization">
-            Characterization ({characterizations.data?.length ?? 0})
+            Characterization ({characterizations.length})
           </TabsTrigger>
           <TabsTrigger value="structure">
-            Structure ({structures.data?.length ?? 0})
+            Structure ({structures.length})
           </TabsTrigger>
           <TabsTrigger value="nmr">
-            NMR ({nmrExperiments.data?.length ?? 0})
+            NMR ({nmrList.length})
           </TabsTrigger>
         </TabsList>
 
         <TabsContent value="expression">
-          <ExpressionTab data={expressions.data ?? []} constructId={constructId} />
+          <ExpressionTab data={expressions} constructId={constructId} />
         </TabsContent>
         <TabsContent value="purification">
-          <PurificationTab data={purifications.data ?? []} constructId={constructId} />
+          <PurificationTab data={purifications} constructId={constructId} />
         </TabsContent>
         <TabsContent value="crystallization">
-          <CrystallizationTab data={crystallizations.data ?? []} constructId={constructId} />
+          <CrystallizationTab data={crystallizations} constructId={constructId} />
         </TabsContent>
         <TabsContent value="characterization">
-          <CharacterizationTab data={characterizations.data ?? []} constructId={constructId} />
+          <CharacterizationTab data={characterizations} constructId={constructId} />
         </TabsContent>
         <TabsContent value="structure">
-          <StructureTab data={structures.data ?? []} constructId={constructId} />
+          <StructureTab data={structures} constructId={constructId} />
         </TabsContent>
         <TabsContent value="nmr">
-          <NmrTab data={nmrExperiments.data ?? []} csSummaries={csSummaries} />
+          <NmrTab data={nmrList} csSummaries={csSummaries} />
         </TabsContent>
       </Tabs>
     </div>

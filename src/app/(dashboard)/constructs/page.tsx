@@ -1,5 +1,5 @@
 import Link from 'next/link';
-import { createServiceClient } from '@/lib/supabase/service';
+import { query, scalar } from '@/lib/db';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
 import { Plus } from 'lucide-react';
@@ -12,33 +12,42 @@ export default async function ConstructsPage({
   searchParams: Promise<{ protein_id?: string; page?: string; search?: string }>;
 }) {
   const params = await searchParams;
-  const supabase = createServiceClient();
   const page = parseInt(params.page || '1');
   const limit = 50;
   const offset = (page - 1) * limit;
   const search = params.search || '';
 
-  let countQuery = supabase
-    .from('kbsi_construct')
-    .select('id', { count: 'exact', head: true }) as any;
-
-  let dataQuery = supabase
-    .from('kbsi_construct')
-    .select('id, name, construct_type, expression_system, tag_name, residues, theoretical_mw, protein_id, updated_at, kbsi_protein(full_name, abbreviation)') as any;
+  // Build WHERE clauses
+  const conditions: string[] = [];
+  const values: unknown[] = [];
+  let paramIdx = 1;
 
   if (params.protein_id) {
-    countQuery = countQuery.eq('protein_id', parseInt(params.protein_id));
-    dataQuery = dataQuery.eq('protein_id', parseInt(params.protein_id));
+    conditions.push(`c.protein_id = $${paramIdx}`);
+    values.push(parseInt(params.protein_id));
+    paramIdx++;
   }
 
   if (search) {
-    countQuery = countQuery.or(`name.ilike.%${search}%,expression_system.ilike.%${search}%`);
-    dataQuery = dataQuery.or(`name.ilike.%${search}%,expression_system.ilike.%${search}%`);
+    conditions.push(`(c.name ILIKE $${paramIdx} OR c.expression_system ILIKE $${paramIdx})`);
+    values.push(`%${search}%`);
+    paramIdx++;
   }
 
-  const [{ count }, { data: constructs }] = await Promise.all([
-    countQuery,
-    dataQuery.order('updated_at', { ascending: false }).range(offset, offset + limit - 1),
+  const whereClause = conditions.length > 0 ? `WHERE ${conditions.join(' AND ')}` : '';
+
+  const [count, constructs] = await Promise.all([
+    scalar<number>(`SELECT COUNT(*) FROM kbsi_construct c ${whereClause}`, values),
+    query(
+      `SELECT c.id, c.name, c.construct_type, c.expression_system, c.tag_name, c.residues, c.theoretical_mw, c.protein_id, c.updated_at,
+              p.full_name AS protein_full_name, p.abbreviation AS protein_abbreviation
+       FROM kbsi_construct c
+       LEFT JOIN kbsi_protein p ON p.id = c.protein_id
+       ${whereClause}
+       ORDER BY c.updated_at DESC
+       OFFSET $${paramIdx} LIMIT $${paramIdx + 1}`,
+      [...values, offset, limit]
+    ),
   ]);
 
   const totalPages = Math.ceil((count ?? 0) / limit);
@@ -100,9 +109,9 @@ export default async function ConstructsPage({
                   </Link>
                 </td>
                 <td className="px-3 py-2 text-xs">
-                  {c.kbsi_protein ? (
+                  {c.protein_full_name ? (
                     <Link href={`/proteins/${c.protein_id}`} className="text-primary hover:underline">
-                      {c.kbsi_protein.abbreviation || c.kbsi_protein.full_name?.slice(0, 20)}
+                      {c.protein_abbreviation || c.protein_full_name?.slice(0, 20)}
                     </Link>
                   ) : '-'}
                 </td>

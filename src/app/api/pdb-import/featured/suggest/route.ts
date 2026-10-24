@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { createClient } from '@/lib/supabase/server';
+import { query } from '@/lib/db';
 
 /**
  * 인기/교육적 단백질 검색 키워드 카테고리
@@ -37,12 +37,11 @@ export async function GET(request: NextRequest) {
   const { searchParams } = new URL(request.url);
   const count = Math.min(parseInt(searchParams.get('count') || '6'), 20);
 
-  const supabase = await createClient();
-
   // 현재 추천 목록의 PDB ID 조회
-  const { data: existing } = await (supabase.from('kbsi_featured_protein') as any)
-    .select('pdb_id');
-  const existingSet = new Set((existing || []).map((r: any) => r.pdb_id));
+  const existing = await query<{ pdb_id: string }>(
+    'SELECT pdb_id FROM kbsi_featured_protein'
+  );
+  const existingSet = new Set((existing || []).map((r) => r.pdb_id));
 
   // 랜덤 카테고리 선택
   const shuffled = [...SEARCH_CATEGORIES].sort(() => Math.random() - 0.5);

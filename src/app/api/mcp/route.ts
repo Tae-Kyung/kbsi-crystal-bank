@@ -1,7 +1,6 @@
 import { McpServer } from '@modelcontextprotocol/sdk/server/mcp.js';
 import { WebStandardStreamableHTTPServerTransport } from '@modelcontextprotocol/sdk/server/webStandardStreamableHttp.js';
 import { z } from 'zod';
-import { createServiceClient } from '@/lib/supabase/service';
 import * as queries from '@/lib/tools/crystallization-queries';
 
 function toMcpResult(data: any) {
@@ -15,14 +14,14 @@ function createMcpServer() {
     'search_proteins',
     '단백질을 이름, 약어, 유전자명으로 검색합니다',
     { query: z.string().describe('검색어'), limit: z.number().optional().default(10) },
-    async ({ query, limit }) => toMcpResult(await queries.searchProteins(createServiceClient(), query, limit)),
+    async ({ query, limit }) => toMcpResult(await queries.searchProteins(null, query, limit)),
   );
 
   server.tool(
     'search_constructs',
     'Construct를 단백질 ID 또는 이름으로 검색합니다',
     { protein_id: z.number().optional(), query: z.string().optional(), limit: z.number().optional().default(10) },
-    async ({ protein_id, query, limit }) => toMcpResult(await queries.searchConstructs(createServiceClient(), protein_id, query, limit)),
+    async ({ protein_id, query, limit }) => toMcpResult(await queries.searchConstructs(null, protein_id, query, limit)),
   );
 
   server.tool(
@@ -33,14 +32,14 @@ function createMcpServer() {
       experiment_type: z.enum(['expression', 'purification', 'crystallization', 'characterization', 'diffraction', 'structure', 'nmr']),
       limit: z.number().optional().default(20),
     },
-    async ({ construct_id, experiment_type, limit }) => toMcpResult(await queries.getExperiments(createServiceClient(), construct_id, experiment_type, limit)),
+    async ({ construct_id, experiment_type, limit }) => toMcpResult(await queries.getExperiments(null, construct_id, experiment_type, limit)),
   );
 
   server.tool(
     'get_statistics',
     '데이터베이스 통계를 조회합니다 (단백질, construct, 실험 건수)',
     {},
-    async () => toMcpResult(await queries.getStatistics(createServiceClient())),
+    async () => toMcpResult(await queries.getStatistics(null)),
   );
 
   server.tool(
@@ -51,7 +50,7 @@ function createMcpServer() {
       precipitant_type: z.string().optional(), precipitant_conc: z.number().optional(),
       protein_concentration: z.number().optional(), k: z.number().optional().default(5),
     },
-    async (params) => toMcpResult(await queries.recommendCrystallization(createServiceClient(), params)),
+    async (params) => toMcpResult(await queries.recommendCrystallization(null, params)),
   );
 
   server.tool(
@@ -62,7 +61,7 @@ function createMcpServer() {
       precipitant_type: z.string().optional(), precipitant_conc: z.number().optional(),
       protein_concentration: z.number().optional(),
     },
-    async (params) => toMcpResult(await queries.predictSuccess(createServiceClient(), params)),
+    async (params) => toMcpResult(await queries.predictSuccess(null, params)),
   );
 
   server.tool(
@@ -75,35 +74,35 @@ function createMcpServer() {
       temperature_min: z.number().optional(), temperature_max: z.number().optional(),
       limit: z.number().optional().default(20),
     },
-    async (params) => toMcpResult(await queries.searchCrystallizationConditions(createServiceClient(), params)),
+    async (params) => toMcpResult(await queries.searchCrystallizationConditions(null, params)),
   );
 
   server.tool(
     'sequence_search',
     '서열 유사도 기반으로 단백질을 검색합니다',
     { sequence: z.string().describe('아미노산 서열 (최소 10잔기)'), limit: z.number().optional().default(10) },
-    async ({ sequence, limit }) => toMcpResult(await queries.sequenceSearch(createServiceClient(), sequence, limit)),
+    async ({ sequence, limit }) => toMcpResult(await queries.sequenceSearch(null, sequence, limit)),
   );
 
   server.tool(
     'search_ligands',
     '리간드(약물 후보)를 이름 또는 SMILES로 검색합니다',
     { query: z.string().describe('리간드 이름 또는 SMILES'), limit: z.number().optional().default(20) },
-    async ({ query, limit }) => toMcpResult(await queries.searchLigands(createServiceClient(), query, limit)),
+    async ({ query, limit }) => toMcpResult(await queries.searchLigands(null, query, limit)),
   );
 
   server.tool(
     'get_bindings',
     '약물-타겟 바인딩 데이터(IC50, Kd, Ki)를 조회합니다',
     { construct_id: z.number().optional(), ligand_id: z.number().optional(), limit: z.number().optional().default(20) },
-    async ({ construct_id, ligand_id, limit }) => toMcpResult(await queries.getBindings(createServiceClient(), construct_id, ligand_id, limit)),
+    async ({ construct_id, ligand_id, limit }) => toMcpResult(await queries.getBindings(null, construct_id, ligand_id, limit)),
   );
 
   server.tool(
     'search_structures',
     'PDB ID 또는 실험 방법으로 3D 구조를 검색합니다',
     { pdb_id: z.string().optional(), method: z.enum(['X-ray', 'NMR', 'Cryo-EM']).optional(), limit: z.number().optional().default(20) },
-    async ({ pdb_id, method, limit }) => toMcpResult(await queries.searchStructures(createServiceClient(), pdb_id, method, limit)),
+    async ({ pdb_id, method, limit }) => toMcpResult(await queries.searchStructures(null, pdb_id, method, limit)),
   );
 
   server.tool(
@@ -115,14 +114,14 @@ function createMcpServer() {
       construct_id: z.number().optional().describe('Construct ID'),
       limit: z.number().optional().default(20),
     },
-    async (params) => toMcpResult(await queries.searchMutations(createServiceClient(), params)),
+    async (params) => toMcpResult(await queries.searchMutations(null, params)),
   );
 
   server.tool(
     'esm2_search',
     'ESM-2 임베딩 기반 서열 유사도 검색. GPU 서버에서 실시간 임베딩 계산 후 284K construct와 벡터 유사도로 검색합니다.',
     { sequence: z.string().describe('아미노산 서열 (최소 10잔기)'), limit: z.number().optional().default(20) },
-    async ({ sequence, limit }) => toMcpResult(await queries.esm2Search(createServiceClient(), sequence, limit)),
+    async ({ sequence, limit }) => toMcpResult(await queries.esm2Search(null, sequence, limit)),
   );
 
   server.tool(
@@ -138,7 +137,7 @@ function createMcpServer() {
       labelling: z.string().optional().describe('동위원소 표지 (예: 15N, 13C)'),
       limit: z.number().optional().default(20),
     },
-    async (params) => toMcpResult(await queries.searchNmrExperiments(createServiceClient(), params)),
+    async (params) => toMcpResult(await queries.searchNmrExperiments(null, params)),
   );
 
   server.tool(
@@ -148,7 +147,7 @@ function createMcpServer() {
       protein_id: z.number().optional().describe('단백질 ID (DB 검색 모드)'),
       sequence: z.string().optional().describe('아미노산 서열 (서열 검색 모드)'),
     },
-    async (params) => toMcpResult(await queries.copilotAnalyze(createServiceClient(), params)),
+    async (params) => toMcpResult(await queries.copilotAnalyze(null, params)),
   );
 
   server.tool(
@@ -168,7 +167,7 @@ function createMcpServer() {
     'get_data_quality',
     '데이터 품질 요약 (필드 구조화율, outcome 분포, 합성/실험 비율)',
     {},
-    async () => toMcpResult(await queries.getDataQualitySummary(createServiceClient())),
+    async () => toMcpResult(await queries.getDataQualitySummary(null)),
   );
 
   server.tool(
@@ -180,7 +179,7 @@ function createMcpServer() {
       protein_name: z.string().optional(),
       limit: z.number().optional().default(20),
     },
-    async (params) => toMcpResult(await queries.searchCharacterizations(createServiceClient(), params)),
+    async (params) => toMcpResult(await queries.searchCharacterizations(null, params)),
   );
 
   server.tool(
@@ -193,7 +192,7 @@ function createMcpServer() {
       protein_name: z.string().optional(),
       limit: z.number().optional().default(20),
     },
-    async (params) => toMcpResult(await queries.searchDiffractions(createServiceClient(), params)),
+    async (params) => toMcpResult(await queries.searchDiffractions(null, params)),
   );
 
   server.tool(
@@ -204,7 +203,7 @@ function createMcpServer() {
       ligand_name: z.string().optional().describe('리간드 이름으로 필터'),
       limit: z.number().optional().default(30),
     },
-    async (params) => toMcpResult(await queries.getLigandBindingNetwork(createServiceClient(), params)),
+    async (params) => toMcpResult(await queries.getLigandBindingNetwork(null, params)),
   );
 
   return server;

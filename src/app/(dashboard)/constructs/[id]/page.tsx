@@ -1,6 +1,6 @@
 import Link from 'next/link';
 import { notFound } from 'next/navigation';
-import { createClient } from '@/lib/supabase/server';
+import { query, queryOne, scalar } from '@/lib/db';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
@@ -13,44 +13,64 @@ export default async function ConstructDetailPage({
   params: Promise<{ id: string }>;
 }) {
   const { id } = await params;
-  const supabase = await createClient();
+  const constructId = parseInt(id);
 
-  const { data, error } = await supabase
-    .from('kbsi_construct')
-    .select('*, kbsi_protein(id, full_name, abbreviation), kbsi_mutation(*)')
-    .eq('id', parseInt(id))
-    .single();
+  const construct = await queryOne<any>(
+    `SELECT c.*, p.id AS protein_id, p.full_name AS protein_full_name, p.abbreviation AS protein_abbreviation
+     FROM kbsi_construct c
+     LEFT JOIN kbsi_protein p ON p.id = c.protein_id
+     WHERE c.id = $1`,
+    [constructId]
+  );
 
-  if (error || !data) return notFound();
+  if (!construct) return notFound();
 
-  const construct = data as any;
-  const protein = construct.kbsi_protein;
-  const mutations = construct.kbsi_mutation ?? [];
+  const protein = construct.protein_id ? { id: construct.protein_id, full_name: construct.protein_full_name, abbreviation: construct.protein_abbreviation } : null;
+  const mutations = await query<any>('SELECT * FROM kbsi_mutation WHERE construct_id = $1', [constructId]);
 
   // Fetch experiment counts + ligand bindings
-  const [expr, puri, cryst, char, diffr, struct, nmr, { data: ligandBindings }, { data: exprSources }] = await Promise.all([
-    supabase.from('kbsi_expression').select('id', { count: 'exact', head: true }).eq('construct_id', parseInt(id)),
-    supabase.from('kbsi_purification').select('id', { count: 'exact', head: true }).eq('construct_id', parseInt(id)),
-    supabase.from('kbsi_crystallization').select('id', { count: 'exact', head: true }).eq('construct_id', parseInt(id)),
-    supabase.from('kbsi_characterization').select('id', { count: 'exact', head: true }).eq('construct_id', parseInt(id)),
-    supabase.from('kbsi_diffraction').select('id', { count: 'exact', head: true }).eq('construct_id', parseInt(id)),
-    supabase.from('kbsi_structure').select('id', { count: 'exact', head: true }).eq('construct_id', parseInt(id)),
-    supabase.from('kbsi_nmr_experiment').select('id', { count: 'exact', head: true }).eq('construct_id', parseInt(id)),
-    supabase.from('kbsi_construct_ligand').select('id, binding_kd, binding_ic50, source_db, kbsi_ligand(id, name, mw, source_db, source_id)').eq('construct_id', parseInt(id)).limit(50),
-    supabase.from('kbsi_expression').select('source_db, source_id').eq('construct_id', parseInt(id)).eq('source_db', 'PubMed').not('source_id', 'is', null).limit(1),
+  const [exprCount, puriCount, crystCount, charCount, diffrCount, structCount, nmrCount, ligandBindings, exprSources] = await Promise.all([
+    scalar<number>('SELECT COUNT(*) FROM kbsi_expression WHERE construct_id = $1', [constructId]),
+    scalar<number>('SELECT COUNT(*) FROM kbsi_purification WHERE construct_id = $1', [constructId]),
+    scalar<number>('SELECT COUNT(*) FROM kbsi_crystallization WHERE construct_id = $1', [constructId]),
+    scalar<number>('SELECT COUNT(*) FROM kbsi_characterization WHERE construct_id = $1', [constructId]),
+    scalar<number>('SELECT COUNT(*) FROM kbsi_diffraction WHERE construct_id = $1', [constructId]),
+    scalar<number>('SELECT COUNT(*) FROM kbsi_structure WHERE construct_id = $1', [constructId]),
+    scalar<number>('SELECT COUNT(*) FROM kbsi_nmr_experiment WHERE construct_id = $1', [constructId]),
+    query<any>(
+      `SELECT cl.id, cl.binding_kd, cl.binding_ic50, cl.source_db,
+              l.id AS ligand_id, l.name AS ligand_name, l.mw AS ligand_mw, l.source_db AS ligand_source_db, l.source_id AS ligand_source_id
+       FROM kbsi_construct_ligand cl
+       LEFT JOIN kbsi_ligand l ON l.id = cl.ligand_id
+       WHERE cl.construct_id = $1
+       LIMIT 50`,
+      [constructId]
+    ),
+    query<any>(
+      `SELECT source_db, source_id FROM kbsi_expression
+       WHERE construct_id = $1 AND source_db = 'PubMed' AND source_id IS NOT NULL
+       LIMIT 1`,
+      [constructId]
+    ),
   ]);
 
+  // Reshape ligandBindings to match nested structure
+  const reshapedBindings = ligandBindings.map((b: any) => ({
+    ...b,
+    kbsi_ligand: { id: b.ligand_id, name: b.ligand_name, mw: b.ligand_mw, source_db: b.ligand_source_db, source_id: b.ligand_source_id },
+  }));
+
   // LLM 추출 논문 DOI
-  const paperDoi = (exprSources as any)?.[0]?.source_id || null;
+  const paperDoi = exprSources?.[0]?.source_id || null;
 
   const stats = [
-    { label: 'Expression', slug: 'expression', count: expr.count ?? 0, color: 'text-green-600' },
-    { label: 'Purification', slug: 'purification', count: puri.count ?? 0, color: 'text-blue-600' },
-    { label: 'Characterization', slug: 'characterization', count: char.count ?? 0, color: 'text-orange-600' },
-    { label: 'Crystallization', slug: 'crystallization', count: cryst.count ?? 0, color: 'text-purple-600' },
-    { label: 'Diffraction', slug: 'diffraction', count: diffr.count ?? 0, color: 'text-red-600' },
-    { label: 'Structure', slug: 'structure', count: struct.count ?? 0, color: 'text-cyan-600' },
-    { label: 'NMR', slug: 'nmr', count: nmr.count ?? 0, color: 'text-indigo-600' },
+    { label: 'Expression', slug: 'expression', count: Number(exprCount) ?? 0, color: 'text-green-600' },
+    { label: 'Purification', slug: 'purification', count: Number(puriCount) ?? 0, color: 'text-blue-600' },
+    { label: 'Characterization', slug: 'characterization', count: Number(charCount) ?? 0, color: 'text-orange-600' },
+    { label: 'Crystallization', slug: 'crystallization', count: Number(crystCount) ?? 0, color: 'text-purple-600' },
+    { label: 'Diffraction', slug: 'diffraction', count: Number(diffrCount) ?? 0, color: 'text-red-600' },
+    { label: 'Structure', slug: 'structure', count: Number(structCount) ?? 0, color: 'text-cyan-600' },
+    { label: 'NMR', slug: 'nmr', count: Number(nmrCount) ?? 0, color: 'text-indigo-600' },
   ];
 
   return (
@@ -133,9 +153,9 @@ export default async function ConstructDetailPage({
       </div>
 
       {/* Ligand Bindings */}
-      {(ligandBindings ?? []).length > 0 && (
+      {reshapedBindings.length > 0 && (
         <Card>
-          <CardHeader><CardTitle className="text-base">Ligand Bindings ({(ligandBindings ?? []).length})</CardTitle></CardHeader>
+          <CardHeader><CardTitle className="text-base">Ligand Bindings ({reshapedBindings.length})</CardTitle></CardHeader>
           <CardContent>
             <div className="rounded-md border overflow-hidden">
               <table className="w-full text-sm">
@@ -149,7 +169,7 @@ export default async function ConstructDetailPage({
                   </tr>
                 </thead>
                 <tbody className="divide-y">
-                  {(ligandBindings ?? []).map((b: any) => {
+                  {reshapedBindings.map((b: any) => {
                     const lig = b.kbsi_ligand;
                     const lUrl = lig?.source_db === 'ChEMBL' && lig?.source_id ? `https://www.ebi.ac.uk/chembl/compound_report_card/${lig.source_id}/` : lig?.source_db === 'PDB' && lig?.source_id ? `https://www.rcsb.org/ligand/${lig.source_id}` : null;
                     return (

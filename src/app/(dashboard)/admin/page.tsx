@@ -1,4 +1,4 @@
-import { createServiceClient } from '@/lib/supabase/service';
+import { scalar } from '@/lib/db';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
 
@@ -43,8 +43,6 @@ const TYPE_COLORS: Record<string, string> = {
 };
 
 export default async function AdminPage() {
-  const supabase = createServiceClient();
-
   // 테이블별 건수
   const tables = [
     { name: 'kbsi_protein', label: 'Proteins' },
@@ -63,8 +61,8 @@ export default async function AdminPage() {
 
   const counts = await Promise.all(
     tables.map(async t => {
-      const { count } = await supabase.from(t.name).select('id', { count: 'exact', head: true });
-      return { ...t, count: count ?? 0 };
+      const count = await scalar<number>(`SELECT COUNT(*) FROM ${t.name}`);
+      return { ...t, count: Number(count) ?? 0 };
     })
   );
 
@@ -83,20 +81,20 @@ export default async function AdminPage() {
 
   const coverage = await Promise.all(
     coverageChecks.map(async c => {
-      const [{ count: total }, { count: filled }] = await Promise.all([
-        supabase.from(c.table).select('id', { count: 'exact', head: true }),
-        supabase.from(c.table).select('id', { count: 'exact', head: true }).not(c.field, 'is', null),
+      const [total, filled] = await Promise.all([
+        scalar<number>(`SELECT COUNT(*) FROM ${c.table}`),
+        scalar<number>(`SELECT COUNT(*) FROM ${c.table} WHERE ${c.field} IS NOT NULL`),
       ]);
-      const t = total ?? 0;
-      const f = filled ?? 0;
+      const t = Number(total) ?? 0;
+      const f = Number(filled) ?? 0;
       return { ...c, total: t, filled: f, pct: t > 0 ? Math.round(f / t * 1000) / 10 : 0 };
     })
   );
 
   // Enrichment 커버리지
-  const [{ count: crystExp }, { count: hasPrecip }] = await Promise.all([
-    supabase.from('kbsi_crystallization').select('id', { count: 'exact', head: true }).neq('source_type', 'synthetic'),
-    supabase.from('kbsi_crystallization').select('id', { count: 'exact', head: true }).neq('source_type', 'synthetic').not('precipitant_type', 'is', null),
+  const [crystExp, hasPrecip] = await Promise.all([
+    scalar<number>(`SELECT COUNT(*) FROM kbsi_crystallization WHERE source_type != 'synthetic'`),
+    scalar<number>(`SELECT COUNT(*) FROM kbsi_crystallization WHERE source_type != 'synthetic' AND precipitant_type IS NOT NULL`),
   ]);
 
   return (
@@ -146,11 +144,11 @@ export default async function AdminPage() {
               <div className="flex-1 h-4 bg-muted rounded-sm overflow-hidden">
                 <div
                   className="h-full rounded-sm bg-yellow-500"
-                  style={{ width: `${Math.round((hasPrecip ?? 0) / (crystExp ?? 1) * 100)}%` }}
+                  style={{ width: `${Math.round((Number(hasPrecip) ?? 0) / (Number(crystExp) || 1) * 100)}%` }}
                 />
               </div>
               <div className="w-20 text-right text-xs font-mono">
-                {Math.round((hasPrecip ?? 0) / (crystExp ?? 1) * 100)}% <span className="text-muted-foreground">({(hasPrecip ?? 0).toLocaleString()})</span>
+                {Math.round((Number(hasPrecip) ?? 0) / (Number(crystExp) || 1) * 100)}% <span className="text-muted-foreground">({(Number(hasPrecip) ?? 0).toLocaleString()})</span>
               </div>
             </div>
           </div>

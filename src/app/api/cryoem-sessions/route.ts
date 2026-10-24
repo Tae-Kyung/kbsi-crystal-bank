@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { createClient } from '@/lib/supabase/server';
+import { query, queryOne } from '@/lib/db';
 import { z } from 'zod';
 
 const cryoemCreateSchema = z.object({
@@ -21,23 +21,29 @@ const cryoemCreateSchema = z.object({
 });
 
 export async function GET(request: NextRequest) {
-  const supabase = await createClient();
   const constructId = new URL(request.url).searchParams.get('construct_id');
 
-  let query = supabase.from('kbsi_cryoem_session').select('*');
+  try {
+    const params: unknown[] = [];
+    let whereClause = '';
 
-  if (constructId) {
-    query = query.eq('construct_id', parseInt(constructId));
+    if (constructId) {
+      whereClause = 'WHERE construct_id = $1';
+      params.push(parseInt(constructId));
+    }
+
+    const data = await query(
+      `SELECT * FROM kbsi_cryoem_session ${whereClause} ORDER BY created_at DESC`,
+      params
+    );
+
+    return NextResponse.json({ data });
+  } catch (err: any) {
+    return NextResponse.json({ error: err.message }, { status: 500 });
   }
-
-  const { data, error } = await query.order('created_at', { ascending: false });
-
-  if (error) return NextResponse.json({ error: error.message }, { status: 500 });
-  return NextResponse.json({ data });
 }
 
 export async function POST(request: NextRequest) {
-  const supabase = await createClient();
   const body = await request.json();
 
   const parsed = cryoemCreateSchema.safeParse(body);
@@ -45,12 +51,20 @@ export async function POST(request: NextRequest) {
     return NextResponse.json({ error: 'Validation failed', details: parsed.error.flatten() }, { status: 400 });
   }
 
-  const { data, error } = await supabase
-    .from('kbsi_cryoem_session')
-    .insert(parsed.data as any)
-    .select()
-    .single();
+  try {
+    const obj = parsed.data as Record<string, unknown>;
+    const fields = Object.keys(obj).filter(k => obj[k] !== undefined);
+    const values = fields.map(k => obj[k]);
+    const cols = fields.join(', ');
+    const placeholders = fields.map((_, i) => `$${i + 1}`).join(', ');
 
-  if (error) return NextResponse.json({ error: error.message }, { status: 500 });
-  return NextResponse.json({ data }, { status: 201 });
+    const data = await queryOne(
+      `INSERT INTO kbsi_cryoem_session (${cols}) VALUES (${placeholders}) RETURNING *`,
+      values
+    );
+
+    return NextResponse.json({ data }, { status: 201 });
+  } catch (err: any) {
+    return NextResponse.json({ error: err.message }, { status: 500 });
+  }
 }

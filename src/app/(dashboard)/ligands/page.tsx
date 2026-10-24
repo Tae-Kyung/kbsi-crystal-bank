@@ -1,5 +1,5 @@
 import Link from 'next/link';
-import { createClient } from '@/lib/supabase/server';
+import { query, scalar } from '@/lib/db';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
@@ -19,12 +19,10 @@ export default async function LigandsPage({
   const limit = 50;
   const offset = (page - 1) * limit;
 
-  const supabase = await createClient();
-
   // Stats
-  const [{ count: ligandCount }, { count: bindingCount }] = await Promise.all([
-    supabase.from('kbsi_ligand').select('id', { count: 'exact', head: true }),
-    supabase.from('kbsi_construct_ligand').select('id', { count: 'exact', head: true }),
+  const [ligandCount, bindingCount] = await Promise.all([
+    scalar<number>('SELECT COUNT(*) FROM kbsi_ligand'),
+    scalar<number>('SELECT COUNT(*) FROM kbsi_construct_ligand'),
   ]);
 
   // Build filter params string
@@ -37,41 +35,65 @@ export default async function LigandsPage({
 
   if (tab === 'bindings') {
     // === Bindings tab ===
-    let bCountQuery = supabase
-      .from('kbsi_construct_ligand')
-      .select('id', { count: 'exact', head: true }) as any;
-    let bDataQuery = supabase
-      .from('kbsi_construct_ligand')
-      .select('id, binding_kd, binding_ic50, source_db, source_id, kbsi_ligand(id, name, mw, source_db, source_id), kbsi_construct(id, name, kbsi_protein(id, full_name, abbreviation))') as any;
+    const bConditions: string[] = [];
+    const bValues: unknown[] = [];
+    let bIdx = 1;
 
     // protein filter for bindings
     if (proteinFilter) {
-      const { data: matchedProteins } = await (supabase as any)
-        .from('kbsi_protein')
-        .select('id')
-        .or(`full_name.ilike.%${proteinFilter}%,abbreviation.ilike.%${proteinFilter}%,gene_name.ilike.%${proteinFilter}%`)
-        .limit(20);
-      if (matchedProteins && matchedProteins.length > 0) {
+      const matchedProteins = await query<any>(
+        `SELECT id FROM kbsi_protein
+         WHERE full_name ILIKE $1 OR abbreviation ILIKE $1 OR gene_name ILIKE $1
+         LIMIT 20`,
+        [`%${proteinFilter}%`]
+      );
+      if (matchedProteins.length > 0) {
         const pIds = matchedProteins.map((p: any) => p.id);
-        const { data: matchedConstructs } = await (supabase as any)
-          .from('kbsi_construct').select('id').in('protein_id', pIds).limit(500);
-        const cIds = (matchedConstructs || []).map((c: any) => c.id);
+        const pPlaceholders = pIds.map((_: any, i: number) => `$${bIdx + i}`).join(',');
+        const matchedConstructs = await query<any>(
+          `SELECT id FROM kbsi_construct WHERE protein_id IN (${pPlaceholders}) LIMIT 500`,
+          pIds
+        );
+        const cIds = matchedConstructs.map((c: any) => c.id);
         if (cIds.length > 0) {
-          bCountQuery = bCountQuery.in('construct_id', cIds.slice(0, 100));
-          bDataQuery = bDataQuery.in('construct_id', cIds.slice(0, 100));
+          const cPlaceholders = cIds.slice(0, 100).map((_: any, i: number) => `$${bIdx + i}`).join(',');
+          bConditions.push(`cl.construct_id IN (${cPlaceholders})`);
+          bValues.push(...cIds.slice(0, 100));
+          bIdx += cIds.slice(0, 100).length;
         } else {
-          bCountQuery = bCountQuery.in('construct_id', [-1]);
-          bDataQuery = bDataQuery.in('construct_id', [-1]);
+          bConditions.push(`cl.construct_id = -1`);
         }
       }
     }
 
-    const [{ count: bCount }, { data: bindings }] = await Promise.all([
-      bCountQuery,
-      bDataQuery.order('id', { ascending: false }).range(offset, offset + limit - 1),
+    const bWhereClause = bConditions.length > 0 ? `WHERE ${bConditions.join(' AND ')}` : '';
+
+    const [bCount, bindings] = await Promise.all([
+      scalar<number>(`SELECT COUNT(*) FROM kbsi_construct_ligand cl ${bWhereClause}`, bValues),
+      query<any>(
+        `SELECT cl.id, cl.binding_kd, cl.binding_ic50, cl.source_db, cl.source_id,
+                l.id AS ligand_id, l.name AS ligand_name, l.mw AS ligand_mw, l.source_db AS ligand_source_db, l.source_id AS ligand_source_id,
+                c.id AS con_id, c.name AS con_name,
+                p.id AS prot_id, p.full_name AS prot_full_name, p.abbreviation AS prot_abbreviation
+         FROM kbsi_construct_ligand cl
+         LEFT JOIN kbsi_ligand l ON l.id = cl.ligand_id
+         LEFT JOIN kbsi_construct c ON c.id = cl.construct_id
+         LEFT JOIN kbsi_protein p ON p.id = c.protein_id
+         ${bWhereClause}
+         ORDER BY cl.id DESC
+         OFFSET $${bIdx} LIMIT $${bIdx + 1}`,
+        [...bValues, offset, limit]
+      ),
     ]);
 
-    const bTotalPages = Math.ceil((bCount ?? 0) / limit);
+    // Reshape to match old nested structure
+    const reshapedBindings = (bindings || []).map((b: any) => ({
+      id: b.id, binding_kd: b.binding_kd, binding_ic50: b.binding_ic50, source_db: b.source_db, source_id: b.source_id,
+      kbsi_ligand: { id: b.ligand_id, name: b.ligand_name, mw: b.ligand_mw, source_db: b.ligand_source_db, source_id: b.ligand_source_id },
+      kbsi_construct: { id: b.con_id, name: b.con_name, kbsi_protein: b.prot_id ? { id: b.prot_id, full_name: b.prot_full_name, abbreviation: b.prot_abbreviation } : null },
+    }));
+
+    const bTotalPages = Math.ceil((Number(bCount) ?? 0) / limit);
 
     return (
       <div className="space-y-4">
@@ -79,7 +101,7 @@ export default async function LigandsPage({
           <div>
             <h2 className="text-2xl font-bold">Ligands & Bindings</h2>
             <p className="text-muted-foreground">
-              {(ligandCount ?? 0).toLocaleString()} ligands · {(bindingCount ?? 0).toLocaleString()} bindings
+              {(Number(ligandCount) ?? 0).toLocaleString()} ligands · {(Number(bindingCount) ?? 0).toLocaleString()} bindings
             </p>
           </div>
           <LigandFormDialog />
@@ -91,7 +113,7 @@ export default async function LigandsPage({
             <Button variant="ghost" size="sm">Ligands</Button>
           </Link>
           <Link href={`/ligands?tab=bindings${filterStr}`}>
-            <Button variant="default" size="sm">Bindings ({(bindingCount ?? 0).toLocaleString()})</Button>
+            <Button variant="default" size="sm">Bindings ({(Number(bindingCount) ?? 0).toLocaleString()})</Button>
           </Link>
         </div>
 
@@ -125,7 +147,7 @@ export default async function LigandsPage({
               </tr>
             </thead>
             <tbody className="divide-y">
-              {(bindings || []).map((b: any) => {
+              {reshapedBindings.map((b: any) => {
                 const lig = b.kbsi_ligand;
                 const con = b.kbsi_construct;
                 const prot = con?.kbsi_protein;
@@ -159,7 +181,7 @@ export default async function LigandsPage({
                   </tr>
                 );
               })}
-              {(!bindings || bindings.length === 0) && (
+              {reshapedBindings.length === 0 && (
                 <tr><td colSpan={7} className="px-3 py-8 text-center text-muted-foreground">데이터가 없습니다.</td></tr>
               )}
             </tbody>
@@ -168,7 +190,7 @@ export default async function LigandsPage({
 
         {bTotalPages > 1 && (
           <div className="flex items-center justify-between">
-            <p className="text-sm text-muted-foreground">총 {(bCount ?? 0).toLocaleString()}건 (페이지 {page} / {bTotalPages.toLocaleString()})</p>
+            <p className="text-sm text-muted-foreground">총 {(Number(bCount) ?? 0).toLocaleString()}건 (페이지 {page} / {bTotalPages.toLocaleString()})</p>
             <div className="flex items-center gap-2">
               <Link href={`/ligands?tab=bindings&page=1${filterStr}`}><Button variant="outline" size="sm" disabled={page <= 1}>처음</Button></Link>
               <Link href={`/ligands?tab=bindings&page=${page - 1}${filterStr}`}><Button variant="outline" size="sm" disabled={page <= 1}>이전</Button></Link>
@@ -183,54 +205,72 @@ export default async function LigandsPage({
   }
 
   // === Ligands tab (default) ===
-  let countQuery = supabase.from('kbsi_ligand').select('id', { count: 'exact', head: true }) as any;
-  let dataQuery = supabase.from('kbsi_ligand')
-    .select('id, name, smiles, mw, source_db, source_id, created_at') as any;
+  const lConditions: string[] = [];
+  const lValues: unknown[] = [];
+  let lIdx = 1;
 
   if (search) {
-    countQuery = countQuery.or(`name.ilike.%${search}%,source_id.ilike.%${search}%`);
-    dataQuery = dataQuery.or(`name.ilike.%${search}%,source_id.ilike.%${search}%`);
+    lConditions.push(`(l.name ILIKE $${lIdx} OR l.source_id ILIKE $${lIdx})`);
+    lValues.push(`%${search}%`);
+    lIdx++;
   }
   if (mwMax) {
-    countQuery = countQuery.lte('mw', mwMax);
-    dataQuery = dataQuery.lte('mw', mwMax);
+    lConditions.push(`l.mw <= $${lIdx}`);
+    lValues.push(mwMax);
+    lIdx++;
   }
 
   // protein filter: find ligand IDs through binding table
   if (proteinFilter) {
-    const { data: matchedProteins } = await (supabase as any)
-      .from('kbsi_protein').select('id')
-      .or(`full_name.ilike.%${proteinFilter}%,abbreviation.ilike.%${proteinFilter}%,gene_name.ilike.%${proteinFilter}%`)
-      .limit(20);
-    if (matchedProteins && matchedProteins.length > 0) {
+    const matchedProteins = await query<any>(
+      `SELECT id FROM kbsi_protein
+       WHERE full_name ILIKE $1 OR abbreviation ILIKE $1 OR gene_name ILIKE $1
+       LIMIT 20`,
+      [`%${proteinFilter}%`]
+    );
+    if (matchedProteins.length > 0) {
       const pIds = matchedProteins.map((p: any) => p.id);
-      const { data: matchedConstructs } = await (supabase as any)
-        .from('kbsi_construct').select('id').in('protein_id', pIds).limit(500);
-      const cIds = (matchedConstructs || []).map((c: any) => c.id);
+      const pPlaceholders = pIds.map((_: any, i: number) => `$${i + 1}`).join(',');
+      const matchedConstructs = await query<any>(
+        `SELECT id FROM kbsi_construct WHERE protein_id IN (${pPlaceholders}) LIMIT 500`,
+        pIds
+      );
+      const cIds = matchedConstructs.map((c: any) => c.id);
       if (cIds.length > 0) {
-        const { data: matchedBindings } = await (supabase as any)
-          .from('kbsi_construct_ligand').select('ligand_id').in('construct_id', cIds.slice(0, 100)).limit(1000);
-        const lIds = [...new Set((matchedBindings || []).map((b: any) => b.ligand_id))];
+        const cPlaceholders = cIds.slice(0, 100).map((_: any, i: number) => `$${i + 1}`).join(',');
+        const matchedBindings = await query<any>(
+          `SELECT DISTINCT ligand_id FROM kbsi_construct_ligand WHERE construct_id IN (${cPlaceholders}) LIMIT 1000`,
+          cIds.slice(0, 100)
+        );
+        const lIds = matchedBindings.map((b: any) => b.ligand_id);
         if (lIds.length > 0) {
-          countQuery = countQuery.in('id', lIds.slice(0, 500));
-          dataQuery = dataQuery.in('id', lIds.slice(0, 500));
+          const idPlaceholders = lIds.slice(0, 500).map((_: any, i: number) => `$${lIdx + i}`).join(',');
+          lConditions.push(`l.id IN (${idPlaceholders})`);
+          lValues.push(...lIds.slice(0, 500));
+          lIdx += lIds.slice(0, 500).length;
         } else {
-          countQuery = countQuery.in('id', [-1]);
-          dataQuery = dataQuery.in('id', [-1]);
+          lConditions.push(`l.id = -1`);
         }
       } else {
-        countQuery = countQuery.in('id', [-1]);
-        dataQuery = dataQuery.in('id', [-1]);
+        lConditions.push(`l.id = -1`);
       }
     }
   }
 
-  const [{ count: filteredCount }, { data: ligands }] = await Promise.all([
-    countQuery,
-    dataQuery.order('created_at', { ascending: false }).range(offset, offset + limit - 1),
+  const lWhereClause = lConditions.length > 0 ? `WHERE ${lConditions.join(' AND ')}` : '';
+
+  const [filteredCount, ligands] = await Promise.all([
+    scalar<number>(`SELECT COUNT(*) FROM kbsi_ligand l ${lWhereClause}`, lValues),
+    query<any>(
+      `SELECT l.id, l.name, l.smiles, l.mw, l.source_db, l.source_id, l.created_at
+       FROM kbsi_ligand l ${lWhereClause}
+       ORDER BY l.created_at DESC
+       OFFSET $${lIdx} LIMIT $${lIdx + 1}`,
+      [...lValues, offset, limit]
+    ),
   ]);
 
-  const totalPages = Math.ceil((filteredCount ?? 0) / limit);
+  const totalPages = Math.ceil((Number(filteredCount) ?? 0) / limit);
   const filteredLigands = ligands ?? [];
 
   return (
@@ -239,7 +279,7 @@ export default async function LigandsPage({
         <div>
           <h2 className="text-2xl font-bold">Ligands & Bindings</h2>
           <p className="text-muted-foreground">
-            {(ligandCount ?? 0).toLocaleString()} ligands · {(bindingCount ?? 0).toLocaleString()} bindings
+            {(Number(ligandCount) ?? 0).toLocaleString()} ligands · {(Number(bindingCount) ?? 0).toLocaleString()} bindings
           </p>
         </div>
         <div className="flex gap-2">
@@ -253,10 +293,10 @@ export default async function LigandsPage({
       {/* Tabs */}
       <div className="flex gap-2 border-b pb-2">
         <Link href={`/ligands?tab=ligands${filterStr}`}>
-          <Button variant="default" size="sm">Ligands ({(ligandCount ?? 0).toLocaleString()})</Button>
+          <Button variant="default" size="sm">Ligands ({(Number(ligandCount) ?? 0).toLocaleString()})</Button>
         </Link>
         <Link href={`/ligands?tab=bindings${filterStr}`}>
-          <Button variant="ghost" size="sm">Bindings ({(bindingCount ?? 0).toLocaleString()})</Button>
+          <Button variant="ghost" size="sm">Bindings ({(Number(bindingCount) ?? 0).toLocaleString()})</Button>
         </Link>
       </div>
 
@@ -333,7 +373,7 @@ export default async function LigandsPage({
 
       {totalPages > 1 && (
         <div className="flex items-center justify-between">
-          <p className="text-sm text-muted-foreground">총 {(filteredCount ?? 0).toLocaleString()}건 (페이지 {page} / {totalPages.toLocaleString()})</p>
+          <p className="text-sm text-muted-foreground">총 {(Number(filteredCount) ?? 0).toLocaleString()}건 (페이지 {page} / {totalPages.toLocaleString()})</p>
           <div className="flex items-center gap-2">
             <Link href={`/ligands?tab=ligands&page=1${filterStr}`}><Button variant="outline" size="sm" disabled={page <= 1}>처음</Button></Link>
             <Link href={`/ligands?tab=ligands&page=${page - 1}${filterStr}`}><Button variant="outline" size="sm" disabled={page <= 1}>이전</Button></Link>

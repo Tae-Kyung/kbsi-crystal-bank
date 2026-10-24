@@ -1,23 +1,37 @@
 import { NextResponse } from 'next/server';
-import { createServiceClient } from '@/lib/supabase/service';
+import { query } from '@/lib/db';
 
 export async function GET(request: Request) {
   const { searchParams } = new URL(request.url);
   const search = searchParams.get('search') || '';
   const mwMax = searchParams.get('mw_max') ? parseFloat(searchParams.get('mw_max')!) : null;
 
-  const supabase = createServiceClient();
+  const conditions: string[] = [];
+  const params: unknown[] = [];
+  let paramIdx = 1;
 
-  let query = supabase
-    .from('kbsi_ligand')
-    .select('name, smiles, inchi, mw, source_db, source_id')
-    .order('id')
-    .limit(10000) as any;
+  if (search) {
+    conditions.push(`(name ILIKE $${paramIdx} OR source_id ILIKE $${paramIdx})`);
+    params.push(`%${search}%`);
+    paramIdx++;
+  }
+  if (mwMax) {
+    conditions.push(`mw <= $${paramIdx}`);
+    params.push(mwMax);
+    paramIdx++;
+  }
 
-  if (search) query = query.or(`name.ilike.%${search}%,source_id.ilike.%${search}%`);
-  if (mwMax) query = query.lte('mw', mwMax);
+  const whereClause = conditions.length > 0 ? `WHERE ${conditions.join(' AND ')}` : '';
 
-  const { data } = await query;
+  const data = await query(
+    `SELECT name, smiles, inchi, mw, source_db, source_id
+     FROM kbsi_ligand
+     ${whereClause}
+     ORDER BY id
+     LIMIT 10000`,
+    params.length > 0 ? params : undefined
+  );
+
   if (!data || data.length === 0) {
     return new NextResponse('No data', { status: 404 });
   }

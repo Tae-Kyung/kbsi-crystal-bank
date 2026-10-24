@@ -1,25 +1,32 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { createClient } from '@/lib/supabase/server';
+import { query, queryOne, scalar } from '@/lib/db';
 import { ligandCreateSchema } from '@/lib/validations/ligand';
 
 export async function GET(request: NextRequest) {
-  const supabase = await createClient();
   const search = new URL(request.url).searchParams.get('search');
 
-  let query = supabase.from('kbsi_ligand').select('*', { count: 'exact' });
+  try {
+    const params: unknown[] = [];
+    let whereClause = '';
 
-  if (search) {
-    query = query.or(`name.ilike.%${search}%,smiles.ilike.%${search}%`);
+    if (search) {
+      whereClause = 'WHERE name ILIKE $1 OR smiles ILIKE $1';
+      params.push(`%${search}%`);
+    }
+
+    const total = await scalar<number>(`SELECT COUNT(*) FROM kbsi_ligand ${whereClause}`, params);
+    const data = await query(
+      `SELECT * FROM kbsi_ligand ${whereClause} ORDER BY created_at DESC`,
+      params
+    );
+
+    return NextResponse.json({ data, total: Number(total) });
+  } catch (err: any) {
+    return NextResponse.json({ error: err.message }, { status: 500 });
   }
-
-  const { data, error, count } = await query.order('created_at', { ascending: false });
-
-  if (error) return NextResponse.json({ error: error.message }, { status: 500 });
-  return NextResponse.json({ data, total: count });
 }
 
 export async function POST(request: NextRequest) {
-  const supabase = await createClient();
   const body = await request.json();
 
   const parsed = ligandCreateSchema.safeParse(body);
@@ -27,12 +34,19 @@ export async function POST(request: NextRequest) {
     return NextResponse.json({ error: 'Validation failed', details: parsed.error.flatten() }, { status: 400 });
   }
 
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any
-  const { data, error } = await (supabase.from('kbsi_ligand') as any)
-    .insert(parsed.data)
-    .select()
-    .single();
+  try {
+    const fields = Object.keys(parsed.data);
+    const values = Object.values(parsed.data);
+    const cols = fields.join(', ');
+    const placeholders = fields.map((_, i) => `$${i + 1}`).join(', ');
 
-  if (error) return NextResponse.json({ error: error.message }, { status: 500 });
-  return NextResponse.json({ data }, { status: 201 });
+    const data = await queryOne(
+      `INSERT INTO kbsi_ligand (${cols}) VALUES (${placeholders}) RETURNING *`,
+      values
+    );
+
+    return NextResponse.json({ data }, { status: 201 });
+  } catch (err: any) {
+    return NextResponse.json({ error: err.message }, { status: 500 });
+  }
 }

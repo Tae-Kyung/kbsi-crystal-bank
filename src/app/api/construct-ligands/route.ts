@@ -1,25 +1,34 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { createClient } from '@/lib/supabase/server';
+import { query, queryOne } from '@/lib/db';
 import { constructLigandCreateSchema } from '@/lib/validations/ligand';
 
 export async function GET(request: NextRequest) {
-  const supabase = await createClient();
   const constructId = new URL(request.url).searchParams.get('construct_id');
 
-  let query = supabase.from('kbsi_construct_ligand').select('*, kbsi_ligand(*)');
+  try {
+    const params: unknown[] = [];
+    let whereClause = '';
 
-  if (constructId) {
-    query = query.eq('construct_id', parseInt(constructId));
+    if (constructId) {
+      whereClause = 'WHERE cl.construct_id = $1';
+      params.push(parseInt(constructId));
+    }
+
+    const data = await query(
+      `SELECT cl.*,
+        (SELECT row_to_json(l.*) FROM kbsi_ligand l WHERE l.id = cl.ligand_id) AS kbsi_ligand
+      FROM kbsi_construct_ligand cl
+      ${whereClause}`,
+      params
+    );
+
+    return NextResponse.json({ data });
+  } catch (err: any) {
+    return NextResponse.json({ error: err.message }, { status: 500 });
   }
-
-  const { data, error } = await query;
-
-  if (error) return NextResponse.json({ error: error.message }, { status: 500 });
-  return NextResponse.json({ data });
 }
 
 export async function POST(request: NextRequest) {
-  const supabase = await createClient();
   const body = await request.json();
 
   const parsed = constructLigandCreateSchema.safeParse(body);
@@ -27,12 +36,28 @@ export async function POST(request: NextRequest) {
     return NextResponse.json({ error: 'Validation failed', details: parsed.error.flatten() }, { status: 400 });
   }
 
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any
-  const { data, error } = await (supabase.from('kbsi_construct_ligand') as any)
-    .insert(parsed.data)
-    .select('*, kbsi_ligand(*)')
-    .single();
+  try {
+    const fields = Object.keys(parsed.data);
+    const values = Object.values(parsed.data);
+    const cols = fields.join(', ');
+    const placeholders = fields.map((_, i) => `$${i + 1}`).join(', ');
 
-  if (error) return NextResponse.json({ error: error.message }, { status: 500 });
-  return NextResponse.json({ data }, { status: 201 });
+    const inserted = await queryOne(
+      `INSERT INTO kbsi_construct_ligand (${cols}) VALUES (${placeholders}) RETURNING *`,
+      values
+    );
+
+    // Fetch with joined ligand data
+    const data = await queryOne(
+      `SELECT cl.*,
+        (SELECT row_to_json(l.*) FROM kbsi_ligand l WHERE l.id = cl.ligand_id) AS kbsi_ligand
+      FROM kbsi_construct_ligand cl
+      WHERE cl.id = $1`,
+      [(inserted as any).id]
+    );
+
+    return NextResponse.json({ data }, { status: 201 });
+  } catch (err: any) {
+    return NextResponse.json({ error: err.message }, { status: 500 });
+  }
 }

@@ -1,22 +1,26 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { createClient } from '@/lib/supabase/server';
+import { query } from '@/lib/db';
 
 export async function GET(request: NextRequest) {
-  const supabase = await createClient();
   const status = new URL(request.url).searchParams.get('status') || 'pending';
 
-  const { data, error, count } = await supabase
-    .from('kbsi_extraction_staging')
-    .select('*, kbsi_reference(title, doi, year)', { count: 'exact' })
-    .eq('review_status', status)
-    .order('extraction_date', { ascending: false });
+  try {
+    const data = await query(
+      `SELECT s.*,
+        (SELECT row_to_json(r.*) FROM (SELECT title, doi, year FROM kbsi_reference WHERE id = s.reference_id) r) AS kbsi_reference
+      FROM kbsi_extraction_staging s
+      WHERE s.review_status = $1
+      ORDER BY s.extraction_date DESC`,
+      [status]
+    );
 
-  if (error) return NextResponse.json({ error: error.message }, { status: 500 });
-  return NextResponse.json({ data, total: count });
+    return NextResponse.json({ data, total: data.length });
+  } catch (err: any) {
+    return NextResponse.json({ error: err.message }, { status: 500 });
+  }
 }
 
 export async function PATCH(request: NextRequest) {
-  const supabase = await createClient();
   const body = await request.json();
 
   const { ids, action, reviewed_by } = body as {
@@ -29,34 +33,34 @@ export async function PATCH(request: NextRequest) {
     return NextResponse.json({ error: 'ids, action, reviewed_by required' }, { status: 400 });
   }
 
-  // Update staging records
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any
-  const { error } = await (supabase.from('kbsi_extraction_staging') as any)
-    .update({
-      review_status: action,
-      reviewed_by,
-      reviewed_at: new Date().toISOString(),
-    })
-    .in('id', ids);
+  try {
+    // Update staging records
+    await query(
+      `UPDATE kbsi_extraction_staging
+       SET review_status = $1, reviewed_by = $2, reviewed_at = $3
+       WHERE id = ANY($4)`,
+      [action, reviewed_by, new Date().toISOString(), ids]
+    );
 
-  if (error) return NextResponse.json({ error: error.message }, { status: 500 });
+    // If approved, migrate data to main tables
+    if (action === 'approved') {
+      const approved = await query(
+        'SELECT * FROM kbsi_extraction_staging WHERE id = ANY($1)',
+        [ids]
+      );
 
-  // If approved, migrate data to main tables
-  if (action === 'approved') {
-    const { data: approved } = await supabase
-      .from('kbsi_extraction_staging')
-      .select('*')
-      .in('id', ids);
-
-    if (approved) {
-      for (const rec of approved) {
-        const record = rec as any;
-        // TODO: Map extracted_payload fields to the target table and insert
-        // The payload is already structured by the LLM prompt to match the table schema
-        void record.extracted_payload;
+      if (approved) {
+        for (const rec of approved) {
+          const record = rec as any;
+          // TODO: Map extracted_payload fields to the target table and insert
+          // The payload is already structured by the LLM prompt to match the table schema
+          void record.extracted_payload;
+        }
       }
     }
-  }
 
-  return NextResponse.json({ message: `${ids.length} records ${action}` });
+    return NextResponse.json({ message: `${ids.length} records ${action}` });
+  } catch (err: any) {
+    return NextResponse.json({ error: err.message }, { status: 500 });
+  }
 }

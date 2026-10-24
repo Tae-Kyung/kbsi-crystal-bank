@@ -1,5 +1,5 @@
 import Link from 'next/link';
-import { createServiceClient } from '@/lib/supabase/service';
+import { query, scalar } from '@/lib/db';
 import { Button } from '@/components/ui/button';
 import { Plus } from 'lucide-react';
 import { ProteinSearchForm } from '@/components/forms/protein-search-form';
@@ -12,35 +12,40 @@ export default async function ProteinsPage({
   searchParams: Promise<{ search?: string; page?: string; organism?: string }>;
 }) {
   const params = await searchParams;
-  const supabase = createServiceClient();
   const page = parseInt(params.page || '1');
   const limit = 50;
   const offset = (page - 1) * limit;
   const search = params.search || '';
   const organism = params.organism || '';
 
-  let countQuery = supabase
-    .from('kbsi_protein')
-    .select('id', { count: 'exact', head: true }) as any;
-
-  let dataQuery = supabase
-    .from('kbsi_protein')
-    .select('id, full_name, abbreviation, gene_name, organism, updated_at') as any;
+  // Build WHERE clauses
+  const conditions: string[] = [];
+  const values: unknown[] = [];
+  let paramIdx = 1;
 
   if (search) {
-    const filter = `full_name.ilike.%${search}%,abbreviation.ilike.%${search}%,gene_name.ilike.%${search}%`;
-    countQuery = countQuery.or(filter);
-    dataQuery = dataQuery.or(filter);
+    conditions.push(`(full_name ILIKE $${paramIdx} OR abbreviation ILIKE $${paramIdx} OR gene_name ILIKE $${paramIdx})`);
+    values.push(`%${search}%`);
+    paramIdx++;
   }
 
   if (organism) {
-    countQuery = countQuery.ilike('organism', `%${organism}%`);
-    dataQuery = dataQuery.ilike('organism', `%${organism}%`);
+    conditions.push(`organism ILIKE $${paramIdx}`);
+    values.push(`%${organism}%`);
+    paramIdx++;
   }
 
-  const [{ count }, { data: proteins }] = await Promise.all([
-    countQuery,
-    dataQuery.order('updated_at', { ascending: false }).range(offset, offset + limit - 1),
+  const whereClause = conditions.length > 0 ? `WHERE ${conditions.join(' AND ')}` : '';
+
+  const [count, proteins] = await Promise.all([
+    scalar<number>(`SELECT COUNT(*) FROM kbsi_protein ${whereClause}`, values),
+    query(
+      `SELECT id, full_name, abbreviation, gene_name, organism, updated_at
+       FROM kbsi_protein ${whereClause}
+       ORDER BY updated_at DESC
+       OFFSET $${paramIdx} LIMIT $${paramIdx + 1}`,
+      [...values, offset, limit]
+    ),
   ]);
 
   const totalPages = Math.ceil((count ?? 0) / limit);

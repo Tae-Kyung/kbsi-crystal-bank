@@ -1,7 +1,7 @@
 import { NextResponse } from 'next/server';
 import { generateText } from 'ai';
 import { openai } from '@ai-sdk/openai';
-import { createServiceClient } from '@/lib/supabase/service';
+import { query, queryOne } from '@/lib/db';
 
 export const maxDuration = 60;
 
@@ -73,8 +73,6 @@ export async function POST(request: Request) {
     return NextResponse.json({ error: 'sequence 또는 protein_id 필요' }, { status: 400 });
   }
 
-  const supabase = createServiceClient();
-
   // 1. 유사 단백질 찾기
   let similarConstructs: any[] = [];
   let searchMethod: 'db' | 'esm2_db' | 'esm2' | 'kmer' = 'db';
@@ -85,30 +83,36 @@ export async function POST(request: Request) {
     // ── DB 검색 모드: 해당 단백질의 construct → 임베딩으로 유사 서열 확장 ──
     searchMethod = 'db';
 
-    const { data: directConstructs } = await supabase
-      .from('kbsi_construct')
-      .select('id, name, protein_id, expression_system, theoretical_mw, theoretical_pi, kbsi_protein(full_name, abbreviation, organism)')
-      .eq('protein_id', protein_id)
-      .limit(50);
+    const directConstructs = await query(
+      `SELECT c.id, c.name, c.protein_id, c.expression_system, c.theoretical_mw, c.theoretical_pi,
+              p.full_name AS "kbsi_protein.full_name", p.abbreviation AS "kbsi_protein.abbreviation", p.organism AS "kbsi_protein.organism"
+       FROM kbsi_construct c
+       JOIN kbsi_protein p ON p.id = c.protein_id
+       WHERE c.protein_id = $1
+       LIMIT 50`,
+      [protein_id]
+    );
 
-    similarConstructs = (directConstructs || []).map((c: any) => ({ ...c, similarity: 100 }));
+    similarConstructs = (directConstructs || []).map((c: any) => ({
+      ...c,
+      kbsi_protein: { full_name: c['kbsi_protein.full_name'], abbreviation: c['kbsi_protein.abbreviation'], organism: c['kbsi_protein.organism'] },
+      similarity: 100,
+    }));
 
     // 임베딩이 있으면 pgvector로 유사 서열 확장
     if (similarConstructs.length > 0) {
       const firstId = similarConstructs[0].id;
-      const { data: embRow } = await supabase
-        .from('kbsi_embedding')
-        .select('embedding')
-        .eq('construct_id', firstId)
-        .single();
+      const embRow = await queryOne<{ embedding: any }>(
+        'SELECT embedding FROM kbsi_embedding WHERE construct_id = $1',
+        [firstId]
+      );
 
       if (embRow?.embedding) {
         searchMethod = 'esm2_db';
-        const { data: similar } = await supabase.rpc('match_embeddings', {
-          query_embedding: embRow.embedding,
-          match_threshold: 0.7,
-          match_count: 50,
-        });
+        const similar = await query(
+          'SELECT * FROM match_embeddings($1, $2, $3)',
+          [embRow.embedding, 0.7, 50]
+        );
 
         if (similar?.length) {
           const existingIds = new Set(similarConstructs.map((c: any) => c.id));
@@ -117,15 +121,20 @@ export async function POST(request: Request) {
             .map((r: any) => r.construct_id);
 
           if (newIds.length > 0) {
-            const { data: extraConstructs } = await supabase
-              .from('kbsi_construct')
-              .select('id, name, protein_id, expression_system, theoretical_mw, theoretical_pi, kbsi_protein(full_name, abbreviation, organism)')
-              .in('id', newIds);
+            const extraConstructs = await query(
+              `SELECT c.id, c.name, c.protein_id, c.expression_system, c.theoretical_mw, c.theoretical_pi,
+                      p.full_name AS "kbsi_protein.full_name", p.abbreviation AS "kbsi_protein.abbreviation", p.organism AS "kbsi_protein.organism"
+               FROM kbsi_construct c
+               JOIN kbsi_protein p ON p.id = c.protein_id
+               WHERE c.id = ANY($1)`,
+              [newIds]
+            );
 
             const simMap = new Map(similar.map((r: any) => [r.construct_id, Math.round(r.similarity * 1000) / 10]));
             if (extraConstructs) {
               similarConstructs.push(...extraConstructs.map((c: any) => ({
                 ...c,
+                kbsi_protein: { full_name: c['kbsi_protein.full_name'], abbreviation: c['kbsi_protein.abbreviation'], organism: c['kbsi_protein.organism'] },
                 similarity: simMap.get(c.id) || 50,
               })));
             }
@@ -136,13 +145,21 @@ export async function POST(request: Request) {
 
       // fallback: 임베딩 없으면 같은 유기체에서 추가
       if (searchMethod === 'db' && similarConstructs.length > 0) {
-        const { data: sameOrg } = await supabase
-          .from('kbsi_construct')
-          .select('id, name, protein_id, expression_system, theoretical_mw, theoretical_pi, kbsi_protein(full_name, abbreviation, organism)')
-          .neq('protein_id', protein_id)
-          .limit(100);
+        const sameOrg = await query(
+          `SELECT c.id, c.name, c.protein_id, c.expression_system, c.theoretical_mw, c.theoretical_pi,
+                  p.full_name AS "kbsi_protein.full_name", p.abbreviation AS "kbsi_protein.abbreviation", p.organism AS "kbsi_protein.organism"
+           FROM kbsi_construct c
+           JOIN kbsi_protein p ON p.id = c.protein_id
+           WHERE c.protein_id != $1
+           LIMIT 100`,
+          [protein_id]
+        );
         if (sameOrg) {
-          similarConstructs.push(...sameOrg.map((c: any) => ({ ...c, similarity: 30 })));
+          similarConstructs.push(...sameOrg.map((c: any) => ({
+            ...c,
+            kbsi_protein: { full_name: c['kbsi_protein.full_name'], abbreviation: c['kbsi_protein.abbreviation'], organism: c['kbsi_protein.organism'] },
+            similarity: 30,
+          })));
         }
       }
     }
@@ -161,17 +178,25 @@ export async function POST(request: Request) {
         searchMethod = 'esm2';
         searchedCount = 284000;
         const cIds = gpuResult.results.map((r: any) => r.construct_id);
-        const { data: constructs } = await supabase
-          .from('kbsi_construct')
-          .select('id, name, protein_id, expression_system, theoretical_mw, theoretical_pi, kbsi_protein(full_name, abbreviation, organism)')
-          .in('id', cIds);
+        const constructs = await query(
+          `SELECT c.id, c.name, c.protein_id, c.expression_system, c.theoretical_mw, c.theoretical_pi,
+                  p.full_name AS "kbsi_protein.full_name", p.abbreviation AS "kbsi_protein.abbreviation", p.organism AS "kbsi_protein.organism"
+           FROM kbsi_construct c
+           JOIN kbsi_protein p ON p.id = c.protein_id
+           WHERE c.id = ANY($1)`,
+          [cIds]
+        );
 
         const constructMap = new Map((constructs || []).map((c: any) => [c.id, c]));
-        similarConstructs = gpuResult.results.map((r: any) => ({
-          ...(constructMap.get(r.construct_id) || {}),
-          id: r.construct_id,
-          similarity: Math.round(r.similarity * 1000) / 10,
-        }));
+        similarConstructs = gpuResult.results.map((r: any) => {
+          const c = constructMap.get(r.construct_id) || {};
+          return {
+            ...c,
+            kbsi_protein: { full_name: (c as any)['kbsi_protein.full_name'], abbreviation: (c as any)['kbsi_protein.abbreviation'], organism: (c as any)['kbsi_protein.organism'] },
+            id: r.construct_id,
+            similarity: Math.round(r.similarity * 1000) / 10,
+          };
+        });
       }
     } catch (e: any) {
       hfDebug = `exception: ${e?.message || e}`;
@@ -184,16 +209,14 @@ export async function POST(request: Request) {
       const queryKmers = new Set<string>();
       for (let i = 0; i <= querySeq.length - K; i++) queryKmers.add(querySeq.substring(i, i + K));
 
-      const allConstructs: any[] = [];
-      for (let off = 0; off < 50000; off += 5000) {
-        const { data } = await supabase
-          .from('kbsi_construct')
-          .select('id, name, protein_id, seq_final, expression_system, theoretical_mw, theoretical_pi, kbsi_protein(full_name, abbreviation, organism)')
-          .not('seq_final', 'is', null)
-          .range(off, off + 4999);
-        if (!data || data.length === 0) break;
-        allConstructs.push(...data);
-      }
+      const allConstructs = await query(
+        `SELECT c.id, c.name, c.protein_id, c.seq_final, c.expression_system, c.theoretical_mw, c.theoretical_pi,
+                p.full_name AS "kbsi_protein.full_name", p.abbreviation AS "kbsi_protein.abbreviation", p.organism AS "kbsi_protein.organism"
+         FROM kbsi_construct c
+         JOIN kbsi_protein p ON p.id = c.protein_id
+         WHERE c.seq_final IS NOT NULL
+         LIMIT 50000`
+      );
 
       searchedCount = allConstructs.length;
       const scored = allConstructs
@@ -206,7 +229,11 @@ export async function POST(request: Request) {
           for (const kmer of queryKmers) { if (targetKmers.has(kmer)) intersection++; }
           const union = queryKmers.size + targetKmers.size - intersection;
           const similarity = union > 0 ? intersection / union : 0;
-          return { ...c, similarity: Math.round(similarity * 1000) / 10 };
+          return {
+            ...c,
+            kbsi_protein: { full_name: c['kbsi_protein.full_name'], abbreviation: c['kbsi_protein.abbreviation'], organism: c['kbsi_protein.organism'] },
+            similarity: Math.round(similarity * 1000) / 10,
+          };
         })
         .filter((r: any) => r && r.similarity > 0)
         .sort((a: any, b: any) => b.similarity - a.similarity);
@@ -223,20 +250,24 @@ export async function POST(request: Request) {
   const maxSimilarity = similarConstructs[0]?.similarity || 0;
 
   // 2. 결정화 데이터 분석
-  const { data: crystData } = await supabase
-    .from('kbsi_crystallization')
-    .select('construct_id, ph, temperature, precipitant_type, precipitant_conc, buffer_type, protein_concentration, outcome, source_type, additive')
-    .in('construct_id', constructIds.slice(0, 100))
-    .neq('source_type', 'synthetic')
-    .not('outcome', 'is', null)
-    .limit(5000);
+  const crystData = await query(
+    `SELECT construct_id, ph, temperature, precipitant_type, precipitant_conc, buffer_type, protein_concentration, outcome, source_type, additive
+     FROM kbsi_crystallization
+     WHERE construct_id = ANY($1)
+       AND source_type != 'synthetic'
+       AND outcome IS NOT NULL
+     LIMIT 5000`,
+    [constructIds.slice(0, 100)]
+  );
 
   // 3. Expression 데이터 분석
-  const { data: exprData } = await supabase
-    .from('kbsi_expression')
-    .select('construct_id, host, strain, induction_temp, yield_mg_l, result_level')
-    .in('construct_id', constructIds.slice(0, 100))
-    .limit(500);
+  const exprData = await query(
+    `SELECT construct_id, host, strain, induction_temp, yield_mg_l, result_level
+     FROM kbsi_expression
+     WHERE construct_id = ANY($1)
+     LIMIT 500`,
+    [constructIds.slice(0, 100)]
+  );
 
   // 4. 성공/실패 분석
   const success = (crystData || []).filter((c: any) => c.outcome === 'single_crystal' || c.outcome === 'diffraction_quality');
@@ -338,17 +369,21 @@ export async function POST(request: Request) {
   const avgYield = exprYields.length > 0 ? Math.round(exprYields.reduce((a, b) => a + b, 0) / exprYields.length * 10) / 10 : null;
 
   // 5. NMR 실험 분석 + 방법론 분포
-  const { data: nmrData } = await supabase
-    .from('kbsi_nmr_experiment')
-    .select('spectrometer, magnetic_field, temperature, sample_ph, ionic_strength, labelling, conformers_submitted')
-    .in('construct_id', constructIds.slice(0, 100))
-    .limit(500);
+  const nmrData = await query(
+    `SELECT spectrometer, magnetic_field, temperature, sample_ph, ionic_strength, labelling, conformers_submitted
+     FROM kbsi_nmr_experiment
+     WHERE construct_id = ANY($1)
+     LIMIT 500`,
+    [constructIds.slice(0, 100)]
+  );
 
-  const { data: structData } = await supabase
-    .from('kbsi_structure')
-    .select('method, resolution')
-    .in('construct_id', constructIds.slice(0, 100))
-    .limit(500);
+  const structData = await query(
+    `SELECT method, resolution
+     FROM kbsi_structure
+     WHERE construct_id = ANY($1)
+     LIMIT 500`,
+    [constructIds.slice(0, 100)]
+  );
 
   let nmrRecommendation: any = null;
   if (nmrData && nmrData.length > 0) {

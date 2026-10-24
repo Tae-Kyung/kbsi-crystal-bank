@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { createClient } from '@/lib/supabase/server';
+import { query } from '@/lib/db';
 
 const PARSE_SYSTEM_PROMPT = `You are an expert crystallographer. Extract structured crystallization conditions from the given free-text description.
 Only extract information explicitly stated — never infer or hallucinate values.
@@ -26,25 +26,19 @@ Output schema:
  * GET /api/pdb-import/enrich — 파싱이 필요한 결정화 레코드 목록 조회
  */
 export async function GET() {
-  const supabase = await createClient();
-
-  const { data, error } = await (supabase.from('kbsi_crystallization') as any)
-    .select(`
-      id, condition_detail, ph, temperature,
-      precipitant_type, precipitant_conc, precipitant_unit,
-      salt_type, salt_conc, buffer_type,
-      protein_concentration, additive, drop_ratio,
-      construct:kbsi_construct!inner(
-        id, name,
-        protein:kbsi_protein!inner(full_name)
-      )
-    `)
-    .not('condition_detail', 'is', null)
-    .order('id', { ascending: true });
-
-  if (error) {
-    return NextResponse.json({ error: error.message }, { status: 500 });
-  }
+  const data = await query(
+    `SELECT cr.id, cr.condition_detail, cr.ph, cr.temperature,
+            cr.precipitant_type, cr.precipitant_conc, cr.precipitant_unit,
+            cr.salt_type, cr.salt_conc, cr.buffer_type,
+            cr.protein_concentration, cr.additive, cr.drop_ratio,
+            c.id AS construct_id, c.name AS construct_name,
+            p.full_name AS protein_name
+     FROM kbsi_crystallization cr
+     JOIN kbsi_construct c ON c.id = cr.construct_id
+     JOIN kbsi_protein p ON p.id = c.protein_id
+     WHERE cr.condition_detail IS NOT NULL
+     ORDER BY cr.id`
+  );
 
   // 파싱이 필요한 것: condition_detail은 있지만 주요 구조화 필드가 비어있는 레코드
   const needsParsing = (data || []).filter((r: any) =>
@@ -62,8 +56,8 @@ export async function GET() {
     records: needsParsing.map((r: any) => ({
       id: r.id,
       conditionDetail: r.condition_detail,
-      proteinName: r.construct?.protein?.full_name || '',
-      constructName: r.construct?.name || '',
+      proteinName: r.protein_name || '',
+      constructName: r.construct_name || '',
       currentFields: {
         ph: r.ph,
         temperature: r.temperature,
@@ -80,7 +74,6 @@ export async function GET() {
  * body: { ids: number[] } or { all: true }
  */
 export async function POST(request: NextRequest) {
-  const supabase = await createClient();
   const body = await request.json();
 
   const apiKey = process.env.OPENAI_API_KEY;
@@ -89,18 +82,17 @@ export async function POST(request: NextRequest) {
   }
 
   // 파싱 대상 레코드 조회
-  let query = (supabase.from('kbsi_crystallization') as any)
-    .select('id, condition_detail, precipitant_type, buffer_type, salt_type')
-    .not('condition_detail', 'is', null);
+  let sql = `SELECT id, condition_detail, precipitant_type, buffer_type, salt_type
+             FROM kbsi_crystallization
+             WHERE condition_detail IS NOT NULL`;
+  const params: unknown[] = [];
 
   if (body.ids && Array.isArray(body.ids)) {
-    query = query.in('id', body.ids);
+    sql += ` AND id = ANY($1)`;
+    params.push(body.ids);
   }
 
-  const { data: records, error } = await query;
-  if (error) {
-    return NextResponse.json({ error: error.message }, { status: 500 });
-  }
+  const records = await query(sql, params.length > 0 ? params : undefined);
 
   // 이미 파싱된 것은 제외 (강제 재파싱이 아닌 경우)
   const targets = body.force
@@ -115,16 +107,16 @@ export async function POST(request: NextRequest) {
 
   for (const record of targets) {
     try {
-      const parsed = await parseCondition(apiKey, record.condition_detail);
+      const parsed = await parseCondition(apiKey, (record as any).condition_detail);
       if (!parsed) {
-        results.push({ id: record.id, success: false, error: 'LLM 파싱 실패' });
+        results.push({ id: (record as any).id, success: false, error: 'LLM 파싱 실패' });
         continue;
       }
 
       // null이 아닌 필드만 업데이트 ("null" 문자열도 제외)
       const isValid = (v: any) => v != null && v !== 'null' && v !== '';
       const isValidNum = (v: any) => v != null && v !== 'null' && typeof v === 'number';
-      const updates: any = {};
+      const updates: Record<string, any> = {};
       if (isValid(parsed.precipitant_type)) updates.precipitant_type = parsed.precipitant_type;
       if (isValidNum(parsed.precipitant_conc)) updates.precipitant_conc = parsed.precipitant_conc;
       if (isValid(parsed.precipitant_unit)) updates.precipitant_unit = parsed.precipitant_unit;
@@ -136,21 +128,29 @@ export async function POST(request: NextRequest) {
       if (isValid(parsed.drop_ratio)) updates.drop_ratio = parsed.drop_ratio;
 
       if (Object.keys(updates).length === 0) {
-        results.push({ id: record.id, success: true, parsed, error: '추출 가능한 정보 없음' });
+        results.push({ id: (record as any).id, success: true, parsed, error: '추출 가능한 정보 없음' });
         continue;
       }
 
-      const { error: updateErr } = await (supabase.from('kbsi_crystallization') as any)
-        .update(updates)
-        .eq('id', record.id);
-
-      if (updateErr) {
-        results.push({ id: record.id, success: false, error: updateErr.message });
-      } else {
-        results.push({ id: record.id, success: true, parsed: updates });
+      // Build dynamic UPDATE query
+      const setClauses: string[] = [];
+      const updateParams: unknown[] = [];
+      let paramIdx = 1;
+      for (const [col, val] of Object.entries(updates)) {
+        setClauses.push(`${col} = $${paramIdx}`);
+        updateParams.push(val);
+        paramIdx++;
       }
+      updateParams.push((record as any).id);
+
+      await query(
+        `UPDATE kbsi_crystallization SET ${setClauses.join(', ')} WHERE id = $${paramIdx}`,
+        updateParams
+      );
+
+      results.push({ id: (record as any).id, success: true, parsed: updates });
     } catch (err: any) {
-      results.push({ id: record.id, success: false, error: err.message });
+      results.push({ id: (record as any).id, success: false, error: err.message });
     }
   }
 

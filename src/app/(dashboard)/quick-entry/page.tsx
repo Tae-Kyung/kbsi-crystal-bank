@@ -6,7 +6,6 @@ import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Badge } from '@/components/ui/badge';
-import { createClient } from '@/lib/supabase/client';
 import { Beaker, CheckCircle, AlertCircle } from 'lucide-react';
 
 const COMMON_PRECIPITANTS = [
@@ -46,30 +45,23 @@ export default function QuickEntryPage() {
 
   const [savedCount, setSavedCount] = useState(0);
 
-  const supabase = createClient();
-
   // Protein 검색
   async function handleSearch() {
     if (!proteinSearch.trim()) return;
-    const { data } = await supabase
-      .from('kbsi_protein')
-      .select('id, full_name, abbreviation, organism')
-      .or(`full_name.ilike.%${proteinSearch}%,abbreviation.ilike.%${proteinSearch}%,gene_name.ilike.%${proteinSearch}%`)
-      .limit(10);
-    setSearchResults(data || []);
+    const res = await fetch(`/api/proteins?search=${encodeURIComponent(proteinSearch)}&limit=10`);
+    const data = await res.json();
+    setSearchResults(Array.isArray(data) ? data : data.data || []);
   }
 
   // Protein 선택 → Construct 로드
   async function selectProtein(protein: any) {
     setSelectedProtein(protein);
-    const { data } = await supabase
-      .from('kbsi_construct')
-      .select('id, name, construct_type')
-      .eq('protein_id', protein.id)
-      .limit(20);
-    setConstructs(data || []);
-    if (data && data.length === 1) {
-      setSelectedConstruct(data[0]);
+    const res = await fetch(`/api/constructs?protein_id=${protein.id}&limit=20`);
+    const data = await res.json();
+    const constructs = Array.isArray(data) ? data : data.data || [];
+    setConstructs(constructs);
+    if (constructs.length === 1) {
+      setSelectedConstruct(constructs[0]);
       setStep('condition');
     }
   }
@@ -103,9 +95,14 @@ export default function QuickEntryPage() {
     if (form.additive) record.additive = form.additive;
     if (form.notes) record.notes = form.notes;
 
-    const { error: err } = await supabase.from('kbsi_crystallization').insert(record);
-    if (err) {
-      setError(err.message);
+    const res = await fetch('/api/pdb-import', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ table: 'kbsi_crystallization', records: [record] }),
+    });
+    if (!res.ok) {
+      const body = await res.json().catch(() => ({}));
+      setError(body.error || 'Failed to save');
       setLoading(false);
       return;
     }

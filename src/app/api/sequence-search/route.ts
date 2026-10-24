@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { createClient } from '@/lib/supabase/server';
+import { query } from '@/lib/db';
 
 /**
  * GET /api/sequence-search?sequence=MTEYKLVVVGAGGVGKS...&limit=10
@@ -15,17 +15,17 @@ export async function GET(request: NextRequest) {
     return NextResponse.json({ error: 'Sequence must be at least 10 residues' }, { status: 400 });
   }
 
-  const supabase = await createClient();
-
   // 서열이 있는 construct 조회 (최대 5000건)
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any
-  const { data: constructs } = await (supabase as any)
-    .from('kbsi_construct')
-    .select('id, name, protein_id, seq_final, kbsi_protein(full_name, organism)')
-    .not('seq_final', 'is', null)
-    .limit(5000);
+  const constructs = await query(
+    `SELECT c.id, c.name, c.protein_id, c.seq_final,
+            p.full_name AS "protein_full_name", p.organism AS "protein_organism"
+     FROM kbsi_construct c
+     JOIN kbsi_protein p ON p.id = c.protein_id
+     WHERE c.seq_final IS NOT NULL
+     LIMIT 5000`
+  );
 
-  if (!constructs || (constructs as any[]).length === 0) {
+  if (!constructs || constructs.length === 0) {
     return NextResponse.json({ results: [], message: 'No sequences in database' });
   }
 
@@ -33,7 +33,7 @@ export async function GET(request: NextRequest) {
   const K = 3;
   const queryKmers = extractKmers(querySeq, K);
 
-  const similarities = (constructs as any[])
+  const similarities = constructs
     .map((c: any) => {
       const seq = (c.seq_final || '').toUpperCase();
       if (seq.length < 10) return null;
@@ -43,8 +43,8 @@ export async function GET(request: NextRequest) {
         construct_id: c.id,
         construct_name: c.name,
         protein_id: c.protein_id,
-        protein_name: (c.kbsi_protein as any)?.full_name || '',
-        organism: (c.kbsi_protein as any)?.organism || '',
+        protein_name: c.protein_full_name || '',
+        organism: c.protein_organism || '',
         sequence_length: seq.length,
         similarity: Math.round(similarity * 1000) / 10, // %
       };
@@ -57,14 +57,15 @@ export async function GET(request: NextRequest) {
   const topConstructIds = similarities.slice(0, 5).map(s => s.construct_id);
   let conditions: any[] = [];
   if (topConstructIds.length > 0) {
-    const { data } = await supabase
-      .from('kbsi_crystallization')
-      .select('construct_id, precipitant_type, precipitant_conc, precipitant_unit, ph, temperature, outcome')
-      .in('construct_id', topConstructIds)
-      .or('outcome.eq.diffraction_quality,outcome.eq.single_crystal')
-      .neq('source_type', 'synthetic')
-      .limit(20);
-    conditions = data || [];
+    conditions = await query(
+      `SELECT construct_id, precipitant_type, precipitant_conc, precipitant_unit, ph, temperature, outcome
+       FROM kbsi_crystallization
+       WHERE construct_id = ANY($1)
+         AND outcome IN ('diffraction_quality', 'single_crystal')
+         AND source_type != 'synthetic'
+       LIMIT 20`,
+      [topConstructIds]
+    );
   }
 
   return NextResponse.json({
