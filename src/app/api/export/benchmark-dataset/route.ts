@@ -14,7 +14,7 @@ export async function GET(request: NextRequest) {
   const { searchParams } = new URL(request.url);
   const format = searchParams.get('format') || 'json';
   const includeSynthetic = searchParams.get('include_synthetic') !== 'false';
-  const limit = parseInt(searchParams.get('limit') || '999999');
+  const limit = Math.min(parseInt(searchParams.get('limit') || '50000'), 100000);
 
   const syntheticClause = includeSynthetic ? '' : "AND cr.source_type != 'synthetic'";
 
@@ -32,6 +32,7 @@ export async function GET(request: NextRequest) {
      JOIN kbsi_protein p ON p.id = c.protein_id
      WHERE cr.outcome IS NOT NULL
      ${syntheticClause}
+     ORDER BY cr.id
      LIMIT $1`,
     [limit]
   );
