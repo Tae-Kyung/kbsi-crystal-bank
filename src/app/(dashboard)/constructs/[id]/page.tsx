@@ -235,30 +235,59 @@ export default async function ConstructDetailPage({
 }
 
 async function ConstructHierarchySection({ constructId }: { constructId: number }) {
-  let hierarchy: any[] = [];
+  const MAX_CHILDREN = 10;
+
   try {
-    hierarchy = await query<any>(
-      'SELECT * FROM construct_hierarchy($1)',
+    // Get parent chain (ancestors)
+    const parent = await queryOne<any>(
+      'SELECT c.id, c.name, c.construct_type, c.residues FROM kbsi_construct c WHERE c.id = (SELECT parent_construct_id FROM kbsi_construct WHERE id = $1)',
       [constructId]
     );
-  } catch {
-    // Function may not exist on this DB instance
-    return null;
-  }
 
-  if (hierarchy.length <= 1) return null; // Only self, no parent/children
+    // Get direct children (not full recursive tree)
+    const children = await query<any>(
+      'SELECT id, name, construct_type, residues FROM kbsi_construct WHERE parent_construct_id = $1 ORDER BY construct_type, name LIMIT $2',
+      [constructId, MAX_CHILDREN + 1]
+    );
 
-  return (
-    <Card>
-      <CardHeader>
-        <CardTitle className="text-base">Construct Hierarchy</CardTitle>
-      </CardHeader>
-      <CardContent>
-        <div className="space-y-1">
-          {hierarchy.map((node: any, i: number) => {
-            const depth = node.depth ?? 0;
-            const isCurrent = node.id === constructId || node.construct_id === constructId;
-            return (
+    // Get total children count
+    const totalChildren = await scalar<number>(
+      'SELECT COUNT(*) FROM kbsi_construct WHERE parent_construct_id = $1',
+      [constructId]
+    );
+
+    // Get self
+    const self = await queryOne<any>(
+      'SELECT id, name, construct_type, residues FROM kbsi_construct WHERE id = $1',
+      [constructId]
+    );
+
+    if (!parent && Number(totalChildren) === 0) return null; // No hierarchy
+
+    const displayChildren = children.slice(0, MAX_CHILDREN);
+    const remaining = Number(totalChildren) - MAX_CHILDREN;
+
+    // Build flat display list: parent → self → children
+    const nodes: { node: any; depth: number; isCurrent: boolean }[] = [];
+    if (parent) nodes.push({ node: parent, depth: 0, isCurrent: false });
+    nodes.push({ node: self, depth: parent ? 1 : 0, isCurrent: true });
+    displayChildren.forEach(c => nodes.push({ node: c, depth: parent ? 2 : 1, isCurrent: false }));
+
+    return (
+      <Card>
+        <CardHeader>
+          <CardTitle className="text-base">
+            Construct Hierarchy
+            {Number(totalChildren) > 0 && (
+              <span className="text-xs font-normal text-muted-foreground ml-2">
+                ({totalChildren} children)
+              </span>
+            )}
+          </CardTitle>
+        </CardHeader>
+        <CardContent>
+          <div className="space-y-1">
+            {nodes.map(({ node, depth, isCurrent }, i) => (
               <div
                 key={i}
                 className={`flex items-center text-sm py-1.5 px-2 rounded ${isCurrent ? 'bg-primary/10 font-semibold' : 'hover:bg-muted/50'}`}
@@ -268,13 +297,10 @@ async function ConstructHierarchySection({ constructId }: { constructId: number 
                   {depth === 0 ? '/' : '└'}
                 </span>
                 {isCurrent ? (
-                  <span>{node.name || node.construct_name || `#${node.id || node.construct_id}`}</span>
+                  <span>{node.name || `#${node.id}`}</span>
                 ) : (
-                  <Link
-                    href={`/constructs/${node.id || node.construct_id}`}
-                    className="text-primary hover:underline"
-                  >
-                    {node.name || node.construct_name || `#${node.id || node.construct_id}`}
+                  <Link href={`/constructs/${node.id}`} className="text-primary hover:underline">
+                    {node.name || `#${node.id}`}
                   </Link>
                 )}
                 {node.construct_type && (
@@ -284,12 +310,19 @@ async function ConstructHierarchySection({ constructId }: { constructId: number 
                   <span className="text-xs text-muted-foreground ml-2">({node.residues})</span>
                 )}
               </div>
-            );
-          })}
-        </div>
-      </CardContent>
-    </Card>
-  );
+            ))}
+            {remaining > 0 && (
+              <div className="text-xs text-muted-foreground py-1.5 px-2" style={{ paddingLeft: `${(parent ? 2 : 1) * 24 + 8}px` }}>
+                ... +{remaining} more children
+              </div>
+            )}
+          </div>
+        </CardContent>
+      </Card>
+    );
+  } catch {
+    return null;
+  }
 }
 
 function Row({ label, value, source, doi }: { label: string; value?: string | null; source?: 'LLM' | 'PDB'; doi?: string | null }) {
