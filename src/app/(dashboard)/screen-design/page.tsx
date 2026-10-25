@@ -290,7 +290,7 @@ export default function ScreenDesignPage() {
         <CardHeader>
           <CardTitle className="text-base">Select Protein</CardTitle>
         </CardHeader>
-        <CardContent>
+        <CardContent className="overflow-visible">
           <div className="flex gap-3 items-start">
             <div className="relative flex-1" style={{ zIndex: 50 }}>
               <div className="relative">
