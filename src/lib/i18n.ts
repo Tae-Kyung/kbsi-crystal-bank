@@ -170,6 +170,7 @@ const translations = {
   'nav.admin': { ko: '관리자', en: 'Admin', zh: '管理' },
   'nav.api-docs': { ko: 'API 문서', en: 'API Docs', zh: 'API 文档' },
   'nav.screen-design': { ko: 'Screen Designer', en: 'Screen Designer', zh: '筛选设计' },
+  'nav.ai-scientist': { ko: 'AI Scientist', en: 'AI Scientist', zh: 'AI 科学家' },
   'common.logout': { ko: '로그아웃', en: 'Logout', zh: '退出' },
   'common.nodata': { ko: '데이터가 없습니다.', en: 'No data available.', zh: '暂无数据。' },
 } as const;

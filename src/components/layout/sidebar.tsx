@@ -17,6 +17,7 @@ import {
   Settings,
   TreePine,
   Grid2x2,
+  BrainCircuit,
 } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { useLocale } from '@/lib/locale-context';
@@ -40,6 +41,7 @@ const NAV_GROUPS = [
     label: 'Tools',
     items: [
       { href: '/screen-design', labelKey: 'nav.screen-design' as TranslationKey, icon: Grid2x2 },
+      { href: '/ai-scientist', labelKey: 'nav.ai-scientist' as TranslationKey, icon: BrainCircuit },
       { href: '/staging', labelKey: 'nav.staging' as TranslationKey, icon: ClipboardCheck },
       { href: '/pdb-import', labelKey: 'nav.data-management' as TranslationKey, icon: DatabaseZap },
       { href: '/benchmark', labelKey: 'nav.benchmark' as TranslationKey, icon: BarChart3 },
