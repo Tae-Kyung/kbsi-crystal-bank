@@ -235,52 +235,79 @@ export default async function ConstructDetailPage({
 }
 
 async function ConstructHierarchySection({ constructId }: { constructId: number }) {
-  const MAX_CHILDREN = 10;
+  const MAX_SIBLINGS = 10;
 
   try {
-    // Get parent chain (ancestors)
-    const parent = await queryOne<any>(
-      'SELECT c.id, c.name, c.construct_type, c.residues FROM kbsi_construct c WHERE c.id = (SELECT parent_construct_id FROM kbsi_construct WHERE id = $1)',
+    // Get self
+    const self = await queryOne<any>(
+      'SELECT id, name, construct_type, residues, protein_id, parent_construct_id FROM kbsi_construct WHERE id = $1',
       [constructId]
     );
+    if (!self) return null;
 
-    // Get direct children (not full recursive tree)
+    // Get parent (if has parent_construct_id)
+    const parent = self.parent_construct_id
+      ? await queryOne<any>(
+          'SELECT id, name, construct_type, residues FROM kbsi_construct WHERE id = $1',
+          [self.parent_construct_id]
+        )
+      : null;
+
+    // Get direct children
     const children = await query<any>(
       'SELECT id, name, construct_type, residues FROM kbsi_construct WHERE parent_construct_id = $1 ORDER BY construct_type, name LIMIT $2',
-      [constructId, MAX_CHILDREN + 1]
+      [constructId, MAX_SIBLINGS + 1]
     );
-
-    // Get total children count
     const totalChildren = await scalar<number>(
       'SELECT COUNT(*) FROM kbsi_construct WHERE parent_construct_id = $1',
       [constructId]
     );
 
-    // Get self
-    const self = await queryOne<any>(
-      'SELECT id, name, construct_type, residues FROM kbsi_construct WHERE id = $1',
-      [constructId]
-    );
+    // If no parent and no children: show siblings (same protein, different constructs)
+    let siblings: any[] = [];
+    let totalSiblings = 0;
+    if (!parent && Number(totalChildren) === 0) {
+      totalSiblings = Number(await scalar<number>(
+        'SELECT COUNT(*) FROM kbsi_construct WHERE protein_id = $1 AND id != $2',
+        [self.protein_id, constructId]
+      ));
+      if (totalSiblings === 0) return null; // Only construct for this protein
+      siblings = await query<any>(
+        'SELECT id, name, construct_type, residues FROM kbsi_construct WHERE protein_id = $1 AND id != $2 ORDER BY construct_type, name LIMIT $3',
+        [self.protein_id, constructId, MAX_SIBLINGS]
+      );
+    }
 
-    if (!parent && Number(totalChildren) === 0) return null; // No hierarchy
+    const displayChildren = children.slice(0, MAX_SIBLINGS);
+    const remaining = Number(totalChildren) - MAX_SIBLINGS;
 
-    const displayChildren = children.slice(0, MAX_CHILDREN);
-    const remaining = Number(totalChildren) - MAX_CHILDREN;
-
-    // Build flat display list: parent → self → children
+    // Build flat display list
     const nodes: { node: any; depth: number; isCurrent: boolean }[] = [];
     if (parent) nodes.push({ node: parent, depth: 0, isCurrent: false });
     nodes.push({ node: self, depth: parent ? 1 : 0, isCurrent: true });
     displayChildren.forEach(c => nodes.push({ node: c, depth: parent ? 2 : 1, isCurrent: false }));
+    // Show siblings if no parent/children hierarchy
+    if (siblings.length > 0) {
+      siblings.forEach(c => nodes.push({ node: c, depth: 0, isCurrent: false }));
+    }
+
+    const label = siblings.length > 0
+      ? `Same Protein Constructs (${totalSiblings + 1} total)`
+      : 'Construct Hierarchy';
+    const countLabel = Number(totalChildren) > 0
+      ? `${totalChildren} children`
+      : siblings.length > 0 && totalSiblings > MAX_SIBLINGS
+        ? `+${totalSiblings - MAX_SIBLINGS} more`
+        : '';
 
     return (
       <Card>
         <CardHeader>
           <CardTitle className="text-base">
-            Construct Hierarchy
-            {Number(totalChildren) > 0 && (
+            {label}
+            {countLabel && (
               <span className="text-xs font-normal text-muted-foreground ml-2">
-                ({totalChildren} children)
+                ({countLabel})
               </span>
             )}
           </CardTitle>
