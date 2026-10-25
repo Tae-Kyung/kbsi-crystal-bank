@@ -213,11 +213,20 @@ export default function ScreenDesignPage() {
     setSearchLoading(true);
     try {
       const res = await fetch(
-        `/api/explorer/proteins?search=${encodeURIComponent(term)}&limit=10`
+        `/api/proteins?search=${encodeURIComponent(term)}&limit=10`
       );
       if (res.ok) {
-        const data = await res.json();
-        setSuggestions(data);
+        const body = await res.json();
+        // /api/proteins returns { data: [...], ... }
+        const items = Array.isArray(body) ? body : (body.data ?? []);
+        setSuggestions(
+          items.map((p: Record<string, unknown>) => ({
+            id: p.id as number,
+            full_name: (p.full_name as string) || '',
+            abbreviation: (p.abbreviation as string) || null,
+            organism: (p.organism as string) || '',
+          }))
+        );
       }
     } catch {
       // ignore

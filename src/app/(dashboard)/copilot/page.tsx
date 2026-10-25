@@ -71,6 +71,11 @@ export default function CopilotPage() {
   const [searchQuery, setSearchQuery] = useState('');
   const [searchResults, setSearchResults] = useState<any[]>([]);
   const [searchOpen, setSearchOpen] = useState(false);
+  const [selectedProteinId, setSelectedProteinId] = useState<number | null>(null);
+  // Live prediction
+  const [predForm, setPredForm] = useState({ ph: '7.0', temperature: '18', precipitant_type: '', precipitant_conc: '' });
+  const [predResult, setPredResult] = useState<any>(null);
+  const [predLoading, setPredLoading] = useState(false);
   const searchTimerRef = useRef<NodeJS.Timeout>(undefined);
   const skipSearchRef = useRef(false);
 
@@ -95,9 +100,11 @@ export default function CopilotPage() {
     setSearchOpen(false);
     setSearchResults([]);
     setSearchQuery(name);
+    setSelectedProteinId(proteinId);
     setLoading(true);
     setError('');
     setResult(null);
+    setPredResult(null);
     try {
       const res = await fetch('/api/copilot', {
         method: 'POST',
@@ -322,6 +329,114 @@ export default function CopilotPage() {
                     )}
                   </div>
                 </div>
+              </CardContent>
+            </Card>
+          )}
+
+          {/* Interactive Condition Predictor */}
+          {selectedProteinId && (
+            <Card className="border-blue-200 dark:border-blue-800">
+              <CardHeader>
+                <CardTitle className="text-base flex items-center gap-2">
+                  <Sparkles className="h-4 w-4 text-blue-500" /> 조건별 성공률 예측
+                  <span className="text-xs font-normal text-muted-foreground">조건을 변경하면 실시간으로 예측합니다</span>
+                </CardTitle>
+              </CardHeader>
+              <CardContent>
+                <div className="grid grid-cols-2 md:grid-cols-4 gap-3 mb-4">
+                  <div>
+                    <label className="text-xs text-muted-foreground">pH</label>
+                    <input type="number" step="0.5" min="1" max="14" className="w-full rounded border px-2 py-1.5 text-sm"
+                      value={predForm.ph} onChange={e => setPredForm(p => ({ ...p, ph: e.target.value }))} />
+                  </div>
+                  <div>
+                    <label className="text-xs text-muted-foreground">Temperature (°C)</label>
+                    <input type="number" step="1" min="0" max="50" className="w-full rounded border px-2 py-1.5 text-sm"
+                      value={predForm.temperature} onChange={e => setPredForm(p => ({ ...p, temperature: e.target.value }))} />
+                  </div>
+                  <div>
+                    <label className="text-xs text-muted-foreground">Precipitant</label>
+                    <select className="w-full rounded border px-2 py-1.5 text-sm"
+                      value={predForm.precipitant_type} onChange={e => setPredForm(p => ({ ...p, precipitant_type: e.target.value }))}>
+                      <option value="">Any</option>
+                      {['PEG 3350','PEG 4000','PEG 8000','PEG 6000','PEG 400','Ammonium Sulfate','MPD','Sodium Chloride','Isopropanol','Lithium Sulfate'].map(p =>
+                        <option key={p} value={p}>{p}</option>
+                      )}
+                    </select>
+                  </div>
+                  <div>
+                    <label className="text-xs text-muted-foreground">Conc (%)</label>
+                    <input type="number" step="1" min="0" max="100" className="w-full rounded border px-2 py-1.5 text-sm"
+                      value={predForm.precipitant_conc} onChange={e => setPredForm(p => ({ ...p, precipitant_conc: e.target.value }))} />
+                  </div>
+                </div>
+                <Button
+                  size="sm"
+                  disabled={predLoading}
+                  onClick={async () => {
+                    setPredLoading(true);
+                    try {
+                      const res = await fetch('/api/predict-v2', {
+                        method: 'POST',
+                        headers: { 'Content-Type': 'application/json' },
+                        body: JSON.stringify({
+                          protein_id: selectedProteinId,
+                          ph: parseFloat(predForm.ph),
+                          temperature: parseFloat(predForm.temperature),
+                          precipitant_type: predForm.precipitant_type || undefined,
+                          precipitant_conc: predForm.precipitant_conc ? parseFloat(predForm.precipitant_conc) : undefined,
+                        }),
+                      });
+                      const data = await res.json();
+                      setPredResult(data);
+                    } catch { setPredResult(null); }
+                    finally { setPredLoading(false); }
+                  }}
+                >
+                  {predLoading ? <><Loader2 className="h-3 w-3 animate-spin mr-1" />예측 중...</> : '예측하기'}
+                </Button>
+
+                {predResult && !predResult.error && (
+                  <div className="mt-4 space-y-3">
+                    <div className="flex items-center gap-4">
+                      <div className={`text-3xl font-bold ${
+                        predResult.success_probability >= 70 ? 'text-green-600' :
+                        predResult.success_probability >= 40 ? 'text-amber-600' : 'text-red-600'
+                      }`}>
+                        {predResult.success_probability?.toFixed(1)}%
+                      </div>
+                      <div className="flex-1">
+                        <div className="h-2.5 bg-muted rounded-full overflow-hidden">
+                          <div className={`h-full rounded-full ${
+                            predResult.success_probability >= 70 ? 'bg-green-500' :
+                            predResult.success_probability >= 40 ? 'bg-amber-500' : 'bg-red-500'
+                          }`} style={{ width: `${predResult.success_probability}%` }} />
+                        </div>
+                        <div className="flex justify-between text-[10px] text-muted-foreground mt-1">
+                          <span>신뢰도: {predResult.confidence}</span>
+                          <span>{predResult.method?.join(' + ')}</span>
+                        </div>
+                      </div>
+                    </div>
+                    {predResult.recommendation && (
+                      <p className="text-xs text-muted-foreground bg-muted/50 rounded p-2">{predResult.recommendation}</p>
+                    )}
+                    {predResult.similar_conditions?.length > 0 && (
+                      <div className="text-xs">
+                        <div className="font-medium mb-1">유사 조건 ({predResult.similar_conditions.length}건)</div>
+                        {predResult.similar_conditions.slice(0, 3).map((c: any, i: number) => (
+                          <div key={i} className="flex gap-2 text-muted-foreground">
+                            <Badge variant={c.outcome?.includes('crystal') ? 'default' : 'outline'} className="text-[9px]">{c.outcome}</Badge>
+                            <span>pH {c.ph} / {c.temperature}°C / {c.precipitant || '-'} ({c.count}건)</span>
+                          </div>
+                        ))}
+                      </div>
+                    )}
+                  </div>
+                )}
+                {predResult?.error && (
+                  <p className="mt-3 text-xs text-red-600">{predResult.error}</p>
+                )}
               </CardContent>
             </Card>
           )}
