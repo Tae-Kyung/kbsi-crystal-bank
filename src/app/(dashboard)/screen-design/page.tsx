@@ -292,7 +292,7 @@ export default function ScreenDesignPage() {
         </CardHeader>
         <CardContent>
           <div className="flex gap-3 items-start">
-            <div className="relative flex-1">
+            <div className="relative flex-1" style={{ zIndex: 50 }}>
               <div className="relative">
                 <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
                 <Input
@@ -310,7 +310,7 @@ export default function ScreenDesignPage() {
 
               {/* Autocomplete dropdown */}
               {showSuggestions && suggestions.length > 0 && (
-                <div className="absolute z-50 w-full mt-1 bg-popover border rounded-lg shadow-lg max-h-60 overflow-y-auto">
+                <div className="absolute z-[100] w-full mt-1 bg-white dark:bg-gray-900 border-2 border-primary/30 rounded-lg shadow-2xl max-h-60 overflow-y-auto">
                   {suggestions.map((p) => (
                     <button
                       key={p.id}
