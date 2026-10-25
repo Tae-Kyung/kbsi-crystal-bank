@@ -1,6 +1,7 @@
-import { scalar } from '@/lib/db';
+import { query, queryOne, scalar, getDbStatus } from '@/lib/db';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
+import { Database, Activity, RefreshCw, Shield } from 'lucide-react';
 
 export const dynamic = 'force-dynamic';
 
@@ -43,6 +44,21 @@ const TYPE_COLORS: Record<string, string> = {
 };
 
 export default async function AdminPage() {
+  // DB 상태
+  const [connStatus, dbHealth, syncStatus] = await Promise.all([
+    getDbStatus(),
+    queryOne<{
+      db_size: string; total_tables: number; total_rows: string;
+      total_indexes: number; cache_hit_ratio: string;
+      active_connections: number; uptime: any;
+    }>('SELECT * FROM db_health()').catch(() => null),
+    queryOne<{
+      total_pending: string; oldest_pending: string;
+      by_table: Record<string, number> | null; by_action: Record<string, number> | null;
+      last_synced: string;
+    }>('SELECT * FROM sync_status()').catch(() => null),
+  ]);
+
   // 테이블별 건수
   const tables = [
     { name: 'kbsi_protein', label: 'Proteins' },
@@ -102,6 +118,99 @@ export default async function AdminPage() {
       <div>
         <h2 className="text-2xl font-bold">Admin Dashboard</h2>
         <p className="text-muted-foreground">데이터 현황, 필드 커버리지, 스크립트 관리</p>
+      </div>
+
+      {/* DB Status */}
+      <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+        <Card>
+          <CardHeader>
+            <CardTitle className="text-base flex items-center gap-2">
+              <Database className="h-4 w-4" />
+              Database Connection
+            </CardTitle>
+          </CardHeader>
+          <CardContent>
+            <div className="grid grid-cols-2 gap-3">
+              <div className="rounded-lg border p-3">
+                <div className="flex items-center gap-2 mb-1">
+                  <div className={`h-2.5 w-2.5 rounded-full ${connStatus.primary === 'active' ? 'bg-green-500' : 'bg-red-500'}`} />
+                  <span className="text-sm font-medium">Lab PG (Primary)</span>
+                </div>
+                <div className="text-xs text-muted-foreground">203.255.78.89:15432</div>
+                {dbHealth && (
+                  <div className="mt-2 space-y-1 text-xs">
+                    <div>Size: <span className="font-mono">{dbHealth.db_size}</span></div>
+                    <div>Tables: <span className="font-mono">{dbHealth.total_tables}</span> / Indexes: <span className="font-mono">{dbHealth.total_indexes}</span></div>
+                    <div>Rows: <span className="font-mono">{Number(dbHealth.total_rows).toLocaleString()}</span></div>
+                    <div>Cache Hit: <span className="font-mono">{dbHealth.cache_hit_ratio}%</span></div>
+                    <div>Connections: <span className="font-mono">{dbHealth.active_connections}</span></div>
+                  </div>
+                )}
+              </div>
+              <div className="rounded-lg border p-3">
+                <div className="flex items-center gap-2 mb-1">
+                  <div className={`h-2.5 w-2.5 rounded-full ${connStatus.fallback === 'available' ? 'bg-yellow-500' : 'bg-gray-400'}`} />
+                  <span className="text-sm font-medium">Supabase (Standby)</span>
+                </div>
+                <div className="text-xs text-muted-foreground">yjmeolkuhcjpxuxmtkts.supabase.co</div>
+                <div className="mt-2 text-xs">
+                  <Badge variant="outline" className="text-[10px]">
+                    {connStatus.fallback === 'available' ? 'Ready for Failover' : 'Unavailable'}
+                  </Badge>
+                </div>
+                {connStatus.failCount > 0 && (
+                  <div className="mt-1 text-xs text-red-600">Fail count: {connStatus.failCount}/3</div>
+                )}
+              </div>
+            </div>
+          </CardContent>
+        </Card>
+
+        <Card>
+          <CardHeader>
+            <CardTitle className="text-base flex items-center gap-2">
+              <RefreshCw className="h-4 w-4" />
+              Sync Status (CDC)
+            </CardTitle>
+          </CardHeader>
+          <CardContent>
+            {syncStatus ? (
+              <div className="space-y-3">
+                <div className="grid grid-cols-3 gap-3">
+                  <div className="text-center p-2 rounded-lg bg-muted/50">
+                    <div className="text-lg font-bold">{Number(syncStatus.total_pending).toLocaleString()}</div>
+                    <div className="text-[10px] text-muted-foreground">Pending Changes</div>
+                  </div>
+                  <div className="text-center p-2 rounded-lg bg-muted/50">
+                    <div className="text-sm font-mono">{syncStatus.last_synced ? new Date(syncStatus.last_synced).toLocaleString('ko-KR', { hour12: false }) : '-'}</div>
+                    <div className="text-[10px] text-muted-foreground">Last Synced</div>
+                  </div>
+                  <div className="text-center p-2 rounded-lg bg-muted/50">
+                    <div className="text-sm font-mono">{syncStatus.oldest_pending ? new Date(syncStatus.oldest_pending).toLocaleString('ko-KR', { hour12: false }) : '-'}</div>
+                    <div className="text-[10px] text-muted-foreground">Oldest Pending</div>
+                  </div>
+                </div>
+                {syncStatus.by_table && (
+                  <div className="text-xs text-muted-foreground">
+                    <span className="font-medium">By table:</span>{' '}
+                    {Object.entries(syncStatus.by_table).map(([t, c]) => `${t.replace('kbsi_', '')}(${c})`).join(', ')}
+                  </div>
+                )}
+                {syncStatus.by_action && (
+                  <div className="text-xs text-muted-foreground">
+                    <span className="font-medium">By action:</span>{' '}
+                    {Object.entries(syncStatus.by_action).map(([a, c]) => `${a}(${c})`).join(', ')}
+                  </div>
+                )}
+                <div className="text-[10px] text-muted-foreground">
+                  Sync command: <code className="bg-muted px-1 rounded">npm run sync:backup</code>
+                </div>
+              </div>
+            ) : (
+              <div className="text-sm text-muted-foreground">Sync status unavailable</div>
+            )}
+          </CardContent>
+        </Card>
       </div>
 
       {/* Table Counts */}

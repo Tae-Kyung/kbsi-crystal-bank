@@ -1,17 +1,18 @@
 /**
- * Lab PG → Supabase 증분 동기화 (Standby Backup)
+ * Lab PG → Supabase CDC 기반 동기화 (Standby Backup)
+ *
+ * CDC (Change Data Capture): kbsi_sync_changelog 테이블에 기록된 변경사항을
+ * Supabase에 재생 (replay)
  *
  * Usage:
- *   npx tsx scripts/sync-to-supabase.ts              # 전체 동기화
- *   npx tsx scripts/sync-to-supabase.ts --since=6h   # 최근 6시간
+ *   npx tsx scripts/sync-to-supabase.ts              # CDC 기반 동기화
  *   npx tsx scripts/sync-to-supabase.ts --dry-run    # 미리보기
- *   npx tsx scripts/sync-to-supabase.ts --table=kbsi_protein  # 특정 테이블
+ *   npx tsx scripts/sync-to-supabase.ts --full       # 전체 동기화 (CDC 무시)
+ *   npx tsx scripts/sync-to-supabase.ts --table=kbsi_protein --full
  */
 import pg from 'pg';
 import { createClient } from '@supabase/supabase-js';
 import dotenv from 'dotenv';
-import { writeFileSync, readFileSync, existsSync } from 'fs';
-import { resolve } from 'path';
 
 dotenv.config({ path: '.env.local' });
 
@@ -29,119 +30,130 @@ const supabase = createClient(
   process.env.SUPABASE_SERVICE_ROLE_KEY!
 );
 
-const STATE_FILE = resolve(__dirname, '..', 'data', 'sync-state.json');
 const BATCH_SIZE = 500;
 
-// Tables with updated_at (syncable)
-const SYNC_TABLES = [
-  'kbsi_protein',
-  'kbsi_construct',
-  'kbsi_expression',
-  'kbsi_purification',
-  'kbsi_characterization',
-  'kbsi_storage',
-  'kbsi_crystallization',
-  'kbsi_diffraction',
-  'kbsi_nmr_experiment',
-  'kbsi_cryoem_session',
-  'kbsi_structure',
-];
+async function syncViaCDC(dryRun: boolean): Promise<number> {
+  // Fetch unsynced changes
+  const changes = await pgClient.query(
+    `SELECT id, table_name, record_id, action, row_data
+     FROM kbsi_sync_changelog
+     WHERE synced_at IS NULL
+     ORDER BY id
+     LIMIT 10000`
+  );
 
-// Tables without updated_at (full sync by id)
-const STATIC_TABLES = [
-  'kbsi_reference',
-  'kbsi_database_id',
-  'kbsi_mutation',
-  'kbsi_ligand',
-  'kbsi_construct_ligand',
-  'kbsi_nmr_spectrum',
-  'kbsi_nmr_chemical_shift',
-  'kbsi_precipitant_lookup',
-  'kbsi_screening_kit',
-  'kbsi_featured_protein',
-  'kbsi_search_keywords',
-];
-
-interface SyncState {
-  [table: string]: {
-    lastSyncAt: string;
-    lastMaxId: number;
-    rowsSynced: number;
-  };
-}
-
-function loadState(): SyncState {
-  if (existsSync(STATE_FILE)) {
-    return JSON.parse(readFileSync(STATE_FILE, 'utf-8'));
+  if (changes.rows.length === 0) {
+    console.log('No pending changes');
+    return 0;
   }
-  return {};
-}
 
-function saveState(state: SyncState) {
-  writeFileSync(STATE_FILE, JSON.stringify(state, null, 2));
-}
+  console.log(`Found ${changes.rows.length} pending changes`);
 
-function parseSince(since: string): Date {
-  const match = since.match(/^(\d+)(h|d|m)$/);
-  if (!match) return new Date(0);
-  const [, num, unit] = match;
-  const ms = unit === 'h' ? 3600000 : unit === 'd' ? 86400000 : 60000;
-  return new Date(Date.now() - parseInt(num) * ms);
-}
-
-async function syncTable(
-  table: string,
-  since: Date,
-  hasUpdatedAt: boolean,
-  dryRun: boolean
-): Promise<number> {
+  // Group by table + action for batch processing
   let synced = 0;
+  let failed = 0;
+  const syncedIds: number[] = [];
 
-  if (hasUpdatedAt) {
-    // Incremental: fetch rows updated after `since`
-    let lastId = 0;
-    while (true) {
-      const res = await pgClient.query(
-        `SELECT * FROM ${table} WHERE updated_at >= $1 AND id > $2 ORDER BY id LIMIT $3`,
-        [since.toISOString(), lastId, BATCH_SIZE]
-      );
-      if (res.rows.length === 0) break;
+  for (let i = 0; i < changes.rows.length; i += BATCH_SIZE) {
+    const batch = changes.rows.slice(i, i + BATCH_SIZE);
 
-      if (!dryRun) {
-        // Upsert to Supabase
-        const { error } = await supabase.from(table).upsert(res.rows, { onConflict: 'id' });
+    // Group by table
+    const byTable: Record<string, typeof batch> = {};
+    for (const row of batch) {
+      if (!byTable[row.table_name]) byTable[row.table_name] = [];
+      byTable[row.table_name].push(row);
+    }
+
+    for (const [table, rows] of Object.entries(byTable)) {
+      const inserts = rows.filter(r => r.action === 'INSERT' || r.action === 'UPDATE');
+      const deletes = rows.filter(r => r.action === 'DELETE');
+
+      // Upsert inserts/updates
+      if (inserts.length > 0 && !dryRun) {
+        const data = inserts.map(r => r.row_data);
+        const { error } = await supabase.from(table).upsert(data, { onConflict: 'id' });
         if (error) {
-          console.error(`  ERROR ${table}: ${error.message}`);
-          break;
+          console.error(`  UPSERT ${table} (${inserts.length}): ${error.message}`);
+          failed += inserts.length;
+          continue;
         }
       }
 
-      synced += res.rows.length;
-      lastId = res.rows[res.rows.length - 1].id;
+      // Delete
+      if (deletes.length > 0 && !dryRun) {
+        const ids = deletes.map(r => r.record_id);
+        const { error } = await supabase.from(table).delete().in('id', ids);
+        if (error) {
+          console.error(`  DELETE ${table} (${deletes.length}): ${error.message}`);
+          failed += deletes.length;
+          continue;
+        }
+      }
 
-      if (res.rows.length < BATCH_SIZE) break;
+      synced += inserts.length + deletes.length;
+      syncedIds.push(...rows.map(r => r.id));
+
+      if (dryRun) {
+        console.log(`  [DRY] ${table}: ${inserts.length} upsert, ${deletes.length} delete`);
+      }
     }
-  } else {
-    // Static tables: sync by max id gap
-    const sbCount = await supabase
-      .from(table)
-      .select('id', { count: 'exact', head: true });
-    const sbTotal = sbCount.count ?? 0;
 
-    const pgCount = await pgClient.query(`SELECT COUNT(*) FROM ${table}`);
-    const pgTotal = parseInt(pgCount.rows[0].count);
+    if ((i + BATCH_SIZE) % 2000 === 0) {
+      process.stdout.write(`  Synced: ${synced} / ${changes.rows.length}\r`);
+    }
+  }
 
-    if (pgTotal <= sbTotal) return 0; // Already synced
+  // Mark as synced
+  if (!dryRun && syncedIds.length > 0) {
+    await pgClient.query(
+      'UPDATE kbsi_sync_changelog SET synced_at = now() WHERE id = ANY($1)',
+      [syncedIds]
+    );
+  }
 
-    // Fetch new rows (id > supabase max)
-    const sbMax = await supabase
-      .from(table)
-      .select('id')
-      .order('id', { ascending: false })
-      .limit(1);
-    const maxId = sbMax.data?.[0]?.id ?? 0;
+  console.log(`\nResult: ${synced} synced, ${failed} failed`);
+  return synced;
+}
+
+async function fullSync(tableFilter: string | null, dryRun: boolean): Promise<number> {
+  const tables = tableFilter
+    ? [tableFilter]
+    : [
+        'kbsi_reference', 'kbsi_protein', 'kbsi_database_id', 'kbsi_construct',
+        'kbsi_mutation', 'kbsi_ligand', 'kbsi_construct_ligand',
+        'kbsi_expression', 'kbsi_purification', 'kbsi_characterization',
+        'kbsi_crystallization', 'kbsi_diffraction', 'kbsi_structure',
+        'kbsi_nmr_experiment', 'kbsi_nmr_spectrum',
+        'kbsi_precipitant_lookup', 'kbsi_screening_kit', 'kbsi_featured_protein',
+      ];
+
+  let totalSynced = 0;
+
+  for (const table of tables) {
+    // Compare counts
+    const pgCount = parseInt((await pgClient.query(`SELECT COUNT(*) FROM ${table}`)).rows[0].count);
+    const { count: sbCount } = await supabase.from(table).select('id', { count: 'exact', head: true });
+    const sbTotal = sbCount ?? 0;
+
+    if (pgCount === sbTotal) {
+      console.log(`  ${table.padEnd(30)} up to date (${pgCount})`);
+      continue;
+    }
+
+    console.log(`  ${table.padEnd(30)} PG=${pgCount} SB=${sbTotal} (diff=${pgCount - sbTotal})`);
+
+    if (dryRun) {
+      totalSynced += pgCount - sbTotal;
+      continue;
+    }
+
+    // Find max id in Supabase
+    const { data: maxRow } = await supabase.from(table).select('id').order('id', { ascending: false }).limit(1);
+    const maxId = maxRow?.[0]?.id ?? 0;
 
     let lastId = maxId;
+    let tableSynced = 0;
+
     while (true) {
       const res = await pgClient.query(
         `SELECT * FROM ${table} WHERE id > $1 ORDER BY id LIMIT $2`,
@@ -149,82 +161,53 @@ async function syncTable(
       );
       if (res.rows.length === 0) break;
 
-      if (!dryRun) {
-        const { error } = await supabase.from(table).upsert(res.rows, { onConflict: 'id' });
-        if (error) {
-          console.error(`  ERROR ${table}: ${error.message}`);
-          break;
-        }
+      const { error } = await supabase.from(table).upsert(res.rows, { onConflict: 'id' });
+      if (error) {
+        console.error(`  ERROR ${table}: ${error.message}`);
+        break;
       }
 
-      synced += res.rows.length;
+      tableSynced += res.rows.length;
       lastId = res.rows[res.rows.length - 1].id;
 
-      if (synced % 5000 < BATCH_SIZE) {
-        process.stdout.write(`  ${table}: ${synced.toLocaleString()} rows\r`);
+      if (tableSynced % 5000 < BATCH_SIZE) {
+        process.stdout.write(`    ${table}: ${tableSynced.toLocaleString()}\r`);
       }
 
       if (res.rows.length < BATCH_SIZE) break;
     }
+
+    if (tableSynced > 0) console.log(`    ${table}: ${tableSynced.toLocaleString()} synced`);
+    totalSynced += tableSynced;
   }
 
-  return synced;
+  return totalSynced;
 }
 
 async function main() {
   const args = process.argv.slice(2);
   const dryRun = args.includes('--dry-run');
-  const sinceArg = args.find(a => a.startsWith('--since='))?.split('=')[1];
-  const tableFilter = args.find(a => a.startsWith('--table='))?.split('=')[1];
+  const fullMode = args.includes('--full');
+  const tableFilter = args.find(a => a.startsWith('--table='))?.split('=')[1] || null;
 
   await pgClient.connect();
-  console.log('Connected to Lab PG');
-
-  const state = loadState();
-  const since = sinceArg
-    ? parseSince(sinceArg)
-    : new Date(0); // Full sync if no --since
+  console.log('Connected to Lab PG\n');
 
   if (dryRun) console.log('=== DRY RUN ===\n');
-  console.log(`Since: ${since.toISOString()}\n`);
 
-  const allTables = [
-    ...SYNC_TABLES.map(t => ({ name: t, hasUpdatedAt: true })),
-    ...STATIC_TABLES.map(t => ({ name: t, hasUpdatedAt: false })),
-  ];
-
-  const tables = tableFilter
-    ? allTables.filter(t => t.name === tableFilter)
-    : allTables;
-
-  let totalSynced = 0;
   const start = Date.now();
+  let synced: number;
 
-  for (const { name, hasUpdatedAt } of tables) {
-    const tableSince = hasUpdatedAt ? since : new Date(0);
-    const count = await syncTable(name, tableSince, hasUpdatedAt, dryRun);
-
-    if (count > 0) {
-      console.log(`  ${name.padEnd(30)} ${count.toLocaleString().padStart(10)} rows synced`);
-      state[name] = {
-        lastSyncAt: new Date().toISOString(),
-        lastMaxId: 0,
-        rowsSynced: (state[name]?.rowsSynced ?? 0) + count,
-      };
-    } else {
-      console.log(`  ${name.padEnd(30)}     up to date`);
-    }
-
-    totalSynced += count;
+  if (fullMode) {
+    console.log('Mode: Full Sync');
+    synced = await fullSync(tableFilter, dryRun);
+  } else {
+    console.log('Mode: CDC (Change Data Capture)');
+    synced = await syncViaCDC(dryRun);
   }
 
   const elapsed = ((Date.now() - start) / 1000).toFixed(1);
-  console.log(`\nTotal: ${totalSynced.toLocaleString()} rows in ${elapsed}s`);
-
-  if (!dryRun) {
-    saveState(state);
-    console.log(`State saved: ${STATE_FILE}`);
-  }
+  console.log(`\nDone: ${synced.toLocaleString()} rows in ${elapsed}s`);
 
   await pgClient.end();
 }
