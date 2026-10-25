@@ -18,9 +18,10 @@ const pool = new pg.Pool({
   user: process.env.PG_USER || 'kbsi_app',
   password: process.env.PG_PASSWORD || 'SMmQhkEIeXivl5P0yrHWW1JhpwCcmWQg',
   ssl: { rejectUnauthorized: false },
-  max: 20,
-  idleTimeoutMillis: 30000,
+  max: 5,                    // Vercel serverless: 인스턴스당 최대 5개
+  idleTimeoutMillis: 10000,  // 10초 idle 후 연결 해제 (30초→10초)
   connectionTimeoutMillis: 5000,
+  allowExitOnIdle: true,     // 모든 연결 idle 시 프로세스 종료 허용
 });
 
 // --- Fallback: Supabase ---
