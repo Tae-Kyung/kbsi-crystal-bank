@@ -52,7 +52,7 @@
 % ABSTRACT
 % ═══════════════════════════════════════════════════════
 \begin{abstract}
-Protein crystallization remains the primary bottleneck in macromolecular X-ray crystallography, yet existing databases record only successful conditions, discarding the vast majority of experimental outcomes. Here we present KBSI-CrystalBank, a comprehensive database containing 1,659,500 crystallization conditions for 59,349 proteins, uniquely combining 489,827 experimentally derived conditions with 1,169,673 systematically generated negative controls. The database integrates the complete protein production pipeline---expression (210,723 records), purification (11,359), characterization (5,833), crystallization, diffraction (337,591), and structure determination (216,786)---extracted from public repositories and scientific literature using a validated LLM pipeline (81.4\% accuracy). Each protein is annotated with ESM-2 sequence embeddings (214,918 constructs, 1,280 dimensions), enabling similarity-based condition transfer. We demonstrate the utility of this resource through a crystallization success prediction benchmark achieving 88.4\% accuracy using XGBoost with ESM-2 features and Optuna hyperparameter tuning on a balanced dataset of 50,000 samples, where pH and temperature emerge as dominant predictors. Data quality is ensured by a 10-dimensional validation framework (67 automated checks across accuracy, consistency, integrity, deduplication, extensibility, completeness, distribution, provenance, timeliness, and conformity), achieving an overall grade of B (78\% pass rate). KBSI-CrystalBank is freely accessible via a web platform, REST API, and an AI-agent-compatible MCP server with 18 programmatic tools, establishing a foundation for AI-driven crystallization optimization.
+Protein crystallization remains the primary bottleneck in macromolecular X-ray crystallography, yet existing databases record only successful conditions, discarding the vast majority of experimental outcomes. Here we present KBSI-CrystalBank, a comprehensive database containing 1,659,500 crystallization conditions for 59,349 proteins, uniquely combining 489,827 experimentally derived conditions with 1,169,673 systematically generated negative controls. The database integrates the complete protein production pipeline---expression (210,723 records), purification (11,359), characterization (5,833), crystallization, diffraction (337,591), and structure determination (216,786)---extracted from public repositories and scientific literature using a validated LLM pipeline (81.4\% accuracy). Each protein is annotated with ESM-2 sequence embeddings (214,918 constructs, 1,280 dimensions), enabling similarity-based condition transfer. We demonstrate the utility of this resource through a crystallization success prediction benchmark achieving 88.4\% accuracy using XGBoost with ESM-2 features and Optuna hyperparameter tuning on a balanced dataset of 50,000 samples, where pH and temperature emerge as dominant predictors. Data quality is ensured by a 10-dimensional validation framework (67 automated checks across accuracy, consistency, integrity, deduplication, extensibility, completeness, distribution, provenance, timeliness, and conformity), achieving an overall grade of B (84\% pass rate). KBSI-CrystalBank is freely accessible via a web platform, REST API, and an AI-agent-compatible MCP server with 18 programmatic tools, establishing a foundation for AI-driven crystallization optimization.
 \end{abstract}
 
 \noindent\textbf{Keywords:} protein crystallization, structural biology, machine learning, database, failure data, negative controls, ESM-2, MCP
@@ -78,7 +78,7 @@ KBSI-CrystalBank addresses these gaps through five key contributions:
   \item \textbf{AI accessibility}: A Model Context Protocol (MCP) server exposing 18 programmatic tools, enabling AI agents to search, analyze, and reason over the database without manual intervention.
 \end{enumerate}
 
-We validate the resource through a 10-dimensional data quality framework comprising 67 automated checks (overall grade~B, 78\% pass rate), cross-reference verification against source databases (98.5--100\% concordance), a crystallization success prediction benchmark (88.4\% accuracy, F1 88.8\% with XGBoost + ESM-2 + Optuna on 50,000 balanced samples), and systematic characterization of data distributions to guide appropriate use.
+We validate the resource through a 10-dimensional data quality framework comprising 67 automated checks (overall grade~B, 84\% pass rate), cross-reference verification against source databases (98.5--100\% concordance), a crystallization success prediction benchmark (88.4\% accuracy, F1 88.8\% with XGBoost + ESM-2 + Optuna on 50,000 balanced samples), and systematic characterization of data distributions to guide appropriate use.
 
 % ═══════════════════════════════════════════════════════
 % METHODS
@@ -93,11 +93,11 @@ KBSI-CrystalBank integrates data from five primary sources (Fig.~\ref{fig:overvi
 
 \textbf{TargetTrack.} Expression system, purification strategy, and construct design metadata were obtained from the TargetTrack database maintained by the Protein Structure Initiative~\cite{berman2009psi}. Records were matched to PDB entries via target identifiers and sequence alignment.
 
-\textbf{ChEMBL and BindingDB.} Ligand binding data (IC\textsubscript{50}, $K_d$, $K_i$ values) were harvested from ChEMBL~\cite{zdrazil2024} and BindingDB~\cite{gilson2016} and linked to proteins via UniProt identifier mapping. This yielded 182,285 unique ligands with 519,480 binding measurements.
+\textbf{ChEMBL and BindingDB.} Ligand binding data (IC\textsubscript{50}, $K_d$, $K_i$ values) were harvested from ChEMBL~\cite{zdrazil2024}, BindingDB~\cite{gilson2016}, and DrugBank (via UniProt cross-references) and linked to proteins via UniProt identifier mapping. This yielded 186,856 unique ligands with 755,958 binding measurements.
 
 \textbf{Europe PMC and CrossRef.} Publication metadata including DOIs, titles, authors, and journal information were collected for 126,331 references (98.7\% of structures linked to at least one publication).
 
-\textbf{UniProt and SIFTS.} Protein functional annotations, gene names, and cross-database identifiers were obtained via the UniProt API and SIFTS mapping service~\cite{dana2019}. Gene names were resolved for 37,151 proteins (62.6\%).
+\textbf{UniProt and SIFTS.} Protein functional annotations, gene names, and cross-database identifiers were obtained via the UniProt API and SIFTS mapping service~\cite{dana2019}. Gene names were resolved for 40,467 proteins (68.2\%).
 
 \subsection*{Data collection pipeline}
 
@@ -192,7 +192,7 @@ To demonstrate the utility of KBSI-CrystalBank, we established a crystallization
 
 \textbf{Features}: pH, temperature, precipitant type (one-hot), precipitant concentration, protein MW, pI, sequence length, organism, and ESM-2 embedding (1,280 dimensions).
 
-\textbf{Models}: $k$-Nearest Neighbors ($k = 1, 3, 5, 7$), Random Forest, XGBoost, and Logistic Regression, with 5-fold stratified cross-validation.
+\textbf{Models}: LightGBM, XGBoost (both with Optuna hyperparameter tuning, 50 trials), LightGBM baseline, and MLP (256-128-64), with 5-fold stratified cross-validation on 50,000 balanced samples.
 
 \textbf{Best result}: XGBoost with ESM-2 features and Optuna hyperparameter tuning achieved 88.4\% accuracy, 85.9\% precision, 88.8\% F1 score, AUC-ROC 94.9\% on 50,000 balanced samples (25,000 success + 25,000 failure). 5-fold cross-validation yielded F1 89.0 $\pm$ 0.2\%, AUC 95.2 $\pm$ 0.2\%. Feature importance analysis identified pH (6.2\%), precipitant concentration (5.3\%), and temperature (4.7\%) as top predictors (Fig.~\ref{fig:benchmark}).
 
@@ -223,12 +223,12 @@ Purification records & 11,359 & LLM-extracted from literature \\
 Characterization records & 5,833 & DLS, SEC-MALS, thermal shift, SDS-PAGE \\
 Diffraction records & 337,591 & Resolution, space group, cell parameters \\
 NMR experiments & 14,552 & Spectrometer, field strength, labeling \\
-Ligands & 182,285 & PDB, ChEMBL, BindingDB \\
-Binding measurements & 519,480 & IC\textsubscript{50}, $K_d$, $K_i$ values \\
+Ligands & 186,856 & PDB, ChEMBL, BindingDB, DrugBank \\
+Binding measurements & 755,958 & IC\textsubscript{50}, $K_d$, $K_i$ values \\
 Mutations & 8,184 & Site-directed and natural variants \\
 ESM-2 embeddings & 214,918 & 99.1\% coverage, 1,280 dimensions \\
 References & 126,331 & 98.7\% structure-to-publication linkage \\
-Gene name annotations & 37,151 & 62.6\% of proteins \\
+Gene name annotations & 40,467 & 68.2\% of proteins \\
 \bottomrule
 \end{tabular}
 \end{table}
@@ -250,7 +250,7 @@ Precipitant type & 1,593,120 & 96.0\% \\
 Precipitant concentration & $\sim$1,593,000 & $\sim$96.0\% \\
 Method & $\sim$200,000 & $\sim$12.1\% \\
 Buffer & $\sim$180,000 & $\sim$10.8\% \\
-Outcome & 1,638,131 & 98.7\% \\
+Outcome & 1,659,500 & 100.0\% \\
 \bottomrule
 \end{tabular}
 \end{table}
@@ -286,8 +286,8 @@ We developed a 10-dimensional data quality framework to systematically assess KB
 2 & Consistency & 6 & 6 & A & Zero orphan records; zero contradictions \\
 3 & Integrity & 5 & 5 & A & ESM-2 99.1\%; references 98.7\%; BMRB 66.0\% \\
 4 & Deduplication & 4 & 4 & A & Sequence hash 99.1\%; unique constraints enforced \\
-5 & Extensibility & 5 & 4 & B & Gene name 62.6\%; UniProt 68.8\%; organism 93.7\% \\
-6 & Completeness & 16 & 12 & B & pH 99.4\%; temperature 92.6\%; precipitant 96.0\%; outcome 98.7\% \\
+5 & Extensibility & 5 & 4 & B & Gene name 68.2\%; UniProt 68.8\%; organism 93.7\% \\
+6 & Completeness & 16 & 12 & B & pH 99.4\%; temperature 92.6\%; precipitant 96.0\%; outcome 100\% \\
 7 & Distribution & 6 & 6 & A & Balanced classes; 416 organisms; no excessive bias \\
 8 & Provenance & 6 & 4 & B & source\_type 100\%; PDB ID 100\%; DOI 61.6\% \\
 9 & Timeliness & 5 & 4 & B & Active updates; weekly snapshots \\
@@ -304,11 +304,11 @@ We developed a 10-dimensional data quality framework to systematically assess KB
 
 \textbf{Integrity} assesses referential completeness: 98.7\% structure--reference linkage, 99.1\% ESM-2 embedding coverage, 66.0\% NMR--BMRB linkage, and zero staging backlog.
 
-\textbf{Deduplication} ensures unique entity representation: SHA-256 sequence hashes for 99.1\% of proteins, database-level unique constraints, and 182,285 deduplicated ligands.
+\textbf{Deduplication} ensures unique entity representation: SHA-256 sequence hashes for 99.1\% of proteins, database-level unique constraints, and 186,856 deduplicated ligands.
 
-\textbf{Extensibility} measures annotation richness: gene names (62.6\%), UniProt mappings (68.8\%), organism annotation (93.7\%), 8,184 mutations, and 5,833 characterization records.
+\textbf{Extensibility} measures annotation richness: gene names (68.2\%), UniProt mappings (68.8\%), organism annotation (93.7\%), 8,184 mutations, and 5,833 characterization records.
 
-\textbf{Completeness} quantifies non-null field coverage at three levels: crystallization fields (pH 99.4\%, temperature 92.6\%, precipitant 96.0\%, outcome 98.7\%), protein annotations (organism 93.7\%, abbreviation 92.4\%), and pipeline stages (expression 97.2\%, purification 5.2\% of constructs).
+\textbf{Completeness} quantifies non-null field coverage at three levels: crystallization fields (pH 99.4\%, temperature 92.6\%, precipitant 96.0\%, outcome 100\%), protein annotations (organism 93.7\%, abbreviation 92.4\%), and pipeline stages (expression 97.2\%, purification 5.2\% of constructs).
 
 \textbf{Distribution} assesses class balance: 489,827 experimental conditions vs.\ 1,169,673 synthetic negatives, 416 unique organisms with \textit{Homo sapiens} at 27.6\%, pH mean 6.79 (std 1.24), temperature mean 17.8\textdegree C (std 7.0\textdegree C).
 
@@ -459,7 +459,7 @@ The authors declare no competing interests.
 \begin{figure}[H]
 \centering
 \includegraphics[width=\textwidth]{figures/fig5_benchmark.png}
-\caption{\textbf{Crystallization success prediction benchmark.} (a)~Model comparison ($k$-NN, Random Forest, XGBoost, Logistic Regression). (b)~Feature importance from XGBoost-Optuna showing pH (6.2\%), precipitant concentration (5.3\%), and temperature (4.7\%) as top predictors. (c)~ROC curves (AUC-ROC 94.9\%). (d)~Ablation: with vs.\ without ESM-2 embeddings ($\Delta = +0.9\%$).}
+\caption{\textbf{Crystallization success prediction benchmark} (50,000 balanced samples). (a)~Model comparison: LightGBM-Optuna, XGBoost-Optuna, LightGBM baseline, and MLP (256-128-64). (b)~Feature importance from LightGBM-Optuna showing pH (6.2\%), precipitant concentration (5.3\%), and temperature (4.7\%) as top predictors. Best result: XGBoost F1 88.8\%, AUC-ROC 94.9\%.}
 \label{fig:benchmark}
 \end{figure}
 
