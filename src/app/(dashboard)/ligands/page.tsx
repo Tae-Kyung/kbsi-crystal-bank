@@ -264,7 +264,7 @@ export default async function LigandsPage({
     query<any>(
       `SELECT l.id, l.name, l.smiles, l.mw, l.source_db, l.source_id, l.created_at
        FROM kbsi_ligand l ${lWhereClause}
-       ORDER BY l.created_at DESC
+       ORDER BY l.mw DESC NULLS LAST, l.name
        OFFSET $${lIdx} LIMIT $${lIdx + 1}`,
       [...lValues, offset, limit]
     ),
