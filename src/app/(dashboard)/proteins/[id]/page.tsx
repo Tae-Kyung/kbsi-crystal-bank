@@ -498,18 +498,19 @@ async function ConditionRecommendationsSection({ proteinId }: { proteinId: numbe
             <tbody className="divide-y">
               {recommendations.map((r: any, i: number) => (
                 <tr key={i} className="hover:bg-muted/30">
-                  <td className="px-3 py-2 text-xs">{r.precipitant || r.precipitant_name || '-'}</td>
+                  <td className="px-3 py-2 text-xs">{r.precipitant_type || '-'}</td>
                   <td className="px-3 py-2 text-xs font-mono">{r.avg_ph != null ? Number(r.avg_ph).toFixed(1) : '-'}</td>
-                  <td className="px-3 py-2 text-xs font-mono">{r.avg_temp != null ? `${Number(r.avg_temp).toFixed(0)} C` : '-'}</td>
+                  <td className="px-3 py-2 text-xs font-mono">{r.avg_temp != null ? `${Number(r.avg_temp).toFixed(0)}°C` : '-'}</td>
                   <td className="px-3 py-2 text-xs">
                     <div className="flex items-center gap-2">
                       <div className="w-16 h-2 rounded-full bg-gray-200 dark:bg-gray-700 overflow-hidden">
                         <div
                           className="h-full bg-green-500 rounded-full"
-                          style={{ width: `${Math.min(100, (r.success_rate != null ? Number(r.success_rate) * 100 : 0))}%` }}
+                          style={{ width: `${Math.min(100, Number(r.success_rate) || 0)}%` }}
                         />
                       </div>
-                      <span className="font-mono">{r.success_rate != null ? `${(Number(r.success_rate) * 100).toFixed(0)}%` : '-'}</span>
+                      <span className="font-mono">{r.success_rate != null ? `${Number(r.success_rate).toFixed(1)}%` : '-'}</span>
+                      <span className="text-muted-foreground">({r.success_count}/{r.total_trials})</span>
                     </div>
                   </td>
                 </tr>
