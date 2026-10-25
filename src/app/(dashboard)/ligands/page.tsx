@@ -151,7 +151,7 @@ export default async function LigandsPage({
                 const lig = b.kbsi_ligand;
                 const con = b.kbsi_construct;
                 const prot = con?.kbsi_protein;
-                const lUrl = lig?.source_db === 'ChEMBL' && lig?.source_id ? `https://www.ebi.ac.uk/chembl/compound_report_card/${lig.source_id}/` : lig?.source_db === 'PDB' && lig?.source_id ? `https://www.rcsb.org/ligand/${lig.source_id}` : null;
+                const lUrl = lig?.source_db === 'ChEMBL' && lig?.source_id ? `https://www.ebi.ac.uk/chembl/compound_report_card/${lig.source_id}/` : lig?.source_db === 'PDB' && lig?.source_id ? `https://www.rcsb.org/ligand/${lig.source_id}` : lig?.source_db === 'BindingDB' && lig?.source_id ? `https://www.bindingdb.org/bind/chemsearch/marvin/MolStructure.jsp?monession=${lig.source_id}` : lig?.source_db === 'DrugBank' && lig?.source_id ? `https://go.drugbank.com/drugs/${lig.source_id}` : null;
                 return (
                   <tr key={b.id} className="hover:bg-muted/30">
                     <td className="px-3 py-2 text-xs">
@@ -341,7 +341,7 @@ export default async function LigandsPage({
           </thead>
           <tbody className="divide-y">
             {filteredLigands.map((l: any) => {
-              const lUrl = l.source_db === 'ChEMBL' && l.source_id ? `https://www.ebi.ac.uk/chembl/compound_report_card/${l.source_id}/` : l.source_db === 'PDB' && l.source_id ? `https://www.rcsb.org/ligand/${l.source_id}` : null;
+              const lUrl = l.source_db === 'ChEMBL' && l.source_id ? `https://www.ebi.ac.uk/chembl/compound_report_card/${l.source_id}/` : l.source_db === 'PDB' && l.source_id ? `https://www.rcsb.org/ligand/${l.source_id}` : l.source_db === 'BindingDB' && l.source_id ? `https://www.bindingdb.org/bind/chemsearch/marvin/MolStructure.jsp?monession=${l.source_id}` : l.source_db === 'DrugBank' && l.source_id ? `https://go.drugbank.com/drugs/${l.source_id}` : null;
               return (
                 <tr key={l.id} className="hover:bg-muted/30">
                   <td className="px-3 py-2 text-xs">

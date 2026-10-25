@@ -284,7 +284,7 @@ export default async function ProteinDetailPage({
                     const ligand = b.kbsi_ligand;
                     const lSource = ligand?.source_db;
                     const lId = ligand?.source_id;
-                    const lUrl = lSource === 'ChEMBL' && lId ? `https://www.ebi.ac.uk/chembl/compound_report_card/${lId}/` : lSource === 'PDB' && lId ? `https://www.rcsb.org/ligand/${lId}` : null;
+                    const lUrl = lSource === 'ChEMBL' && lId ? `https://www.ebi.ac.uk/chembl/compound_report_card/${lId}/` : lSource === 'PDB' && lId ? `https://www.rcsb.org/ligand/${lId}` : lSource === 'BindingDB' && lId ? `https://www.bindingdb.org/bind/chemsearch/marvin/MolStructure.jsp?monession=${lId}` : lSource === 'DrugBank' && lId ? `https://go.drugbank.com/drugs/${lId}` : null;
                     return (
                       <tr key={b.id} className="hover:bg-muted/30">
                         <td className="px-3 py-2 text-xs">
