@@ -119,7 +119,7 @@ async function getTopPrecipitants(organism: string): Promise<PrecipitantStats[]>
        FROM kbsi_crystallization cr
        JOIN kbsi_construct c ON c.id = cr.construct_id
        JOIN kbsi_protein p ON p.id = c.protein_id
-       WHERE p.organism = $1
+       WHERE (p.organism = $1 OR $1 = '%')
          AND cr.precipitant_type IS NOT NULL
          AND cr.outcome IS NOT NULL
      ),
@@ -178,7 +178,7 @@ async function getWildcardConditions(organism: string): Promise<WildCardConditio
      FROM kbsi_crystallization cr
      JOIN kbsi_construct c ON c.id = cr.construct_id
      JOIN kbsi_protein p ON p.id = c.protein_id
-     WHERE p.organism = $1
+     WHERE (p.organism = $1 OR $1 = '%')
        AND cr.outcome IN ('single_crystal','diffraction_quality')
        AND cr.additive IS NOT NULL
        AND cr.precipitant_type IS NOT NULL
@@ -201,7 +201,7 @@ async function getFailurePatterns(organism: string): Promise<Set<string>> {
      FROM kbsi_crystallization cr
      JOIN kbsi_construct c ON c.id = cr.construct_id
      JOIN kbsi_protein p ON p.id = c.protein_id
-     WHERE p.organism = $1
+     WHERE (p.organism = $1 OR $1 = '%')
        AND cr.outcome IN ('no_crystal','precipitate','clear_drop','phase_separation')
        AND cr.precipitant_type IS NOT NULL
      GROUP BY precipitant_type, ROUND(ph::numeric, 0), ROUND(temperature::numeric, 0)
@@ -240,17 +240,22 @@ export async function designScreen(proteinId: number): Promise<ScreenDesign> {
   const organism = protein.organism;
   const proteinName = protein.abbreviation || protein.full_name;
 
-  // 2. Get statistics
-  const [precipStats, wildcards, failurePatterns] = await Promise.all([
-    getTopPrecipitants(organism),
-    getWildcardConditions(organism),
-    getFailurePatterns(organism),
-  ]);
+  // 2. Get statistics — try organism first, fallback to all data
+  let precipStats = await getTopPrecipitants(organism);
+  let wildcards = await getWildcardConditions(organism);
+  let failurePatterns = await getFailurePatterns(organism);
+  let dataSource = organism;
 
   if (precipStats.length === 0) {
-    throw new Error(
-      `Not enough crystallization data for organism "${organism}". Need at least 10 trials per precipitant.`
-    );
+    // Fallback: use all organisms
+    precipStats = await getTopPrecipitants('%');
+    wildcards = await getWildcardConditions('%');
+    failurePatterns = await getFailurePatterns('%');
+    dataSource = 'All organisms (fallback)';
+  }
+
+  if (precipStats.length === 0) {
+    throw new Error('Not enough crystallization data in the database.');
   }
 
   // 3. Compute meta-stats
@@ -260,7 +265,7 @@ export async function designScreen(proteinId: number): Promise<ScreenDesign> {
      FROM kbsi_protein p
      JOIN kbsi_construct c ON c.protein_id = p.id
      JOIN kbsi_crystallization cr ON cr.construct_id = c.id
-     WHERE p.organism = $1 AND cr.outcome IS NOT NULL`,
+     WHERE (p.organism = $1 OR $1 = '%') AND cr.outcome IS NOT NULL`,
     [organism]
   );
 
