@@ -1,0 +1,47 @@
+{
+  "id": "PH001",
+  "name": "MW vs Success Rate",
+  "h0": "Molecular weight range does not affect crystallization success rate",
+  "h1": "Certain MW ranges have significantly different crystallization success rates",
+  "status": "confirmed",
+  "p_value": 6.400666679427811e-9,
+  "statistic": 41.04384637652627,
+  "effect_size": 0.009131946727946707,
+  "ci_lower": null,
+  "ci_upper": null,
+  "sample_size": 1659061,
+  "test_type": "chi2",
+  "summary": "CONFIRMED — H0 rejected, significant effect found. p=6.40e-9, effect_size=0.0091, n=1659061",
+  "data": {
+    "query_rows": 4,
+    "raw_sample": [
+      {
+        "mw_group": "large (50-100kDa)",
+        "total": "224830",
+        "success": "21952"
+      },
+      {
+        "mw_group": "medium (20-50kDa)",
+        "total": "950497",
+        "success": "93132"
+      },
+      {
+        "mw_group": "small (<20kDa)",
+        "total": "457753",
+        "success": "46422"
+      },
+      {
+        "mw_group": "xlarge (>100kDa)",
+        "total": "25981",
+        "success": "2553"
+      }
+    ],
+    "stats": {
+      "p_value": 6.400666679427811e-9,
+      "statistic": 41.04384637652627,
+      "effect_size": 0.009131946727946707
+    }
+  },
+  "timestamp": "2026-10-25T09:12:57.980Z",
+  "source": "built-in"
+}

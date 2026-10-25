@@ -1,0 +1,358 @@
+[
+  {
+    "id": "PH001",
+    "name": "MW vs Success Rate",
+    "h0": "Molecular weight range does not affect crystallization success rate",
+    "h1": "Certain MW ranges have significantly different crystallization success rates",
+    "status": "confirmed",
+    "p_value": 6.400666679427811e-9,
+    "statistic": 41.04384637652627,
+    "effect_size": 0.009131946727946707,
+    "ci_lower": null,
+    "ci_upper": null,
+    "sample_size": 1659061,
+    "test_type": "chi2",
+    "summary": "CONFIRMED — H0 rejected, significant effect found. p=6.40e-9, effect_size=0.0091, n=1659061",
+    "data": {
+      "query_rows": 4,
+      "raw_sample": [
+        {
+          "mw_group": "large (50-100kDa)",
+          "total": "224830",
+          "success": "21952"
+        },
+        {
+          "mw_group": "medium (20-50kDa)",
+          "total": "950497",
+          "success": "93132"
+        },
+        {
+          "mw_group": "small (<20kDa)",
+          "total": "457753",
+          "success": "46422"
+        },
+        {
+          "mw_group": "xlarge (>100kDa)",
+          "total": "25981",
+          "success": "2553"
+        }
+      ],
+      "stats": {
+        "p_value": 6.400666679427811e-9,
+        "statistic": 41.04384637652627,
+        "effect_size": 0.009131946727946707
+      }
+    },
+    "timestamp": "2026-10-25T09:12:57.980Z",
+    "source": "built-in"
+  },
+  {
+    "id": "PH002",
+    "name": "Organism Effect on Crystallization",
+    "h0": "Source organism does not affect crystallization success rate",
+    "h1": "Some organisms yield significantly higher crystallization success",
+    "status": "confirmed",
+    "p_value": 1.8584113080167156e-22,
+    "statistic": 124.1810535390863,
+    "effect_size": 0.012850470781263768,
+    "ci_lower": null,
+    "ci_upper": null,
+    "sample_size": 751999,
+    "test_type": "chi2_contingency",
+    "summary": "CONFIRMED — H0 rejected, significant effect found. p=1.86e-22, effect_size=0.0129, n=751999",
+    "data": {
+      "query_rows": 10,
+      "raw_sample": [
+        {
+          "organism": "Homo sapiens",
+          "total": "465123",
+          "success": "45886"
+        },
+        {
+          "organism": "Escherichia coli",
+          "total": "63139",
+          "success": "6409"
+        },
+        {
+          "organism": "Mus musculus",
+          "total": "53538",
+          "success": "5186"
+        },
+        {
+          "organism": "Severe acute respiratory syndrome coronavirus 2",
+          "total": "42599",
+          "success": "3615"
+        },
+        {
+          "organism": "Synthetic construct",
+          "total": "25413",
+          "success": "2613"
+        }
+      ],
+      "stats": {
+        "p_value": 1.8584113080167156e-22,
+        "statistic": 124.1810535390863,
+        "effect_size": 0.012850470781263768
+      }
+    },
+    "timestamp": "2026-10-25T09:12:59.548Z",
+    "source": "built-in"
+  },
+  {
+    "id": "PH003",
+    "name": "Expression System Effect",
+    "h0": "Expression system does not affect downstream crystallization success",
+    "h1": "Expression system significantly impacts crystallization outcome",
+    "status": "confirmed",
+    "p_value": 1.1078911032014404e-114,
+    "statistic": 550.489018478027,
+    "effect_size": 0.020310772019365774,
+    "ci_lower": null,
+    "ci_upper": null,
+    "sample_size": 1334430,
+    "test_type": "chi2_contingency",
+    "summary": "CONFIRMED — H0 rejected, significant effect found. p=1.11e-114, effect_size=0.0203, n=1334430",
+    "data": {
+      "query_rows": 8,
+      "raw_sample": [
+        {
+          "expression_system": "Escherichia coli",
+          "total": "832199",
+          "success": "81177"
+        },
+        {
+          "expression_system": "Escherichia coli BL21(DE3)",
+          "total": "292813",
+          "success": "27770"
+        },
+        {
+          "expression_system": "ESCHERICHIA COLI",
+          "total": "70778",
+          "success": "8712"
+        },
+        {
+          "expression_system": "Escherichia coli BL21",
+          "total": "38707",
+          "success": "3678"
+        },
+        {
+          "expression_system": "Spodoptera frugiperda",
+          "total": "34698",
+          "success": "3427"
+        }
+      ],
+      "stats": {
+        "p_value": 1.1078911032014404e-114,
+        "statistic": 550.489018478027,
+        "effect_size": 0.020310772019365774
+      }
+    },
+    "timestamp": "2026-10-25T09:13:01.065Z",
+    "source": "built-in"
+  },
+  {
+    "id": "PH004",
+    "name": "PEG MW Correlation",
+    "h0": "PEG molecular weight does not correlate with protein MW for successful crystallization",
+    "h1": "Larger proteins tend to crystallize with higher MW PEGs",
+    "status": "confirmed",
+    "p_value": 2.1945102178087794e-9,
+    "statistic": 0.04228789086143509,
+    "effect_size": 0.0017882657135086454,
+    "ci_lower": null,
+    "ci_upper": null,
+    "sample_size": 87110,
+    "test_type": "spearman",
+    "summary": "CONFIRMED — H0 rejected, significant effect found. p=2.19e-9, effect_size=0.0018, n=87110",
+    "data": {
+      "query_rows": 102672,
+      "raw_sample": [
+        {
+          "protein_mw": 15566,
+          "peg_mw": 3350
+        },
+        {
+          "protein_mw": 23399.9,
+          "peg_mw": 3350
+        },
+        {
+          "protein_mw": 33796.6,
+          "peg_mw": 6000
+        },
+        {
+          "protein_mw": 52667.9,
+          "peg_mw": 400
+        },
+        {
+          "protein_mw": 15126.4,
+          "peg_mw": 8000
+        }
+      ],
+      "stats": {
+        "p_value": 2.1945102178087794e-9,
+        "statistic": 0.04228789086143509,
+        "effect_size": 0.0017882657135086454
+      }
+    },
+    "timestamp": "2026-10-25T09:13:02.702Z",
+    "source": "built-in"
+  },
+  {
+    "id": "PH005",
+    "name": "Ligand-bound vs Apo",
+    "h0": "Ligand binding does not affect crystallization success rate",
+    "h1": "Ligand-bound proteins crystallize at higher rates than apo proteins",
+    "status": "confirmed",
+    "p_value": 0.008624263147007087,
+    "statistic": 6.899027892116166,
+    "effect_size": 0.0020389441129125383,
+    "ci_lower": null,
+    "ci_upper": null,
+    "sample_size": 1659500,
+    "test_type": "chi2_contingency",
+    "summary": "CONFIRMED — H0 rejected, significant effect found. p=8.62e-3, effect_size=0.0020, n=1659500",
+    "data": {
+      "query_rows": 2,
+      "raw_sample": [
+        {
+          "group_name": "ligand_bound",
+          "total": "1043744",
+          "success": "102745"
+        },
+        {
+          "group_name": "apo",
+          "total": "615756",
+          "success": "61391"
+        }
+      ],
+      "stats": {
+        "p_value": 0.008624263147007087,
+        "statistic": 6.899027892116166,
+        "effect_size": 0.0020389441129125383
+      }
+    },
+    "timestamp": "2026-10-25T09:13:05.003Z",
+    "source": "built-in"
+  },
+  {
+    "id": "PH006",
+    "name": "Temperature Bimodal",
+    "h0": "There is no difference in crystallization success between 4C and 18C",
+    "h1": "Temperature significantly affects crystallization success rate",
+    "status": "confirmed",
+    "p_value": 7.023599934603539e-30,
+    "statistic": 128.93047540796192,
+    "effect_size": 0.012162048326696569,
+    "ci_lower": null,
+    "ci_upper": null,
+    "sample_size": 871650,
+    "test_type": "chi2_contingency",
+    "summary": "CONFIRMED — H0 rejected, significant effect found. p=7.02e-30, effect_size=0.0122, n=871650",
+    "data": {
+      "query_rows": 2,
+      "raw_sample": [
+        {
+          "temp_group": "18C",
+          "total": "691078",
+          "success": "86732"
+        },
+        {
+          "temp_group": "4C",
+          "total": "180572",
+          "success": "20879"
+        }
+      ],
+      "stats": {
+        "p_value": 7.023599934603539e-30,
+        "statistic": 128.93047540796192,
+        "effect_size": 0.012162048326696569
+      }
+    },
+    "timestamp": "2026-10-25T09:13:06.887Z",
+    "source": "built-in"
+  },
+  {
+    "id": "PH007",
+    "name": "pH Optimum per Precipitant",
+    "h0": "Optimal pH does not differ between PEG 3350 and Ammonium Sulfate crystallizations",
+    "h1": "PEG 3350 and Ammonium Sulfate have different optimal pH distributions",
+    "status": "confirmed",
+    "p_value": 3.2680684508673127e-34,
+    "statistic": 54961721,
+    "effect_size": -0.09923441999999993,
+    "ci_lower": null,
+    "ci_upper": null,
+    "sample_size": 46285,
+    "test_type": "mannwhitney",
+    "summary": "CONFIRMED — H0 rejected, significant effect found. p=3.27e-34, effect_size=-0.0992, n=46285",
+    "data": {
+      "query_rows": 46285,
+      "raw_sample": [
+        {
+          "precipitant_type": "PEG 3350, 20%",
+          "ph": 6.5
+        },
+        {
+          "precipitant_type": "PEG 3350",
+          "ph": 8
+        },
+        {
+          "precipitant_type": "Ammonium Sulfate",
+          "ph": 5.6
+        },
+        {
+          "precipitant_type": "Ammonium Sulfate",
+          "ph": 6.5
+        },
+        {
+          "precipitant_type": "Ammonium Sulfate",
+          "ph": 7.8
+        }
+      ],
+      "stats": {
+        "p_value": 3.2680684508673127e-34,
+        "statistic": 54961721,
+        "effect_size": -0.09923441999999993
+      }
+    },
+    "timestamp": "2026-10-25T09:13:08.713Z",
+    "source": "built-in"
+  },
+  {
+    "id": "PH008",
+    "name": "Additive Effect",
+    "h0": "Additives do not improve crystallization success rate",
+    "h1": "Conditions with additives have higher crystallization success",
+    "status": "confirmed",
+    "p_value": 0,
+    "statistic": 10852.717908815393,
+    "effect_size": 0.08086873114809269,
+    "ci_lower": null,
+    "ci_upper": null,
+    "sample_size": 1659500,
+    "test_type": "chi2_contingency",
+    "summary": "CONFIRMED — H0 rejected, significant effect found. p=0.00e+0, effect_size=0.0809, n=1659500",
+    "data": {
+      "query_rows": 2,
+      "raw_sample": [
+        {
+          "additive_group": "no_additive",
+          "total": "1398130",
+          "success": "123690"
+        },
+        {
+          "additive_group": "with_additive",
+          "total": "261370",
+          "success": "40446"
+        }
+      ],
+      "stats": {
+        "p_value": 0,
+        "statistic": 10852.717908815393,
+        "effect_size": 0.08086873114809269
+      }
+    },
+    "timestamp": "2026-10-25T09:13:10.695Z",
+    "source": "built-in"
+  }
+]

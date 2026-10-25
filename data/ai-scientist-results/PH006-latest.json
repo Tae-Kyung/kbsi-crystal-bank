@@ -1,0 +1,37 @@
+{
+  "id": "PH006",
+  "name": "Temperature Bimodal",
+  "h0": "There is no difference in crystallization success between 4C and 18C",
+  "h1": "Temperature significantly affects crystallization success rate",
+  "status": "confirmed",
+  "p_value": 7.023599934603539e-30,
+  "statistic": 128.93047540796192,
+  "effect_size": 0.012162048326696569,
+  "ci_lower": null,
+  "ci_upper": null,
+  "sample_size": 871650,
+  "test_type": "chi2_contingency",
+  "summary": "CONFIRMED — H0 rejected, significant effect found. p=7.02e-30, effect_size=0.0122, n=871650",
+  "data": {
+    "query_rows": 2,
+    "raw_sample": [
+      {
+        "temp_group": "18C",
+        "total": "691078",
+        "success": "86732"
+      },
+      {
+        "temp_group": "4C",
+        "total": "180572",
+        "success": "20879"
+      }
+    ],
+    "stats": {
+      "p_value": 7.023599934603539e-30,
+      "statistic": 128.93047540796192,
+      "effect_size": 0.012162048326696569
+    }
+  },
+  "timestamp": "2026-10-25T09:13:06.887Z",
+  "source": "built-in"
+}

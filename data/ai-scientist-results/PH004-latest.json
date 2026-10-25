@@ -1,0 +1,47 @@
+{
+  "id": "PH004",
+  "name": "PEG MW Correlation",
+  "h0": "PEG molecular weight does not correlate with protein MW for successful crystallization",
+  "h1": "Larger proteins tend to crystallize with higher MW PEGs",
+  "status": "confirmed",
+  "p_value": 2.1945102178087794e-9,
+  "statistic": 0.04228789086143509,
+  "effect_size": 0.0017882657135086454,
+  "ci_lower": null,
+  "ci_upper": null,
+  "sample_size": 87110,
+  "test_type": "spearman",
+  "summary": "CONFIRMED — H0 rejected, significant effect found. p=2.19e-9, effect_size=0.0018, n=87110",
+  "data": {
+    "query_rows": 102672,
+    "raw_sample": [
+      {
+        "protein_mw": 15566,
+        "peg_mw": 3350
+      },
+      {
+        "protein_mw": 23399.9,
+        "peg_mw": 3350
+      },
+      {
+        "protein_mw": 33796.6,
+        "peg_mw": 6000
+      },
+      {
+        "protein_mw": 52667.9,
+        "peg_mw": 400
+      },
+      {
+        "protein_mw": 15126.4,
+        "peg_mw": 8000
+      }
+    ],
+    "stats": {
+      "p_value": 2.1945102178087794e-9,
+      "statistic": 0.04228789086143509,
+      "effect_size": 0.0017882657135086454
+    }
+  },
+  "timestamp": "2026-10-25T09:13:02.702Z",
+  "source": "built-in"
+}

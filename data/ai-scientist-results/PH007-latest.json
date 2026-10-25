@@ -1,0 +1,47 @@
+{
+  "id": "PH007",
+  "name": "pH Optimum per Precipitant",
+  "h0": "Optimal pH does not differ between PEG 3350 and Ammonium Sulfate crystallizations",
+  "h1": "PEG 3350 and Ammonium Sulfate have different optimal pH distributions",
+  "status": "confirmed",
+  "p_value": 3.2680684508673127e-34,
+  "statistic": 54961721,
+  "effect_size": -0.09923441999999993,
+  "ci_lower": null,
+  "ci_upper": null,
+  "sample_size": 46285,
+  "test_type": "mannwhitney",
+  "summary": "CONFIRMED — H0 rejected, significant effect found. p=3.27e-34, effect_size=-0.0992, n=46285",
+  "data": {
+    "query_rows": 46285,
+    "raw_sample": [
+      {
+        "precipitant_type": "PEG 3350, 20%",
+        "ph": 6.5
+      },
+      {
+        "precipitant_type": "PEG 3350",
+        "ph": 8
+      },
+      {
+        "precipitant_type": "Ammonium Sulfate",
+        "ph": 5.6
+      },
+      {
+        "precipitant_type": "Ammonium Sulfate",
+        "ph": 6.5
+      },
+      {
+        "precipitant_type": "Ammonium Sulfate",
+        "ph": 7.8
+      }
+    ],
+    "stats": {
+      "p_value": 3.2680684508673127e-34,
+      "statistic": 54961721,
+      "effect_size": -0.09923441999999993
+    }
+  },
+  "timestamp": "2026-10-25T09:13:08.713Z",
+  "source": "built-in"
+}

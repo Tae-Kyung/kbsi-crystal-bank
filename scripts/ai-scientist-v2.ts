@@ -66,7 +66,8 @@ import json, sys
 from scipy import stats
 import numpy as np
 
-inp = json.loads(sys.stdin.read())
+import os
+inp = json.loads(open(os.environ.get('STATS_INPUT', '/dev/stdin')).read())
 test = inp['test']
 d = inp['data']
 result = {'p_value': 1.0, 'statistic': 0.0, 'effect_size': 0.0}
@@ -149,12 +150,17 @@ print(json.dumps(result))
 `;
 
   const input = JSON.stringify({ test: testType, data });
+  const tmpDir = resolve(__dirname, '..', 'data');
+  const tmpInput = resolve(tmpDir, '_stats_input.json');
+  const tmpScript = resolve(tmpDir, '_stats_script.py');
 
   try {
-    const result = execSync(`python -c "${pyScript.replace(/"/g, '\\"')}"`, {
+    writeFileSync(tmpInput, input);
+    writeFileSync(tmpScript, pyScript);
+    const result = execSync(`python "${tmpScript}"`, {
       encoding: 'utf-8',
-      timeout: 30000,
-      input,
+      timeout: 60000,
+      env: { ...process.env, STATS_INPUT: tmpInput },
     });
     return JSON.parse(result.trim());
   } catch (err: unknown) {
@@ -192,7 +198,7 @@ const HYPOTHESES: HypothesisDef[] = [
       JOIN kbsi_construct c ON c.id = cr.construct_id
       WHERE c.theoretical_mw IS NOT NULL
         AND cr.outcome IS NOT NULL
-        AND cr.source_type != 'synthetic'
+        AND 1=1 /* include all data (experimental + synthetic) */
       GROUP BY mw_group
       ORDER BY mw_group`,
     test: 'chi2',
@@ -211,7 +217,7 @@ const HYPOTHESES: HypothesisDef[] = [
       FROM kbsi_crystallization cr
       JOIN kbsi_construct c ON c.id = cr.construct_id
       JOIN kbsi_protein p ON p.id = c.protein_id
-      WHERE cr.source_type != 'synthetic'
+      WHERE 1=1 /* include all data (experimental + synthetic) */
         AND cr.outcome IS NOT NULL
         AND p.organism IS NOT NULL
       GROUP BY p.organism
@@ -233,7 +239,7 @@ const HYPOTHESES: HypothesisDef[] = [
         COUNT(*) FILTER (WHERE cr.outcome IN ('single_crystal','diffraction_quality')) AS success
       FROM kbsi_crystallization cr
       JOIN kbsi_construct c ON c.id = cr.construct_id
-      WHERE cr.source_type != 'synthetic'
+      WHERE 1=1 /* include all data (experimental + synthetic) */
         AND cr.outcome IS NOT NULL
         AND c.expression_system IS NOT NULL
       GROUP BY c.expression_system
@@ -264,7 +270,7 @@ const HYPOTHESES: HypothesisDef[] = [
           ELSE NULL END AS peg_mw
       FROM kbsi_crystallization cr
       JOIN kbsi_construct c ON c.id = cr.construct_id
-      WHERE cr.source_type != 'synthetic'
+      WHERE 1=1 /* include all data (experimental + synthetic) */
         AND cr.outcome IN ('single_crystal','diffraction_quality')
         AND c.theoretical_mw IS NOT NULL
         AND cr.precipitant_type ILIKE '%PEG%'`,
@@ -282,7 +288,7 @@ const HYPOTHESES: HypothesisDef[] = [
         SELECT DISTINCT cr.construct_id
         FROM kbsi_construct_ligand cl
         JOIN kbsi_crystallization cr ON cr.construct_id = cl.construct_id
-        WHERE cr.source_type != 'synthetic' AND cr.outcome IS NOT NULL
+        WHERE 1=1 /* include all data (experimental + synthetic) */ AND cr.outcome IS NOT NULL
       )
       SELECT
         CASE WHEN b.construct_id IS NOT NULL THEN 'ligand_bound' ELSE 'apo' END AS group_name,
@@ -290,7 +296,7 @@ const HYPOTHESES: HypothesisDef[] = [
         COUNT(*) FILTER (WHERE cr.outcome IN ('single_crystal','diffraction_quality')) AS success
       FROM kbsi_crystallization cr
       LEFT JOIN bound b ON b.construct_id = cr.construct_id
-      WHERE cr.source_type != 'synthetic' AND cr.outcome IS NOT NULL
+      WHERE 1=1 /* include all data (experimental + synthetic) */ AND cr.outcome IS NOT NULL
       GROUP BY group_name`,
     test: 'chi2_contingency',
   },
@@ -309,7 +315,7 @@ const HYPOTHESES: HypothesisDef[] = [
         COUNT(*) AS total,
         COUNT(*) FILTER (WHERE cr.outcome IN ('single_crystal','diffraction_quality')) AS success
       FROM kbsi_crystallization cr
-      WHERE cr.source_type != 'synthetic'
+      WHERE 1=1 /* include all data (experimental + synthetic) */
         AND cr.outcome IS NOT NULL
         AND cr.temperature IS NOT NULL
         AND (cr.temperature BETWEEN 2 AND 6 OR cr.temperature BETWEEN 16 AND 22)
@@ -326,7 +332,7 @@ const HYPOTHESES: HypothesisDef[] = [
     query: `
       SELECT cr.precipitant_type, cr.ph
       FROM kbsi_crystallization cr
-      WHERE cr.source_type != 'synthetic'
+      WHERE 1=1 /* include all data (experimental + synthetic) */
         AND cr.outcome IN ('single_crystal','diffraction_quality')
         AND cr.ph IS NOT NULL
         AND (cr.precipitant_type ILIKE '%PEG 3350%' OR cr.precipitant_type ILIKE '%Ammonium sulfate%')
@@ -342,14 +348,12 @@ const HYPOTHESES: HypothesisDef[] = [
     h1: 'Conditions with additives have higher crystallization success',
     query: `
       SELECT
-        CASE WHEN cr.details::text ILIKE '%additive%' OR cr.details::text ILIKE '%DTT%'
-             OR cr.details::text ILIKE '%TCEP%' OR cr.details::text ILIKE '%glycerol%'
-             OR cr.details::text ILIKE '%MgCl%' OR cr.details::text ILIKE '%CaCl%'
+        CASE WHEN cr.additive IS NOT NULL
              THEN 'with_additive' ELSE 'no_additive' END AS additive_group,
         COUNT(*) AS total,
         COUNT(*) FILTER (WHERE cr.outcome IN ('single_crystal','diffraction_quality')) AS success
       FROM kbsi_crystallization cr
-      WHERE cr.source_type != 'synthetic'
+      WHERE 1=1 /* include all data (experimental + synthetic) */
         AND cr.outcome IS NOT NULL
       GROUP BY additive_group`,
     test: 'chi2_contingency',
@@ -566,7 +570,7 @@ async function discoverHypotheses(): Promise<HypothesisResult[]> {
       FROM kbsi_crystallization cr
       JOIN kbsi_construct c ON c.id = cr.construct_id
       JOIN kbsi_protein p ON p.id = c.protein_id
-      WHERE cr.source_type != 'synthetic' AND cr.outcome IS NOT NULL AND p.organism IS NOT NULL
+      WHERE 1=1 /* include all data (experimental + synthetic) */ AND cr.outcome IS NOT NULL AND p.organism IS NOT NULL
       GROUP BY p.organism HAVING COUNT(*) >= 100
       ORDER BY rate DESC
     `);
@@ -589,7 +593,7 @@ async function discoverHypotheses(): Promise<HypothesisResult[]> {
           FROM kbsi_crystallization cr
           JOIN kbsi_construct c ON c.id = cr.construct_id
           JOIN kbsi_protein p ON p.id = c.protein_id
-          WHERE cr.source_type != 'synthetic' AND cr.outcome IS NOT NULL
+          WHERE 1=1 /* include all data (experimental + synthetic) */ AND cr.outcome IS NOT NULL
             AND p.organism IN ('${top.organism.replace(/'/g, "''")}', '${bottom.organism.replace(/'/g, "''")}')
           GROUP BY p.organism`,
         test: 'chi2_contingency',
@@ -609,7 +613,7 @@ async function discoverHypotheses(): Promise<HypothesisResult[]> {
         COUNT(*) AS n
       FROM kbsi_diffraction d
       JOIN kbsi_crystallization cr ON cr.construct_id = d.construct_id
-      WHERE cr.source_type != 'synthetic'
+      WHERE 1=1 /* include all data (experimental + synthetic) */
         AND d.resolution IS NOT NULL AND d.resolution BETWEEN 0.5 AND 10
         AND cr.precipitant_type IS NOT NULL
       GROUP BY cr.precipitant_type
@@ -633,7 +637,7 @@ async function discoverHypotheses(): Promise<HypothesisResult[]> {
           SELECT cr.precipitant_type, d.resolution
           FROM kbsi_diffraction d
           JOIN kbsi_crystallization cr ON cr.construct_id = d.construct_id
-          WHERE cr.source_type != 'synthetic'
+          WHERE 1=1 /* include all data (experimental + synthetic) */
             AND d.resolution IS NOT NULL AND d.resolution BETWEEN 0.5 AND 10
             AND cr.precipitant_type IN ('${best.precipitant_type.replace(/'/g, "''")}', '${worst.precipitant_type.replace(/'/g, "''")}')
           LIMIT 30000`,
@@ -678,7 +682,7 @@ async function discoverHypotheses(): Promise<HypothesisResult[]> {
       FROM kbsi_crystallization cr
       JOIN kbsi_construct c ON c.id = cr.construct_id
       JOIN kbsi_protein p ON p.id = c.protein_id
-      WHERE cr.source_type != 'synthetic'
+      WHERE 1=1 /* include all data (experimental + synthetic) */
         AND cr.outcome IN ('single_crystal','diffraction_quality')
         AND cr.ph IS NOT NULL AND p.organism IS NOT NULL
       GROUP BY p.organism
@@ -702,7 +706,7 @@ async function discoverHypotheses(): Promise<HypothesisResult[]> {
         FROM kbsi_crystallization cr
         JOIN kbsi_construct c ON c.id = cr.construct_id
         JOIN kbsi_protein p ON p.id = c.protein_id
-        WHERE cr.source_type != 'synthetic'
+        WHERE 1=1 /* include all data (experimental + synthetic) */
           AND cr.outcome IN ('single_crystal','diffraction_quality')
           AND cr.ph IS NOT NULL
           AND p.organism IN ('${lo.organism.replace(/'/g, "''")}', '${hi.organism.replace(/'/g, "''")}')
@@ -750,7 +754,7 @@ async function discoverHypotheses(): Promise<HypothesisResult[]> {
       FROM kbsi_crystallization cr
       JOIN kbsi_construct c ON c.id = cr.construct_id
       JOIN kbsi_protein p ON p.id = c.protein_id
-      WHERE cr.source_type != 'synthetic' AND cr.outcome IS NOT NULL
+      WHERE 1=1 /* include all data (experimental + synthetic) */ AND cr.outcome IS NOT NULL
         AND cr.temperature IS NOT NULL AND p.organism IS NOT NULL
         AND (cr.temperature BETWEEN 2 AND 6 OR cr.temperature BETWEEN 16 AND 22)
       GROUP BY p.organism, temp_group
@@ -833,7 +837,7 @@ async function discoverHypotheses(): Promise<HypothesisResult[]> {
         COUNT(*) AS total,
         COUNT(*) FILTER (WHERE cr.outcome IN ('single_crystal','diffraction_quality')) AS success
       FROM kbsi_crystallization cr
-      WHERE cr.source_type != 'synthetic'
+      WHERE 1=1 /* include all data (experimental + synthetic) */
         AND cr.outcome IS NOT NULL
         AND cr.precipitant_conc IS NOT NULL
       GROUP BY conc_bin

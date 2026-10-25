@@ -1,0 +1,37 @@
+{
+  "id": "PH008",
+  "name": "Additive Effect",
+  "h0": "Additives do not improve crystallization success rate",
+  "h1": "Conditions with additives have higher crystallization success",
+  "status": "confirmed",
+  "p_value": 0,
+  "statistic": 10852.717908815393,
+  "effect_size": 0.08086873114809269,
+  "ci_lower": null,
+  "ci_upper": null,
+  "sample_size": 1659500,
+  "test_type": "chi2_contingency",
+  "summary": "CONFIRMED — H0 rejected, significant effect found. p=0.00e+0, effect_size=0.0809, n=1659500",
+  "data": {
+    "query_rows": 2,
+    "raw_sample": [
+      {
+        "additive_group": "no_additive",
+        "total": "1398130",
+        "success": "123690"
+      },
+      {
+        "additive_group": "with_additive",
+        "total": "261370",
+        "success": "40446"
+      }
+    ],
+    "stats": {
+      "p_value": 0,
+      "statistic": 10852.717908815393,
+      "effect_size": 0.08086873114809269
+    }
+  },
+  "timestamp": "2026-10-25T09:13:10.695Z",
+  "source": "built-in"
+}

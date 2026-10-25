@@ -1,0 +1,52 @@
+{
+  "id": "PH002",
+  "name": "Organism Effect on Crystallization",
+  "h0": "Source organism does not affect crystallization success rate",
+  "h1": "Some organisms yield significantly higher crystallization success",
+  "status": "confirmed",
+  "p_value": 1.8584113080167156e-22,
+  "statistic": 124.1810535390863,
+  "effect_size": 0.012850470781263768,
+  "ci_lower": null,
+  "ci_upper": null,
+  "sample_size": 751999,
+  "test_type": "chi2_contingency",
+  "summary": "CONFIRMED — H0 rejected, significant effect found. p=1.86e-22, effect_size=0.0129, n=751999",
+  "data": {
+    "query_rows": 10,
+    "raw_sample": [
+      {
+        "organism": "Homo sapiens",
+        "total": "465123",
+        "success": "45886"
+      },
+      {
+        "organism": "Escherichia coli",
+        "total": "63139",
+        "success": "6409"
+      },
+      {
+        "organism": "Mus musculus",
+        "total": "53538",
+        "success": "5186"
+      },
+      {
+        "organism": "Severe acute respiratory syndrome coronavirus 2",
+        "total": "42599",
+        "success": "3615"
+      },
+      {
+        "organism": "Synthetic construct",
+        "total": "25413",
+        "success": "2613"
+      }
+    ],
+    "stats": {
+      "p_value": 1.8584113080167156e-22,
+      "statistic": 124.1810535390863,
+      "effect_size": 0.012850470781263768
+    }
+  },
+  "timestamp": "2026-10-25T09:12:59.548Z",
+  "source": "built-in"
+}

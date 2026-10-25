@@ -1,0 +1,52 @@
+{
+  "id": "PH003",
+  "name": "Expression System Effect",
+  "h0": "Expression system does not affect downstream crystallization success",
+  "h1": "Expression system significantly impacts crystallization outcome",
+  "status": "confirmed",
+  "p_value": 1.1078911032014404e-114,
+  "statistic": 550.489018478027,
+  "effect_size": 0.020310772019365774,
+  "ci_lower": null,
+  "ci_upper": null,
+  "sample_size": 1334430,
+  "test_type": "chi2_contingency",
+  "summary": "CONFIRMED — H0 rejected, significant effect found. p=1.11e-114, effect_size=0.0203, n=1334430",
+  "data": {
+    "query_rows": 8,
+    "raw_sample": [
+      {
+        "expression_system": "Escherichia coli",
+        "total": "832199",
+        "success": "81177"
+      },
+      {
+        "expression_system": "Escherichia coli BL21(DE3)",
+        "total": "292813",
+        "success": "27770"
+      },
+      {
+        "expression_system": "ESCHERICHIA COLI",
+        "total": "70778",
+        "success": "8712"
+      },
+      {
+        "expression_system": "Escherichia coli BL21",
+        "total": "38707",
+        "success": "3678"
+      },
+      {
+        "expression_system": "Spodoptera frugiperda",
+        "total": "34698",
+        "success": "3427"
+      }
+    ],
+    "stats": {
+      "p_value": 1.1078911032014404e-114,
+      "statistic": 550.489018478027,
+      "effect_size": 0.020310772019365774
+    }
+  },
+  "timestamp": "2026-10-25T09:13:01.065Z",
+  "source": "built-in"
+}

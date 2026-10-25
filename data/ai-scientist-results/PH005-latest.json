@@ -1,0 +1,37 @@
+{
+  "id": "PH005",
+  "name": "Ligand-bound vs Apo",
+  "h0": "Ligand binding does not affect crystallization success rate",
+  "h1": "Ligand-bound proteins crystallize at higher rates than apo proteins",
+  "status": "confirmed",
+  "p_value": 0.008624263147007087,
+  "statistic": 6.899027892116166,
+  "effect_size": 0.0020389441129125383,
+  "ci_lower": null,
+  "ci_upper": null,
+  "sample_size": 1659500,
+  "test_type": "chi2_contingency",
+  "summary": "CONFIRMED — H0 rejected, significant effect found. p=8.62e-3, effect_size=0.0020, n=1659500",
+  "data": {
+    "query_rows": 2,
+    "raw_sample": [
+      {
+        "group_name": "ligand_bound",
+        "total": "1043744",
+        "success": "102745"
+      },
+      {
+        "group_name": "apo",
+        "total": "615756",
+        "success": "61391"
+      }
+    ],
+    "stats": {
+      "p_value": 0.008624263147007087,
+      "statistic": 6.899027892116166,
+      "effect_size": 0.0020389441129125383
+    }
+  },
+  "timestamp": "2026-10-25T09:13:05.003Z",
+  "source": "built-in"
+}
