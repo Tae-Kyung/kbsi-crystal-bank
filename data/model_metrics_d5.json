@@ -1,84 +1,84 @@
 {
-  "date": "2026-10-24",
+  "date": "2026-10-25",
   "version": "D-5 Optuna",
   "data_size": 50000,
   "train_size": 40000,
   "test_size": 10000,
-  "positive_rate": 99.0,
+  "positive_rate": 50.0,
   "n_features": 1316,
   "n_base_features": 36,
   "embedding": true,
   "optuna_trials": 50,
   "results": {
     "LightGBM-Optuna": {
-      "accuracy": 99.9,
-      "precision": 100.0,
-      "recall": 99.9,
-      "f1": 100.0,
-      "auc_roc": 99.1,
-      "time_sec": 8.2,
+      "accuracy": 88.1,
+      "precision": 85.3,
+      "recall": 92.1,
+      "f1": 88.6,
+      "auc_roc": 94.8,
+      "time_sec": 38.4,
       "confusion_matrix": [
         [
-          95,
-          2
+          4209,
+          791
         ],
         [
-          6,
-          9897
+          397,
+          4603
         ]
       ]
     },
     "XGBoost-Optuna": {
-      "accuracy": 99.9,
-      "precision": 100.0,
-      "recall": 99.9,
-      "f1": 100.0,
-      "auc_roc": 99.0,
-      "time_sec": 11.2,
+      "accuracy": 88.4,
+      "precision": 85.9,
+      "recall": 91.8,
+      "f1": 88.8,
+      "auc_roc": 94.9,
+      "time_sec": 105.1,
       "confusion_matrix": [
         [
-          94,
-          3
+          4246,
+          754
         ],
         [
-          5,
-          9898
+          409,
+          4591
         ]
       ]
     },
     "LightGBM-Base": {
-      "accuracy": 99.9,
-      "precision": 100.0,
-      "recall": 99.9,
-      "f1": 100.0,
-      "auc_roc": 99.0,
-      "time_sec": 11.4,
+      "accuracy": 87.9,
+      "precision": 84.9,
+      "recall": 92.2,
+      "f1": 88.4,
+      "auc_roc": 94.4,
+      "time_sec": 12.7,
       "confusion_matrix": [
         [
-          95,
-          2
+          4182,
+          818
         ],
         [
-          5,
-          9898
+          389,
+          4611
         ]
       ]
     },
     "MLP": {
-      "accuracy": 99.9,
-      "precision": 100.0,
-      "recall": 99.9,
-      "f1": 99.9,
-      "auc_roc": 99.6,
-      "time_sec": 175.0,
+      "accuracy": 81.7,
+      "precision": 79.4,
+      "recall": 85.7,
+      "f1": 82.4,
+      "auc_roc": 88.8,
+      "time_sec": 132.5,
       "confusion_matrix": [
         [
-          95,
-          2
+          3888,
+          1112
         ],
         [
-          11,
-          9892
+          715,
+          4285
         ]
       ]
     }
@@ -86,197 +86,197 @@
   "cv_results": {
     "LightGBM-Optuna": {
       "acc": {
-        "mean": 99.9,
-        "std": 0.0
+        "mean": 88.6,
+        "std": 0.2
       },
       "prec": {
-        "mean": 100.0,
-        "std": 0.0
+        "mean": 85.9,
+        "std": 0.3
       },
       "rec": {
-        "mean": 100.0,
-        "std": 0.0
+        "mean": 92.4,
+        "std": 0.4
       },
       "f1": {
-        "mean": 100.0,
-        "std": 0.0
+        "mean": 89.0,
+        "std": 0.2
       },
       "auc": {
-        "mean": 99.7,
-        "std": 0.4
+        "mean": 95.2,
+        "std": 0.2
       }
     },
     "XGBoost-Optuna": {
       "acc": {
-        "mean": 99.9,
-        "std": 0.0
+        "mean": 88.5,
+        "std": 0.2
       },
       "prec": {
-        "mean": 100.0,
-        "std": 0.0
+        "mean": 86.0,
+        "std": 0.1
       },
       "rec": {
-        "mean": 100.0,
-        "std": 0.0
+        "mean": 92.0,
+        "std": 0.5
       },
       "f1": {
-        "mean": 100.0,
-        "std": 0.0
+        "mean": 88.9,
+        "std": 0.2
       },
       "auc": {
-        "mean": 99.6,
-        "std": 0.4
+        "mean": 95.1,
+        "std": 0.2
       }
     },
     "LightGBM-Base": {
       "acc": {
-        "mean": 99.9,
-        "std": 0.0
+        "mean": 88.0,
+        "std": 0.1
       },
       "prec": {
-        "mean": 100.0,
-        "std": 0.0
+        "mean": 85.2,
+        "std": 0.3
       },
       "rec": {
-        "mean": 100.0,
-        "std": 0.0
+        "mean": 92.0,
+        "std": 0.3
       },
       "f1": {
-        "mean": 100.0,
-        "std": 0.0
+        "mean": 88.5,
+        "std": 0.1
       },
       "auc": {
-        "mean": 99.8,
-        "std": 0.2
+        "mean": 94.7,
+        "std": 0.1
       }
     },
     "MLP": {
       "acc": {
-        "mean": 99.9,
-        "std": 0.0
+        "mean": 81.7,
+        "std": 0.4
       },
       "prec": {
-        "mean": 100.0,
-        "std": 0.0
+        "mean": 79.0,
+        "std": 0.7
       },
       "rec": {
-        "mean": 99.9,
-        "std": 0.0
+        "mean": 86.4,
+        "std": 1.8
       },
       "f1": {
-        "mean": 99.9,
-        "std": 0.0
+        "mean": 82.5,
+        "std": 0.6
       },
       "auc": {
-        "mean": 99.7,
-        "std": 0.3
+        "mean": 88.7,
+        "std": 0.5
       }
     }
   },
   "best_params": {
     "lightgbm": {
-      "n_estimators": 302,
-      "max_depth": 6,
-      "learning_rate": 0.012575005242110245,
-      "subsample": 0.6653127966718474,
-      "colsample_bytree": 0.5757470259932826,
-      "min_child_samples": 25,
-      "reg_alpha": 0.020337249607080728,
-      "reg_lambda": 0.307810064436192,
-      "num_leaves": 54
+      "n_estimators": 482,
+      "max_depth": 10,
+      "learning_rate": 0.023110932788197775,
+      "subsample": 0.662629336187826,
+      "colsample_bytree": 0.5823246086874724,
+      "min_child_samples": 17,
+      "reg_alpha": 6.79727643177583e-08,
+      "reg_lambda": 0.021855656788985448,
+      "num_leaves": 106
     },
     "xgboost": {
-      "n_estimators": 205,
-      "max_depth": 4,
-      "learning_rate": 0.1737187651772813,
-      "subsample": 0.7846407139054823,
-      "colsample_bytree": 0.6696604901674145,
-      "min_child_weight": 1,
-      "reg_alpha": 2.2899516087784397e-07,
-      "reg_lambda": 1.0639708859871911e-06,
-      "gamma": 2.785544470330501
+      "n_estimators": 443,
+      "max_depth": 10,
+      "learning_rate": 0.03504037748468293,
+      "subsample": 0.984226357646138,
+      "colsample_bytree": 0.7020814857820536,
+      "min_child_weight": 3,
+      "reg_alpha": 7.734339934220626e-08,
+      "reg_lambda": 0.12028705262343281,
+      "gamma": 1.865920064029941
     }
   },
   "top_features": [
     {
-      "name": "temperature",
-      "importance": 0.0509
-    },
-    {
       "name": "ph",
-      "importance": 0.045
-    },
-    {
-      "name": "protein_conc",
-      "importance": 0.0391
+      "importance": 0.0623
     },
     {
       "name": "precipitant_conc",
-      "importance": 0.0306
+      "importance": 0.0532
+    },
+    {
+      "name": "temperature",
+      "importance": 0.0468
+    },
+    {
+      "name": "protein_conc",
+      "importance": 0.0221
     },
     {
       "name": "precipitant_cat",
-      "importance": 0.0245
+      "importance": 0.0166
     },
     {
-      "name": "emb_809",
-      "importance": 0.0202
+      "name": "additive",
+      "importance": 0.0055
     },
     {
-      "name": "emb_546",
-      "importance": 0.0194
+      "name": "onehot_PEG 20000",
+      "importance": 0.0052
     },
     {
-      "name": "emb_1114",
-      "importance": 0.0141
+      "name": "onehot_MPD",
+      "importance": 0.0049
     },
     {
-      "name": "emb_164",
-      "importance": 0.0141
+      "name": "onehot_Isopropanol",
+      "importance": 0.0045
     },
     {
-      "name": "emb_131",
-      "importance": 0.0122
+      "name": "onehot_Ammonium Sulfate",
+      "importance": 0.0027
     },
     {
-      "name": "emb_1261",
-      "importance": 0.0114
+      "name": "onehot_Ethanol",
+      "importance": 0.0025
     },
     {
-      "name": "emb_888",
-      "importance": 0.0106
+      "name": "onehot_PEG 3350",
+      "importance": 0.0024
     },
     {
-      "name": "emb_956",
-      "importance": 0.0106
+      "name": "emb_342",
+      "importance": 0.0016
     },
     {
-      "name": "emb_938",
-      "importance": 0.0099
+      "name": "emb_367",
+      "importance": 0.0016
     },
     {
-      "name": "emb_1245",
-      "importance": 0.0099
+      "name": "emb_714",
+      "importance": 0.0015
     },
     {
-      "name": "emb_1256",
-      "importance": 0.0099
+      "name": "emb_430",
+      "importance": 0.0015
     },
     {
-      "name": "emb_1160",
-      "importance": 0.0096
+      "name": "emb_1200",
+      "importance": 0.0015
     },
     {
-      "name": "emb_287",
-      "importance": 0.0083
+      "name": "emb_923",
+      "importance": 0.0015
     },
     {
-      "name": "emb_1278",
-      "importance": 0.008
+      "name": "emb_283",
+      "importance": 0.0015
     },
     {
-      "name": "emb_1203",
-      "importance": 0.0072
+      "name": "emb_914",
+      "importance": 0.0014
     }
   ]
 }
