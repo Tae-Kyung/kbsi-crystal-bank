@@ -6,14 +6,18 @@
 import { readFile } from 'fs/promises';
 import { join } from 'path';
 import dotenv from 'dotenv';
-import { createClient } from '@supabase/supabase-js';
+import pg from 'pg';
 
 dotenv.config({ path: '.env.local' });
 
-const supabase = createClient(
-  process.env.NEXT_PUBLIC_SUPABASE_URL!,
-  process.env.SUPABASE_SERVICE_ROLE_KEY || process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!
-);
+const client = new pg.Client({
+  host: '203.255.78.89',
+  port: 15432,
+  database: 'kbsi_crystal_bank',
+  user: 'kbsi_app',
+  password: 'SMmQhkEIeXivl5P0yrHWW1JhpwCcmWQg',
+  ssl: { rejectUnauthorized: false },
+});
 
 const DATA_DIR = join(process.cwd(), 'data', 'targettrack');
 const INPUT_FILE = join(DATA_DIR, 'crystallization_protocols.json');
@@ -58,110 +62,107 @@ async function main() {
     process.exit(1);
   }
 
-  const raw = await readFile(INPUT_FILE, 'utf-8');
-  const protocols: Protocol[] = JSON.parse(raw);
-  console.log(`로드: ${protocols.length}건, 처리: ${Math.min(limit, protocols.length)}건\n`);
+  await client.connect();
+  try {
+    const raw = await readFile(INPUT_FILE, 'utf-8');
+    const protocols: Protocol[] = JSON.parse(raw);
+    console.log(`로드: ${protocols.length}건, 처리: ${Math.min(limit, protocols.length)}건\n`);
 
-  const targets = protocols.slice(0, limit);
-  let success = 0;
-  let failed = 0;
+    const targets = protocols.slice(0, limit);
+    let success = 0;
+    let failed = 0;
 
-  for (let i = 0; i < targets.length; i++) {
-    const p = targets[i];
-    console.log(`[${i + 1}/${targets.length}] ${p.id}: ${p.name}`);
+    for (let i = 0; i < targets.length; i++) {
+      const p = targets[i];
+      console.log(`[${i + 1}/${targets.length}] ${p.id}: ${p.name}`);
 
-    // LLM 파싱
-    const parsed = await parseWithLLM(apiKey, p.text);
-    if (!parsed) {
-      console.log('  ⚠ LLM 파싱 실패');
-      failed++;
-      continue;
-    }
-
-    const outcome = parsed.outcome || 'diffraction_quality'; // 프로토콜이 있으면 대부분 성공 사례
-
-    console.log(`  → ${parsed.precipitant_type || '?'} ${parsed.precipitant_conc || ''}${parsed.precipitant_unit || ''} | ${parsed.buffer_type || '?'} pH${parsed.ph || '?'} | ${parsed.temperature || '?'}°C | ${outcome}`);
-
-    if (dryRun) {
-      success++;
-      continue;
-    }
-
-    // Supabase에 직접 insert (RLS 우회를 위해 service role key 사용)
-    try {
-      const proteinName = parsed.protein_name || p.name || `TargetTrack ${p.id}`;
-
-      // 1. Protein upsert
-      const { data: existingProtein } = await supabase
-        .from('kbsi_protein')
-        .select('id')
-        .eq('full_name', proteinName)
-        .maybeSingle();
-
-      let proteinId: number;
-      if (existingProtein) {
-        proteinId = existingProtein.id;
-      } else {
-        const { data: newProtein, error: pErr } = await supabase
-          .from('kbsi_protein')
-          .insert({ full_name: proteinName, organism: parsed.organism || null })
-          .select('id')
-          .single();
-        if (pErr) { console.log(`  ⚠ Protein: ${pErr.message}`); failed++; continue; }
-        proteinId = newProtein.id;
+      // LLM 파싱
+      const parsed = await parseWithLLM(apiKey, p.text);
+      if (!parsed) {
+        console.log('  WARNING LLM 파싱 실패');
+        failed++;
+        continue;
       }
 
-      // 2. Construct
-      const { data: newConstruct, error: cErr } = await supabase
-        .from('kbsi_construct')
-        .insert({ protein_id: proteinId, name: `TT-${p.id}`, construct_type: 'full-length' })
-        .select('id')
-        .single();
-      if (cErr) { console.log(`  ⚠ Construct: ${cErr.message}`); failed++; continue; }
-      const constructId = newConstruct.id;
+      const outcome = parsed.outcome || 'diffraction_quality'; // 프로토콜이 있으면 대부분 성공 사례
 
-      // 3. Crystallization
-      const isValid = (v: any) => v != null && v !== 'null' && v !== '';
-      const isValidNum = (v: any) => typeof v === 'number' && !isNaN(v);
+      console.log(`  → ${parsed.precipitant_type || '?'} ${parsed.precipitant_conc || ''}${parsed.precipitant_unit || ''} | ${parsed.buffer_type || '?'} pH${parsed.ph || '?'} | ${parsed.temperature || '?'}°C | ${outcome}`);
 
-      const crystData: any = {
-        construct_id: constructId,
-        source_type: 'literature',
-        outcome,
-        condition_detail: p.text.slice(0, 500),
-        notes: `TargetTrack ${p.id}`,
-      };
-      if (isValid(parsed.precipitant_type)) crystData.precipitant_type = parsed.precipitant_type;
-      if (isValidNum(parsed.precipitant_conc)) crystData.precipitant_conc = parsed.precipitant_conc;
-      if (isValid(parsed.precipitant_unit)) crystData.precipitant_unit = parsed.precipitant_unit;
-      if (isValid(parsed.buffer_type)) crystData.buffer_type = parsed.buffer_type;
-      if (isValidNum(parsed.ph)) crystData.ph = parsed.ph;
-      if (isValidNum(parsed.temperature)) crystData.temperature = parsed.temperature;
-      if (isValid(parsed.salt_type)) crystData.salt_type = parsed.salt_type;
-      if (isValidNum(parsed.salt_conc)) crystData.salt_conc = parsed.salt_conc;
-      if (isValidNum(parsed.protein_concentration)) crystData.protein_concentration = parsed.protein_concentration;
-      if (isValid(parsed.additive)) crystData.additive = parsed.additive;
-
-      const { error: xErr } = await supabase
-        .from('kbsi_crystallization')
-        .insert(crystData);
-
-      if (!xErr) {
-        console.log(`  ✓ 등록 (protein:${proteinId}, construct:${constructId})`);
+      if (dryRun) {
         success++;
-      } else {
-        console.log(`  ⚠ Crystallization: ${xErr.message}`);
+        continue;
+      }
+
+      try {
+        const proteinName = parsed.protein_name || p.name || `TargetTrack ${p.id}`;
+
+        // 1. Protein upsert
+        const { rows: existingRows } = await client.query(
+          `SELECT id FROM kbsi_protein WHERE full_name = $1 LIMIT 1`,
+          [proteinName]
+        );
+
+        let proteinId: number;
+        if (existingRows.length > 0) {
+          proteinId = existingRows[0].id;
+        } else {
+          const { rows: newRows } = await client.query(
+            `INSERT INTO kbsi_protein (full_name, organism) VALUES ($1, $2) RETURNING id`,
+            [proteinName, parsed.organism || null]
+          );
+          proteinId = newRows[0].id;
+        }
+
+        // 2. Construct
+        const { rows: cRows } = await client.query(
+          `INSERT INTO kbsi_construct (protein_id, name, construct_type) VALUES ($1, $2, $3) RETURNING id`,
+          [proteinId, `TT-${p.id}`, 'full-length']
+        );
+        const constructId = cRows[0].id;
+
+        // 3. Crystallization
+        const isValid = (v: any) => v != null && v !== 'null' && v !== '';
+        const isValidNum = (v: any) => typeof v === 'number' && !isNaN(v);
+
+        const cols: string[] = ['construct_id', 'source_type', 'outcome', 'condition_detail', 'notes'];
+        const vals: any[] = [constructId, 'literature', outcome, p.text.slice(0, 500), `TargetTrack ${p.id}`];
+
+        if (isValid(parsed.precipitant_type)) { cols.push('precipitant_type'); vals.push(parsed.precipitant_type); }
+        if (isValidNum(parsed.precipitant_conc)) { cols.push('precipitant_conc'); vals.push(parsed.precipitant_conc); }
+        if (isValid(parsed.precipitant_unit)) { cols.push('precipitant_unit'); vals.push(parsed.precipitant_unit); }
+        if (isValid(parsed.buffer_type)) { cols.push('buffer_type'); vals.push(parsed.buffer_type); }
+        if (isValidNum(parsed.ph)) { cols.push('ph'); vals.push(parsed.ph); }
+        if (isValidNum(parsed.temperature)) { cols.push('temperature'); vals.push(parsed.temperature); }
+        if (isValid(parsed.salt_type)) { cols.push('salt_type'); vals.push(parsed.salt_type); }
+        if (isValidNum(parsed.salt_conc)) { cols.push('salt_conc'); vals.push(parsed.salt_conc); }
+        if (isValidNum(parsed.protein_concentration)) { cols.push('protein_concentration'); vals.push(parsed.protein_concentration); }
+        if (isValid(parsed.additive)) { cols.push('additive'); vals.push(parsed.additive); }
+
+        const placeholders = vals.map((_, i) => `$${i + 1}`).join(', ');
+        const { rowCount } = await client.query(
+          `INSERT INTO kbsi_crystallization (${cols.join(', ')}) VALUES (${placeholders})`,
+          vals
+        );
+
+        if (rowCount && rowCount > 0) {
+          console.log(`  OK 등록 (protein:${proteinId}, construct:${constructId})`);
+          success++;
+        } else {
+          console.log(`  WARNING Crystallization insert failed`);
+          failed++;
+        }
+      } catch (err: any) {
+        console.log(`  FAIL ${err.message}`);
         failed++;
       }
-    } catch (err: any) {
-      console.log(`  ✗ ${err.message}`);
-      failed++;
+
+      await sleep(300);
     }
 
-    await sleep(300);
+    console.log(`\n=== 완료: 성공 ${success}, 실패 ${failed} ===`);
+  } finally {
+    await client.end();
   }
-
-  console.log(`\n=== 완료: 성공 ${success}, 실패 ${failed} ===`);
 }
 
 async function parseWithLLM(apiKey: string, text: string): Promise<any | null> {

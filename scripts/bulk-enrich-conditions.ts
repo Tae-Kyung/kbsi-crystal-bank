@@ -9,14 +9,18 @@
  */
 
 import dotenv from 'dotenv';
-import { createClient } from '@supabase/supabase-js';
+import pg from 'pg';
 
 dotenv.config({ path: '.env.local' });
 
-const supabase = createClient(
-  process.env.NEXT_PUBLIC_SUPABASE_URL!,
-  process.env.SUPABASE_SERVICE_ROLE_KEY || process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!
-);
+const client = new pg.Client({
+  host: '203.255.78.89',
+  port: 15432,
+  database: 'kbsi_crystal_bank',
+  user: 'kbsi_app',
+  password: 'SMmQhkEIeXivl5P0yrHWW1JhpwCcmWQg',
+  ssl: { rejectUnauthorized: false },
+});
 
 const PARSE_PROMPT = `You are an expert crystallographer. Extract structured crystallization conditions from a free-text description.
 Only extract information explicitly stated in the text. Do not infer or guess.
@@ -49,126 +53,132 @@ async function main() {
     process.exit(1);
   }
 
-  // condition_detail이 있지만 precipitant_type이 없는 레코드 조회 (pagination)
-  let records: any[] = [];
-  let offset = 0;
-  const PAGE = 1000;
-  while (records.length < limit) {
-    let query = supabase
-      .from('kbsi_crystallization')
-      .select('id, condition_detail, precipitant_type, ph, temperature')
-      .not('condition_detail', 'is', null)
-      .order('id')
-      .range(offset, offset + PAGE - 1);
+  await client.connect();
+  try {
+    // condition_detail이 있지만 precipitant_type이 없는 레코드 조회
+    const whereClause = force
+      ? `WHERE condition_detail IS NOT NULL`
+      : `WHERE condition_detail IS NOT NULL AND precipitant_type IS NULL`;
 
-    if (!force) {
-      query = query.is('precipitant_type', null);
+    const { rows: records } = await client.query(
+      `SELECT id, condition_detail, precipitant_type, ph, temperature
+       FROM kbsi_crystallization
+       ${whereClause}
+       ORDER BY id
+       LIMIT $1`,
+      [limit]
+    );
+
+    console.log(`대상 레코드: ${records.length}건 (limit: ${limit}${force ? ', force' : ''})\n`);
+    if (records.length === 0) {
+      console.log('파싱할 레코드가 없습니다.');
+      return;
     }
 
-    const { data: page, error } = await query;
-    if (error) { console.error('DB 조회 실패:', error.message); process.exit(1); }
-    if (!page || page.length === 0) break;
-    records = records.concat(page);
-    if (page.length < PAGE) break;
-    offset += PAGE;
-  }
-  records = records.slice(0, limit);
+    let success = 0;
+    let failed = 0;
 
-  console.log(`대상 레코드: ${records.length}건 (limit: ${limit}${force ? ', force' : ''})\n`);
-  if (records.length === 0) {
-    console.log('파싱할 레코드가 없습니다.');
-    return;
-  }
+    for (let i = 0; i < records.length; i++) {
+      const rec = records[i];
+      const detail = rec.condition_detail?.slice(0, 1500) || '';
+      if (!detail) continue;
 
-  let success = 0;
-  let failed = 0;
+      process.stdout.write(`[${i + 1}/${records.length}] ID:${rec.id} — `);
 
-  for (let i = 0; i < records.length; i++) {
-    const rec = records[i];
-    const detail = rec.condition_detail?.slice(0, 1500) || '';
-    if (!detail) continue;
+      try {
+        const res = await fetch('https://api.openai.com/v1/chat/completions', {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+            Authorization: `Bearer ${apiKey}`,
+          },
+          body: JSON.stringify({
+            model: 'gpt-4o-mini',
+            messages: [
+              { role: 'system', content: PARSE_PROMPT },
+              { role: 'user', content: detail },
+            ],
+            temperature: 0,
+            response_format: { type: 'json_object' },
+          }),
+        });
 
-    process.stdout.write(`[${i + 1}/${records.length}] ID:${rec.id} — `);
-
-    try {
-      const res = await fetch('https://api.openai.com/v1/chat/completions', {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-          Authorization: `Bearer ${apiKey}`,
-        },
-        body: JSON.stringify({
-          model: 'gpt-4o-mini',
-          messages: [
-            { role: 'system', content: PARSE_PROMPT },
-            { role: 'user', content: detail },
-          ],
-          temperature: 0,
-          response_format: { type: 'json_object' },
-        }),
-      });
-
-      if (!res.ok) {
-        console.log('LLM API 오류');
-        failed++;
-        continue;
-      }
-
-      const data = await res.json();
-      const content = data.choices?.[0]?.message?.content;
-      if (!content) { console.log('빈 응답'); failed++; continue; }
-
-      const parsed = JSON.parse(content.trim());
-
-      // 유효한 필드만 업데이트
-      const isValid = (v: any) => v != null && v !== 'null' && v !== '';
-      const isNum = (v: any) => typeof v === 'number' && !isNaN(v);
-
-      const updates: any = {};
-      if (isValid(parsed.precipitant_type)) updates.precipitant_type = parsed.precipitant_type;
-      if (isNum(parsed.precipitant_conc)) updates.precipitant_conc = parsed.precipitant_conc;
-      if (isValid(parsed.precipitant_unit)) updates.precipitant_unit = parsed.precipitant_unit;
-      if (isValid(parsed.buffer_type)) updates.buffer_type = parsed.buffer_type;
-      if (isNum(parsed.ph) && !rec.ph) updates.ph = parsed.ph;
-      if (isNum(parsed.temperature) && !rec.temperature) updates.temperature = parsed.temperature;
-      if (isValid(parsed.salt_type)) updates.salt_type = parsed.salt_type;
-      if (isNum(parsed.salt_conc)) updates.salt_conc = parsed.salt_conc;
-      if (isNum(parsed.protein_concentration)) updates.protein_concentration = parsed.protein_concentration;
-      if (isValid(parsed.additive)) updates.additive = parsed.additive;
-
-      const fieldCount = Object.keys(updates).length;
-      const summary = `${parsed.precipitant_type || '?'} ${parsed.precipitant_conc || ''}${parsed.precipitant_unit || ''} | pH ${parsed.ph || '?'} | ${parsed.temperature || '?'}°C`;
-
-      if (fieldCount === 0) {
-        console.log(`(추출 필드 없음) ${detail.slice(0, 80)}...`);
-        failed++;
-        continue;
-      }
-
-      if (dryRun) {
-        console.log(`${summary} [${fieldCount} fields]`);
-      } else {
-        const { error: updateErr } = await supabase
-          .from('kbsi_crystallization')
-          .update(updates)
-          .eq('id', rec.id);
-        if (updateErr) {
-          console.log(`DB 업데이트 실패: ${updateErr.message}`);
+        if (!res.ok) {
+          console.log('LLM API 오류');
           failed++;
           continue;
         }
-        console.log(`✓ ${summary} [${fieldCount} fields]`);
+
+        const data = await res.json();
+        const content = data.choices?.[0]?.message?.content;
+        if (!content) { console.log('빈 응답'); failed++; continue; }
+
+        const parsed = JSON.parse(content.trim());
+
+        // 유효한 필드만 업데이트
+        const isValid = (v: any) => v != null && v !== 'null' && v !== '';
+        const isNum = (v: any) => typeof v === 'number' && !isNaN(v);
+
+        const updates: Record<string, any> = {};
+        if (isValid(parsed.precipitant_type)) updates.precipitant_type = parsed.precipitant_type;
+        if (isNum(parsed.precipitant_conc)) updates.precipitant_conc = parsed.precipitant_conc;
+        if (isValid(parsed.precipitant_unit)) updates.precipitant_unit = parsed.precipitant_unit;
+        if (isValid(parsed.buffer_type)) updates.buffer_type = parsed.buffer_type;
+        if (isNum(parsed.ph) && !rec.ph) updates.ph = parsed.ph;
+        if (isNum(parsed.temperature) && !rec.temperature) updates.temperature = parsed.temperature;
+        if (isValid(parsed.salt_type)) updates.salt_type = parsed.salt_type;
+        if (isNum(parsed.salt_conc)) updates.salt_conc = parsed.salt_conc;
+        if (isNum(parsed.protein_concentration)) updates.protein_concentration = parsed.protein_concentration;
+        if (isValid(parsed.additive)) updates.additive = parsed.additive;
+
+        const fieldCount = Object.keys(updates).length;
+        const summary = `${parsed.precipitant_type || '?'} ${parsed.precipitant_conc || ''}${parsed.precipitant_unit || ''} | pH ${parsed.ph || '?'} | ${parsed.temperature || '?'}°C`;
+
+        if (fieldCount === 0) {
+          console.log(`(추출 필드 없음) ${detail.slice(0, 80)}...`);
+          failed++;
+          continue;
+        }
+
+        if (dryRun) {
+          console.log(`${summary} [${fieldCount} fields]`);
+        } else {
+          // Build parameterized UPDATE
+          const setClauses: string[] = [];
+          const vals: any[] = [];
+          let paramIdx = 1;
+          for (const [col, val] of Object.entries(updates)) {
+            setClauses.push(`${col} = $${paramIdx}`);
+            vals.push(val);
+            paramIdx++;
+          }
+          vals.push(rec.id);
+
+          const { rowCount } = await client.query(
+            `UPDATE kbsi_crystallization SET ${setClauses.join(', ')} WHERE id = $${paramIdx}`,
+            vals
+          );
+
+          if (!rowCount || rowCount === 0) {
+            console.log(`DB 업데이트 실패`);
+            failed++;
+            continue;
+          }
+          console.log(`OK ${summary} [${fieldCount} fields]`);
+        }
+        success++;
+      } catch (err: any) {
+        console.log(`FAIL ${err.message}`);
+        failed++;
       }
-      success++;
-    } catch (err: any) {
-      console.log(`✗ ${err.message}`);
-      failed++;
+
+      await sleep(300);
     }
 
-    await sleep(300);
+    console.log(`\n=== 완료: 성공 ${success}, 실패 ${failed} ${dryRun ? '(dry-run)' : ''} ===`);
+  } finally {
+    await client.end();
   }
-
-  console.log(`\n=== 완료: 성공 ${success}, 실패 ${failed} ${dryRun ? '(dry-run)' : ''} ===`);
 }
 
 function sleep(ms: number) { return new Promise(r => setTimeout(r, ms)); }

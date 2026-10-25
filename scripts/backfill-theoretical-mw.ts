@@ -7,15 +7,16 @@
  *   --dry-run        미리보기
  */
 
-import dotenv from 'dotenv';
-import { createClient } from '@supabase/supabase-js';
+import pg from 'pg';
 
-dotenv.config({ path: '.env.local' });
-
-const supabase = createClient(
-  process.env.NEXT_PUBLIC_SUPABASE_URL!,
-  process.env.SUPABASE_SERVICE_ROLE_KEY!
-);
+const client = new pg.Client({
+  host: '203.255.78.89',
+  port: 15432,
+  database: 'kbsi_crystal_bank',
+  user: 'kbsi_app',
+  password: 'SMmQhkEIeXivl5P0yrHWW1JhpwCcmWQg',
+  ssl: { rejectUnauthorized: false },
+});
 
 // Standard amino acid residue weights (monoisotopic-ish, daltons)
 const AA_WEIGHTS: Record<string, number> = {
@@ -91,98 +92,93 @@ async function main() {
   console.log('=== Theoretical MW & pI Backfill ===');
   console.log(`limit: ${limit === Infinity ? '전체' : limit}, dry-run: ${dryRun}\n`);
 
-  // 1) theoretical_mw IS NULL AND seq_final IS NOT NULL인 construct 전부 조회
-  let records: { id: number; seq_final: string }[] = [];
-  let offset = 0;
-  while (records.length < limit) {
-    const { data, error } = await supabase
-      .from('kbsi_construct')
-      .select('id, seq_final')
-      .is('theoretical_mw', null)
-      .not('seq_final', 'is', null)
-      .order('id')
-      .range(offset, offset + 999);
-    if (error) { console.error('조회 에러:', error.message); break; }
-    if (!data || data.length === 0) break;
-    records = records.concat(data as any[]);
-    if (data.length < 1000) break;
-    offset += 1000;
-  }
-  if (limit !== Infinity) records = records.slice(0, limit);
-  console.log(`대상: ${records.length.toLocaleString()}건\n`);
-
-  if (records.length === 0) {
-    console.log('처리할 construct가 없습니다.');
-    return;
-  }
-
-  let updated = 0, skipped = 0, failed = 0;
-  const startTime = Date.now();
-  const BATCH = 100;
-
-  for (let i = 0; i < records.length; i += BATCH) {
-    const batch = records.slice(i, i + BATCH);
-    const updates: { id: number; theoretical_mw: number; theoretical_pi: number }[] = [];
-
-    for (const r of batch) {
-      const seq = r.seq_final.replace(/\s/g, '').toUpperCase();
-      // 유효한 아미노산 문자만 포함하는지 체크
-      if (seq.length === 0 || !/^[ACDEFGHIKLMNPQRSTVWY]+$/i.test(seq.replace(/X/g, ''))) {
-        skipped++;
-        continue;
-      }
-      const mw = calcMW(seq);
-      const pi = calcPI(seq);
-      updates.push({ id: r.id, theoretical_mw: mw, theoretical_pi: pi });
-    }
-
-    if (!dryRun && updates.length > 0) {
-      // Supabase doesn't support batch update, so we do individual updates
-      // But we can parallelize within the batch
-      const results = await Promise.all(
-        updates.map(u =>
-          supabase
-            .from('kbsi_construct')
-            .update({ theoretical_mw: u.theoretical_mw, theoretical_pi: u.theoretical_pi })
-            .eq('id', u.id)
-        )
+  await client.connect();
+  try {
+    // 1) theoretical_mw IS NULL AND seq_final IS NOT NULL인 construct 전부 조회
+    let records: { id: number; seq_final: string }[] = [];
+    let offset = 0;
+    while (records.length < limit) {
+      const { rows: data } = await client.query(
+        'SELECT id, seq_final FROM kbsi_construct WHERE theoretical_mw IS NULL AND seq_final IS NOT NULL ORDER BY id OFFSET $1 LIMIT 1000',
+        [offset]
       );
-      for (const res of results) {
-        if (res.error) failed++;
-        else updated++;
+      if (!data || data.length === 0) break;
+      records = records.concat(data as any[]);
+      if (data.length < 1000) break;
+      offset += 1000;
+    }
+    if (limit !== Infinity) records = records.slice(0, limit);
+    console.log(`대상: ${records.length.toLocaleString()}건\n`);
+
+    if (records.length === 0) {
+      console.log('처리할 construct가 없습니다.');
+      return;
+    }
+
+    let updated = 0, skipped = 0, failed = 0;
+    const startTime = Date.now();
+    const BATCH = 100;
+
+    for (let i = 0; i < records.length; i += BATCH) {
+      const batch = records.slice(i, i + BATCH);
+      const updates: { id: number; theoretical_mw: number; theoretical_pi: number }[] = [];
+
+      for (const r of batch) {
+        const seq = r.seq_final.replace(/\s/g, '').toUpperCase();
+        // 유효한 아미노산 문자만 포함하는지 체크
+        if (seq.length === 0 || !/^[ACDEFGHIKLMNPQRSTVWY]+$/i.test(seq.replace(/X/g, ''))) {
+          skipped++;
+          continue;
+        }
+        const mw = calcMW(seq);
+        const pi = calcPI(seq);
+        updates.push({ id: r.id, theoretical_mw: mw, theoretical_pi: pi });
       }
-    } else {
-      updated += updates.length;
+
+      if (!dryRun && updates.length > 0) {
+        const results = await Promise.all(
+          updates.map(u =>
+            client.query(
+              'UPDATE kbsi_construct SET theoretical_mw = $1, theoretical_pi = $2 WHERE id = $3',
+              [u.theoretical_mw, u.theoretical_pi, u.id]
+            ).then(() => { updated++; }).catch(() => { failed++; })
+          )
+        );
+      } else {
+        updated += updates.length;
+      }
+
+      const processed = Math.min(i + BATCH, records.length);
+      if (processed % 1000 === 0 || processed === records.length) {
+        const elapsed = ((Date.now() - startTime) / 1000).toFixed(0);
+        const rate = updated > 0 ? (updated / parseFloat(elapsed) * 60).toFixed(0) : '--';
+        console.log(
+          `[${processed.toLocaleString()}/${records.length.toLocaleString()}] ` +
+          `updated: ${updated.toLocaleString()}, skipped: ${skipped}, failed: ${failed} | ` +
+          `${elapsed}s (${rate}/min)`
+        );
+      }
     }
 
-    const processed = Math.min(i + BATCH, records.length);
-    if (processed % 1000 === 0 || processed === records.length) {
-      const elapsed = ((Date.now() - startTime) / 1000).toFixed(0);
-      const rate = updated > 0 ? (updated / parseFloat(elapsed) * 60).toFixed(0) : '--';
-      console.log(
-        `[${processed.toLocaleString()}/${records.length.toLocaleString()}] ` +
-        `updated: ${updated.toLocaleString()}, skipped: ${skipped}, failed: ${failed} | ` +
-        `${elapsed}s (${rate}/min)`
-      );
+    const elapsed = ((Date.now() - startTime) / 1000).toFixed(1);
+    console.log(`\n${'='.repeat(50)}`);
+    console.log(`완료 ${dryRun ? '(dry-run)' : ''}`);
+    console.log(`updated: ${updated.toLocaleString()}건`);
+    console.log(`skipped: ${skipped.toLocaleString()}건`);
+    console.log(`failed: ${failed}건`);
+    console.log(`소요: ${elapsed}s`);
+
+    if (dryRun && records.length > 0) {
+      console.log('\n--- 샘플 (처음 5건) ---');
+      for (const r of records.slice(0, 5)) {
+        const seq = r.seq_final.replace(/\s/g, '').toUpperCase();
+        console.log(`  id=${r.id}: MW=${calcMW(seq)} Da, pI=${calcPI(seq)}, len=${seq.length}`);
+      }
     }
+    console.log('='.repeat(50));
+  } finally {
+    await client.end();
   }
-
-  const elapsed = ((Date.now() - startTime) / 1000).toFixed(1);
-  console.log(`\n${'='.repeat(50)}`);
-  console.log(`완료 ${dryRun ? '(dry-run)' : ''}`);
-  console.log(`updated: ${updated.toLocaleString()}건`);
-  console.log(`skipped: ${skipped.toLocaleString()}건`);
-  console.log(`failed: ${failed}건`);
-  console.log(`소요: ${elapsed}s`);
-
-  if (dryRun && records.length > 0) {
-    console.log('\n--- 샘플 (처음 5건) ---');
-    for (const r of records.slice(0, 5)) {
-      const seq = r.seq_final.replace(/\s/g, '').toUpperCase();
-      console.log(`  id=${r.id}: MW=${calcMW(seq)} Da, pI=${calcPI(seq)}, len=${seq.length}`);
-    }
-  }
-  console.log('='.repeat(50));
 }
 
 main().catch(console.error);

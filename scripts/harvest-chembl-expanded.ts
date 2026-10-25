@@ -11,15 +11,16 @@
  *   --dry-run         미리보기 (DB 쓰기 없음)
  */
 
-import dotenv from 'dotenv';
-import { createClient } from '@supabase/supabase-js';
+import pg from 'pg';
 
-dotenv.config({ path: '.env.local' });
-
-const supabase = createClient(
-  process.env.NEXT_PUBLIC_SUPABASE_URL!,
-  process.env.SUPABASE_SERVICE_ROLE_KEY!
-);
+const client = new pg.Client({
+  host: '203.255.78.89',
+  port: 15432,
+  database: 'kbsi_crystal_bank',
+  user: 'kbsi_app',
+  password: 'SMmQhkEIeXivl5P0yrHWW1JhpwCcmWQg',
+  ssl: { rejectUnauthorized: false },
+});
 
 const CHEMBL_API = 'https://www.ebi.ac.uk/chembl/api/data';
 const DELAY_MS = 500; // ChEMBL rate limit 준수
@@ -54,63 +55,37 @@ function parseArgs() {
   };
 }
 
-// ── Fetch all unique gene_names from kbsi_protein (paginated) ──
+// ── Fetch all unique gene_names from kbsi_protein ──
 async function fetchAllGeneNames(): Promise<string[]> {
-  const PAGE_SIZE = 1000;
-  const geneSet = new Set<string>();
-  let from = 0;
-
-  while (true) {
-    const { data, error } = await supabase
-      .from('kbsi_protein')
-      .select('gene_name')
-      .not('gene_name', 'is', null)
-      .neq('gene_name', '')
-      .range(from, from + PAGE_SIZE - 1);
-
-    if (error) {
-      console.error(`DB 조회 에러 (offset ${from}):`, error.message);
-      break;
-    }
-    if (!data || data.length === 0) break;
-
-    for (const row of data) {
-      if (row.gene_name) geneSet.add(row.gene_name.trim());
-    }
-    from += PAGE_SIZE;
-    if (data.length < PAGE_SIZE) break;
-  }
-
-  return Array.from(geneSet).sort();
+  const { rows } = await client.query(
+    `SELECT DISTINCT gene_name FROM kbsi_protein
+     WHERE gene_name IS NOT NULL AND gene_name != ''
+     ORDER BY gene_name`
+  );
+  return rows.map((r: any) => r.gene_name.trim());
 }
 
 // ── Check if a gene already has ChEMBL bindings ──
 async function hasExistingChemblBindings(geneName: string): Promise<boolean> {
-  // Find protein ids for this gene
-  const { data: proteins } = await supabase
-    .from('kbsi_protein')
-    .select('id')
-    .eq('gene_name', geneName)
-    .limit(5);
-
-  if (!proteins || proteins.length === 0) return false;
+  const { rows: proteins } = await client.query(
+    `SELECT id FROM kbsi_protein WHERE gene_name = $1 LIMIT 5`,
+    [geneName]
+  );
+  if (proteins.length === 0) return false;
 
   for (const p of proteins) {
-    const { data: constructs } = await supabase
-      .from('kbsi_construct')
-      .select('id')
-      .eq('protein_id', p.id)
-      .limit(1);
+    const { rows: constructs } = await client.query(
+      `SELECT id FROM kbsi_construct WHERE protein_id = $1 LIMIT 1`,
+      [p.id]
+    );
+    if (constructs.length === 0) continue;
 
-    if (!constructs || constructs.length === 0) continue;
-
-    const { count } = await supabase
-      .from('kbsi_construct_ligand')
-      .select('id', { count: 'exact', head: true })
-      .eq('construct_id', constructs[0].id)
-      .eq('source_db', 'ChEMBL');
-
-    if (count && count > 0) return true;
+    const { rows: countRows } = await client.query(
+      `SELECT COUNT(*)::int as cnt FROM kbsi_construct_ligand
+       WHERE construct_id = $1 AND source_db = $2`,
+      [constructs[0].id, 'ChEMBL']
+    );
+    if (countRows[0].cnt > 0) return true;
   }
   return false;
 }
@@ -193,21 +168,17 @@ async function fetchActivities(targetChemblId: string): Promise<ChEMBLActivity[]
 
 // ── Find construct_id for a gene_name ──
 async function findConstructId(geneName: string): Promise<number | null> {
-  const { data: proteins } = await supabase
-    .from('kbsi_protein')
-    .select('id')
-    .eq('gene_name', geneName)
-    .limit(1);
+  const { rows: proteins } = await client.query(
+    `SELECT id FROM kbsi_protein WHERE gene_name = $1 LIMIT 1`,
+    [geneName]
+  );
+  if (proteins.length === 0) return null;
 
-  if (!proteins || proteins.length === 0) return null;
-
-  const { data: constructs } = await supabase
-    .from('kbsi_construct')
-    .select('id')
-    .eq('protein_id', proteins[0].id)
-    .limit(1);
-
-  return constructs?.[0]?.id || null;
+  const { rows: constructs } = await client.query(
+    `SELECT id FROM kbsi_construct WHERE protein_id = $1 LIMIT 1`,
+    [proteins[0].id]
+  );
+  return constructs.length > 0 ? constructs[0].id : null;
 }
 
 // ── Process one gene ──
@@ -260,52 +231,61 @@ async function processGene(
 
     try {
       // Ligand upsert by SMILES
-      const { data: existingLigand } = await supabase
-        .from('kbsi_ligand')
-        .select('id')
-        .eq('smiles', smiles)
-        .maybeSingle();
+      const { rows: existingRows } = await client.query(
+        `SELECT id FROM kbsi_ligand WHERE smiles = $1 LIMIT 1`,
+        [smiles]
+      );
 
       let ligandId: number;
-      if (existingLigand) {
-        ligandId = existingLigand.id;
+      if (existingRows.length > 0) {
+        ligandId = existingRows[0].id;
       } else {
-        const { data: newL, error } = await supabase
-          .from('kbsi_ligand')
-          .insert({
-            name: ligandName,
-            smiles,
-            source: `ChEMBL ${activity.molecule_chembl_id}`,
-            source_db: 'ChEMBL',
-            source_id: activity.molecule_chembl_id,
-          })
-          .select('id')
-          .single();
+        const { rows: newRows } = await client.query(
+          `INSERT INTO kbsi_ligand (name, smiles, source, source_db, source_id)
+           VALUES ($1, $2, $3, $4, $5)
+           RETURNING id`,
+          [ligandName, smiles, `ChEMBL ${activity.molecule_chembl_id}`, 'ChEMBL', activity.molecule_chembl_id]
+        );
 
-        if (error) {
+        if (newRows.length === 0) {
           stats.errors++;
           continue;
         }
-        ligandId = newL.id;
+        ligandId = newRows[0].id;
         ligands++;
       }
 
       // Construct-Ligand binding
-      const bindingData: Record<string, unknown> = {
-        construct_id: constructId,
-        ligand_id: ligandId,
-        source_db: 'ChEMBL',
-        source_id: String(activity.activity_id),
-        notes: `${activity.standard_type}: ${activity.standard_value} ${activity.standard_units || ''} (pChEMBL: ${activity.pchembl_value}) [${activity.molecule_chembl_id}]`,
-      };
-      if (activity.standard_type === 'Kd') bindingData.binding_kd = activity.standard_value;
-      if (activity.standard_type === 'IC50') bindingData.binding_ic50 = activity.standard_value;
+      const notes = `${activity.standard_type}: ${activity.standard_value} ${activity.standard_units || ''} (pChEMBL: ${activity.pchembl_value}) [${activity.molecule_chembl_id}]`;
+      const bindingKd = activity.standard_type === 'Kd' ? activity.standard_value : null;
+      const bindingIc50 = activity.standard_type === 'IC50' ? activity.standard_value : null;
 
-      const { error: bErr } = await supabase
-        .from('kbsi_construct_ligand')
-        .upsert(bindingData, { onConflict: 'construct_id,ligand_id' });
+      const upsertQuery = bindingKd != null
+        ? `INSERT INTO kbsi_construct_ligand (construct_id, ligand_id, source_db, source_id, notes, binding_kd)
+           VALUES ($1, $2, $3, $4, $5, $6)
+           ON CONFLICT (construct_id, ligand_id) DO UPDATE SET
+             source_db = EXCLUDED.source_db, source_id = EXCLUDED.source_id,
+             notes = EXCLUDED.notes, binding_kd = EXCLUDED.binding_kd`
+        : bindingIc50 != null
+        ? `INSERT INTO kbsi_construct_ligand (construct_id, ligand_id, source_db, source_id, notes, binding_ic50)
+           VALUES ($1, $2, $3, $4, $5, $6)
+           ON CONFLICT (construct_id, ligand_id) DO UPDATE SET
+             source_db = EXCLUDED.source_db, source_id = EXCLUDED.source_id,
+             notes = EXCLUDED.notes, binding_ic50 = EXCLUDED.binding_ic50`
+        : `INSERT INTO kbsi_construct_ligand (construct_id, ligand_id, source_db, source_id, notes)
+           VALUES ($1, $2, $3, $4, $5)
+           ON CONFLICT (construct_id, ligand_id) DO UPDATE SET
+             source_db = EXCLUDED.source_db, source_id = EXCLUDED.source_id,
+             notes = EXCLUDED.notes`;
 
-      if (!bErr) {
+      const bindingVal = bindingKd ?? bindingIc50;
+      const params = bindingVal != null
+        ? [constructId, ligandId, 'ChEMBL', String(activity.activity_id), notes, bindingVal]
+        : [constructId, ligandId, 'ChEMBL', String(activity.activity_id), notes];
+
+      const { rowCount } = await client.query(upsertQuery, params);
+
+      if (rowCount && rowCount > 0) {
         bindings++;
       } else {
         stats.errors++;
@@ -323,69 +303,74 @@ async function main() {
   const { limit: limitStr, offset, dryRun } = parseArgs();
   const limit = parseInt(limitStr);
 
-  console.log('═'.repeat(60));
-  console.log('ChEMBL Expanded: 전체 gene_name 대상 바인딩 수집');
-  console.log(`옵션: limit=${limit || 'ALL'}, offset=${offset}, dry-run=${dryRun}`);
-  console.log('═'.repeat(60));
+  await client.connect();
+  try {
+    console.log('═'.repeat(60));
+    console.log('ChEMBL Expanded: 전체 gene_name 대상 바인딩 수집');
+    console.log(`옵션: limit=${limit || 'ALL'}, offset=${offset}, dry-run=${dryRun}`);
+    console.log('═'.repeat(60));
 
-  // 1. Fetch all unique gene names
-  console.log('\n[1/3] DB에서 gene_name 목록 조회...');
-  const allGenes = await fetchAllGeneNames();
-  console.log(`  총 ${allGenes.length}개 고유 gene_name 발견`);
+    // 1. Fetch all unique gene names
+    console.log('\n[1/3] DB에서 gene_name 목록 조회...');
+    const allGenes = await fetchAllGeneNames();
+    console.log(`  총 ${allGenes.length}개 고유 gene_name 발견`);
 
-  // 2. Apply offset and limit
-  let genesToProcess = allGenes.slice(offset);
-  if (limit > 0) genesToProcess = genesToProcess.slice(0, limit);
-  console.log(`  처리 대상: ${genesToProcess.length}개 (offset=${offset})\n`);
+    // 2. Apply offset and limit
+    let genesToProcess = allGenes.slice(offset);
+    if (limit > 0) genesToProcess = genesToProcess.slice(0, limit);
+    console.log(`  처리 대상: ${genesToProcess.length}개 (offset=${offset})\n`);
 
-  // 3. Process each gene
-  console.log('[2/3] ChEMBL 타겟 검색 + activity 수집...\n');
-  const startTime = Date.now();
+    // 3. Process each gene
+    console.log('[2/3] ChEMBL 타겟 검색 + activity 수집...\n');
+    const startTime = Date.now();
 
-  for (let i = 0; i < genesToProcess.length; i++) {
-    const geneName = genesToProcess[i];
-    stats.proteinsProcessed++;
+    for (let i = 0; i < genesToProcess.length; i++) {
+      const geneName = genesToProcess[i];
+      stats.proteinsProcessed++;
 
-    // Check if already has ChEMBL bindings
-    const alreadyCovered = await hasExistingChemblBindings(geneName);
-    if (alreadyCovered) {
-      stats.proteinsSkippedExisting++;
-      if ((i + 1) % 20 === 0) printProgress(i + 1, genesToProcess.length);
-      continue;
+      // Check if already has ChEMBL bindings
+      const alreadyCovered = await hasExistingChemblBindings(geneName);
+      if (alreadyCovered) {
+        stats.proteinsSkippedExisting++;
+        if ((i + 1) % 20 === 0) printProgress(i + 1, genesToProcess.length);
+        continue;
+      }
+
+      const result = await processGene(geneName, dryRun);
+      stats.newLigands += result.ligands;
+      stats.newBindings += result.bindings;
+
+      if (result.bindings > 0) {
+        console.log(
+          `  [${i + 1}/${genesToProcess.length}] ${geneName} → ${result.bindings} bindings` +
+            (result.ligands > 0 ? `, ${result.ligands} new ligands` : '') +
+            (dryRun ? ' (dry-run)' : '')
+        );
+      }
+
+      // Progress report every 20 proteins
+      if ((i + 1) % 20 === 0) {
+        printProgress(i + 1, genesToProcess.length);
+      }
     }
 
-    const result = await processGene(geneName, dryRun);
-    stats.newLigands += result.ligands;
-    stats.newBindings += result.bindings;
-
-    if (result.bindings > 0) {
-      console.log(
-        `  [${i + 1}/${genesToProcess.length}] ${geneName} → ${result.bindings} bindings` +
-          (result.ligands > 0 ? `, ${result.ligands} new ligands` : '') +
-          (dryRun ? ' (dry-run)' : '')
-      );
-    }
-
-    // Progress report every 20 proteins
-    if ((i + 1) % 20 === 0) {
-      printProgress(i + 1, genesToProcess.length);
-    }
+    // 4. Summary
+    const elapsed = ((Date.now() - startTime) / 1000).toFixed(1);
+    console.log('\n' + '═'.repeat(60));
+    console.log(`[3/3] 완료 ${dryRun ? '(DRY-RUN)' : ''}`);
+    console.log('═'.repeat(60));
+    console.log(`소요 시간:              ${elapsed}s`);
+    console.log(`처리 단백질:            ${stats.proteinsProcessed}`);
+    console.log(`  ChEMBL 타겟 발견:     ${stats.targetsFound}`);
+    console.log(`  타겟 미발견 (skip):   ${stats.proteinsSkippedNoTarget}`);
+    console.log(`  기존 데이터 (skip):   ${stats.proteinsSkippedExisting}`);
+    console.log(`신규 리간드:            ${stats.newLigands}`);
+    console.log(`신규 바인딩:            ${stats.newBindings}`);
+    console.log(`에러:                   ${stats.errors}`);
+    console.log('═'.repeat(60));
+  } finally {
+    await client.end();
   }
-
-  // 4. Summary
-  const elapsed = ((Date.now() - startTime) / 1000).toFixed(1);
-  console.log('\n' + '═'.repeat(60));
-  console.log(`[3/3] 완료 ${dryRun ? '(DRY-RUN)' : ''}`);
-  console.log('═'.repeat(60));
-  console.log(`소요 시간:              ${elapsed}s`);
-  console.log(`처리 단백질:            ${stats.proteinsProcessed}`);
-  console.log(`  ChEMBL 타겟 발견:     ${stats.targetsFound}`);
-  console.log(`  타겟 미발견 (skip):   ${stats.proteinsSkippedNoTarget}`);
-  console.log(`  기존 데이터 (skip):   ${stats.proteinsSkippedExisting}`);
-  console.log(`신규 리간드:            ${stats.newLigands}`);
-  console.log(`신규 바인딩:            ${stats.newBindings}`);
-  console.log(`에러:                   ${stats.errors}`);
-  console.log('═'.repeat(60));
 }
 
 function printProgress(current: number, total: number) {

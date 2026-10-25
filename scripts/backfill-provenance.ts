@@ -10,24 +10,19 @@
  * npx tsx scripts/backfill-provenance.ts --source-only # source_id만
  */
 
-import dotenv from 'dotenv';
-import { createClient } from '@supabase/supabase-js';
+import pg from 'pg';
 
-dotenv.config({ path: '.env.local' });
-
-const supabase = createClient(
-  process.env.NEXT_PUBLIC_SUPABASE_URL!,
-  process.env.SUPABASE_SERVICE_ROLE_KEY || process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!
-);
+const client = new pg.Client({
+  host: '203.255.78.89', port: 15432, database: 'kbsi_crystal_bank',
+  user: 'kbsi_app', password: 'SMmQhkEIeXivl5P0yrHWW1JhpwCcmWQg',
+  ssl: { rejectUnauthorized: false },
+});
 
 const args = process.argv.slice(2);
 const dryRun = args.includes('--dry-run');
 const doiOnly = args.includes('--doi-only');
 const sourceOnly = args.includes('--source-only');
 
-// ═══════════════════════════════════════════════════════
-// 1. Synthetic source_id backfill
-// ═══════════════════════════════════════════════════════
 async function backfillSyntheticSourceId() {
   console.log('\n=== Synthetic source_id backfill ===');
 
@@ -38,30 +33,24 @@ async function backfillSyntheticSourceId() {
   let hasMore = true;
 
   while (hasMore) {
-    const { data, error } = await supabase
-      .from('kbsi_crystallization')
-      .select('id, notes')
-      .eq('source_type', 'synthetic')
-      .is('source_id', null)
-      .range(offset, offset + BATCH - 1);
+    const { rows: data } = await client.query(
+      `SELECT id, notes FROM kbsi_crystallization
+       WHERE source_type = $1 AND source_id IS NULL
+       ORDER BY id OFFSET $2 LIMIT $3`,
+      ['synthetic', offset, BATCH]
+    );
 
-    if (error) { console.error('Query error:', error.message); break; }
     if (!data || data.length === 0) { hasMore = false; break; }
 
     total += data.length;
 
-    // Parse notes to extract strategy ID
     const updates: { id: number; source_id: string }[] = [];
     for (const row of data) {
       const notes = row.notes || '';
       let sourceId = '';
 
-      // Pattern: "RC: pH-1~2 (src 46154)"
       const srcMatch = notes.match(/\(src\s+(\d+)\)/);
-      // Pattern: "Negative control: extreme low pH (원본 ID 5, pH 5.6)"
       const origMatch = notes.match(/원본\s*ID\s+(\d+)/);
-      // Pattern: "NC strategy: ..."
-      const stratMatch = notes.match(/^(RC|NC|Negative control):\s*(.+?)(?:\s*\(|$)/);
 
       if (srcMatch) {
         const strategy = notes.match(/^(RC|NC):\s*([^(]+)/)?.[2]?.trim() || 'synthetic';
@@ -69,8 +58,6 @@ async function backfillSyntheticSourceId() {
       } else if (origMatch) {
         const strategy = notes.match(/Negative control:\s*(.+?)(?:\s*\(|$)/)?.[1]?.trim() || 'nc';
         sourceId = `synth:${strategy.replace(/\s+/g, '_')}:orig${origMatch[1]}`;
-      } else if (stratMatch) {
-        sourceId = `synth:${stratMatch[2].trim().replace(/\s+/g, '_')}:id${row.id}`;
       } else if (notes) {
         sourceId = `synth:unclassified:id${row.id}`;
       } else {
@@ -81,14 +68,13 @@ async function backfillSyntheticSourceId() {
     }
 
     if (!dryRun && updates.length > 0) {
-      // Batch update in chunks of 200
       for (let i = 0; i < updates.length; i += 200) {
         const chunk = updates.slice(i, i + 200);
         for (const u of chunk) {
-          await supabase
-            .from('kbsi_crystallization')
-            .update({ source_id: u.source_id })
-            .eq('id', u.id);
+          await client.query(
+            'UPDATE kbsi_crystallization SET source_id = $1 WHERE id = $2',
+            [u.source_id, u.id]
+          );
         }
         updated += chunk.length;
       }
@@ -108,20 +94,14 @@ async function backfillSyntheticSourceId() {
   console.log(`  ${dryRun ? 'Would update' : 'Updated'}: ${updated.toLocaleString()}`);
 }
 
-// ═══════════════════════════════════════════════════════
-// 2. DOI backfill via CrossRef
-// ═══════════════════════════════════════════════════════
 async function backfillDOI() {
   console.log('\n=== DOI backfill (PMID → CrossRef) ===');
 
-  const { data: refs, error } = await supabase
-    .from('kbsi_reference')
-    .select('id, pmid, title')
-    .not('pmid', 'is', null)
-    .is('doi', null)
-    .limit(1000);
+  const { rows: refs } = await client.query(
+    `SELECT id, pmid, title FROM kbsi_reference
+     WHERE pmid IS NOT NULL AND doi IS NULL LIMIT 1000`
+  );
 
-  if (error) { console.error('Query error:', error.message); return; }
   if (!refs || refs.length === 0) {
     console.log('  No PMID-without-DOI records found.');
     return;
@@ -134,7 +114,6 @@ async function backfillDOI() {
 
   for (const ref of refs) {
     try {
-      // Use NCBI E-utilities to get DOI from PMID
       const url = `https://eutils.ncbi.nlm.nih.gov/entrez/eutils/esummary.fcgi?db=pubmed&id=${ref.pmid}&retmode=json`;
       const res = await fetch(url);
 
@@ -144,17 +123,13 @@ async function backfillDOI() {
       const article = data?.result?.[ref.pmid];
       if (!article) { failed++; continue; }
 
-      // Extract DOI from articleids
       const doiEntry = article.articleids?.find((a: any) => a.idtype === 'doi');
       if (!doiEntry?.value) { failed++; continue; }
 
       const doi = doiEntry.value;
 
       if (!dryRun) {
-        await supabase
-          .from('kbsi_reference')
-          .update({ doi })
-          .eq('id', ref.id);
+        await client.query('UPDATE kbsi_reference SET doi = $1 WHERE id = $2', [doi, ref.id]);
       }
 
       resolved++;
@@ -163,7 +138,6 @@ async function backfillDOI() {
         console.log(`  Progress: ${resolved} resolved...`);
       }
 
-      // Rate limit: NCBI allows 3 req/sec without API key
       await new Promise(r => setTimeout(r, 350));
 
     } catch (err: any) {
@@ -175,22 +149,16 @@ async function backfillDOI() {
   console.log(`  Failed/no DOI: ${failed}`);
 }
 
-// ═══════════════════════════════════════════════════════
-// 3. DOI backfill via CrossRef title search
-// ═══════════════════════════════════════════════════════
 async function backfillDOIByTitle() {
   console.log('\n=== DOI backfill (Title → CrossRef) ===');
 
-  const { data: refs, error } = await supabase
-    .from('kbsi_reference')
-    .select('id, title, journal, year')
-    .is('doi', null)
-    .is('pmid', null)
-    .not('title', 'is', null)
-    .not('journal', 'eq', 'To be published')
-    .limit(1000);
+  const { rows: refs } = await client.query(
+    `SELECT id, title, journal, year FROM kbsi_reference
+     WHERE doi IS NULL AND pmid IS NULL AND title IS NOT NULL AND journal != $1
+     LIMIT 1000`,
+    ['To be published']
+  );
 
-  if (error) { console.error('Query error:', error.message); return; }
   if (!refs || refs.length === 0) {
     console.log('  No title-without-DOI records found.');
     return;
@@ -215,13 +183,12 @@ async function backfillDOIByTitle() {
       const items = data?.message?.items;
       if (!items || items.length === 0) { failed++; continue; }
 
-      // Verify title similarity (simple check)
       const foundTitle = (items[0].title?.[0] || '').toLowerCase();
       const queryTitle = ref.title.toLowerCase();
       if (foundTitle.length > 10 && queryTitle.includes(foundTitle.substring(0, 30))) {
         const doi = items[0].DOI;
         if (!dryRun) {
-          await supabase.from('kbsi_reference').update({ doi }).eq('id', ref.id);
+          await client.query('UPDATE kbsi_reference SET doi = $1 WHERE id = $2', [doi, ref.id]);
         }
         resolved++;
       } else {
@@ -232,7 +199,6 @@ async function backfillDOIByTitle() {
         console.log(`  Progress: ${resolved} resolved...`);
       }
 
-      // CrossRef rate limit: be polite
       await new Promise(r => setTimeout(r, 500));
 
     } catch {
@@ -244,19 +210,21 @@ async function backfillDOIByTitle() {
   console.log(`  Failed/no match: ${failed}`);
 }
 
-// ═══════════════════════════════════════════════════════
-// Main
-// ═══════════════════════════════════════════════════════
 async function main() {
-  console.log('Provenance Backfill' + (dryRun ? ' (DRY RUN)' : ''));
+  await client.connect();
+  try {
+    console.log('Provenance Backfill' + (dryRun ? ' (DRY RUN)' : ''));
 
-  if (!doiOnly) await backfillSyntheticSourceId();
-  if (!sourceOnly) {
-    await backfillDOI();
-    await backfillDOIByTitle();
+    if (!doiOnly) await backfillSyntheticSourceId();
+    if (!sourceOnly) {
+      await backfillDOI();
+      await backfillDOIByTitle();
+    }
+
+    console.log('\nDone.');
+  } finally {
+    await client.end();
   }
-
-  console.log('\nDone.');
 }
 
 main().catch(console.error);

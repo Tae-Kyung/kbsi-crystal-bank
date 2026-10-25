@@ -6,15 +6,16 @@
  *   --fix        잘못된 데이터 삭제
  */
 
-import dotenv from 'dotenv';
-import { createClient } from '@supabase/supabase-js';
+import pg from 'pg';
 
-dotenv.config({ path: '.env.local' });
-
-const supabase = createClient(
-  process.env.NEXT_PUBLIC_SUPABASE_URL!,
-  process.env.SUPABASE_SERVICE_ROLE_KEY!
-);
+const pgClient = new pg.Client({
+  host: '203.255.78.89',
+  port: 15432,
+  database: 'kbsi_crystal_bank',
+  user: 'kbsi_app',
+  password: 'SMmQhkEIeXivl5P0yrHWW1JhpwCcmWQg',
+  ssl: { rejectUnauthorized: false },
+});
 
 const args = process.argv.slice(2);
 const dryRun = !args.includes('--fix');
@@ -39,15 +40,22 @@ async function fetchAll<T>(
   const results: T[] = [];
   let offset = 0;
   while (true) {
-    let q = supabase.from(table).select(select).range(offset, offset + PAGE_SIZE - 1);
+    const conditions: string[] = [];
+    const values: any[] = [];
+    let paramIdx = 1;
     for (const [k, v] of Object.entries(filter)) {
-      q = q.eq(k, v);
+      conditions.push(`${k} = $${paramIdx++}`);
+      values.push(v);
     }
-    const { data, error } = await q;
-    if (error) throw new Error(`${table} query error: ${error.message}`);
-    if (!data || data.length === 0) break;
-    results.push(...(data as T[]));
-    if (data.length < PAGE_SIZE) break;
+    const whereClause = conditions.length > 0 ? `WHERE ${conditions.join(' AND ')}` : '';
+    values.push(offset);
+    const { rows } = await pgClient.query(
+      `SELECT ${select} FROM ${table} ${whereClause} OFFSET $${paramIdx} LIMIT ${PAGE_SIZE}`,
+      values
+    );
+    if (!rows || rows.length === 0) break;
+    results.push(...(rows as T[]));
+    if (rows.length < PAGE_SIZE) break;
     offset += PAGE_SIZE;
   }
   return results;
@@ -59,12 +67,11 @@ async function deleteRows(table: string, ids: number[]): Promise<number> {
   // batch delete in chunks of 200
   for (let i = 0; i < ids.length; i += 200) {
     const chunk = ids.slice(i, i + 200);
-    const { error, count } = await supabase
-      .from(table)
-      .delete({ count: 'exact' })
-      .in('id', chunk);
-    if (error) console.error(`  delete error: ${error.message}`);
-    deleted += count ?? chunk.length;
+    const { rowCount } = await pgClient.query(
+      `DELETE FROM ${table} WHERE id = ANY($1)`,
+      [chunk]
+    );
+    deleted += rowCount ?? chunk.length;
   }
   return deleted;
 }
@@ -338,46 +345,34 @@ interface DiffRow {
 
 // Common space groups (covers ~95% of PDB)
 const KNOWN_SPACE_GROUPS = new Set([
-  // Triclinic
   'P 1',
-  // Monoclinic
   'P 2', 'P 21', 'C 2', 'C 1 2 1', 'P 1 21 1', 'P 1 2 1',
-  // Orthorhombic
   'P 2 2 2', 'P 21 21 21', 'P 21 21 2', 'P 21 2 21', 'P 2 21 21',
   'C 2 2 21', 'C 2 2 2', 'I 2 2 2', 'I 21 21 21',
   'F 2 2 2',
-  // Tetragonal
   'P 4', 'P 41', 'P 42', 'P 43',
   'P 4 2 2', 'P 41 2 2', 'P 41 21 2', 'P 42 21 2', 'P 43 21 2', 'P 43 2 2', 'P 42 2 2',
   'I 4', 'I 41', 'I 4 2 2', 'I 41 2 2',
-  // Trigonal
   'P 3', 'P 31', 'P 32',
   'P 3 1 2', 'P 3 2 1', 'P 31 1 2', 'P 31 2 1', 'P 32 1 2', 'P 32 2 1',
   'R 3', 'R 32', 'R 3 2', 'H 3', 'H 32', 'H 3 2',
-  // Hexagonal
   'P 6', 'P 61', 'P 62', 'P 63', 'P 64', 'P 65',
   'P 6 2 2', 'P 61 2 2', 'P 62 2 2', 'P 63 2 2', 'P 64 2 2', 'P 65 2 2',
-  // Cubic
   'P 2 3', 'P 21 3', 'I 2 3', 'I 21 3', 'F 2 3',
   'P 4 3 2', 'P 41 3 2', 'P 42 3 2', 'P 43 3 2',
   'I 4 3 2', 'I 41 3 2', 'F 4 3 2', 'F 41 3 2',
 ]);
 
 function normalizeSpaceGroup(sg: string): string {
-  // Normalize to standard format: uppercase, single spaces
   return sg.replace(/\s+/g, ' ').trim().toUpperCase()
-    // Convert common variants: P212121 -> P 21 21 21
     .replace(/^([PCIFHR])(\d)/, '$1 $2');
 }
 
 function isKnownSpaceGroup(sg: string): boolean {
   const norm = normalizeSpaceGroup(sg);
-  // Direct match
   if (KNOWN_SPACE_GROUPS.has(norm)) return true;
-  // Try uppercase match against set
   for (const known of KNOWN_SPACE_GROUPS) {
     if (known.toUpperCase() === norm) return true;
-    // Also try without spaces
     if (known.replace(/\s/g, '') === sg.replace(/\s/g, '').toUpperCase()) return true;
   }
   return false;
@@ -399,7 +394,6 @@ async function validateDiffraction() {
   const withBeamline = rows.filter(r => r.beamline != null).length;
   const withPhasing = rows.filter(r => r.phasing != null).length;
 
-  // Resolution outliers (outside 0.5-10 A)
   const outlierRes: { id: number; res: number }[] = [];
   for (const r of rows) {
     if (r.resolution == null) continue;
@@ -408,7 +402,6 @@ async function validateDiffraction() {
     }
   }
 
-  // Invalid space groups
   const invalidSG: { id: number; sg: string }[] = [];
   for (const r of rows) {
     if (r.space_group == null) continue;
@@ -452,42 +445,47 @@ function pct(n: number, total: number): string {
 async function main() {
   console.log('=== LLM Extraction Quality Report ===\n');
 
-  const expr = await validateExpression();
-  const char = await validateCharacterization();
-  const diff = await validateDiffraction();
+  await pgClient.connect();
+  try {
+    const expr = await validateExpression();
+    const char = await validateCharacterization();
+    const diff = await validateDiffraction();
 
-  // Overall accuracy estimate
-  const totalEntries = (expr.total || 0) + (char.total || 0) + (diff.total || 0);
-  let totalErrors = 0;
-  if (expr.total) {
-    totalErrors += (expr.errors?.invalidHosts || 0)
-      + (expr.errors?.outlierTemps || 0)
-      + (expr.errors?.outlierYields || 0)
-      + (expr.errors?.invalidResults || 0);
-  }
-  if (char.total) {
-    totalErrors += (char.invalidMethods || 0) + (char.outOfRange || 0) + (char.toDelete || 0);
-  }
-  if (diff.total) {
-    totalErrors += (diff.errors?.outlierRes || 0) + (diff.errors?.invalidSG || 0);
-  }
+    // Overall accuracy estimate
+    const totalEntries = (expr.total || 0) + (char.total || 0) + (diff.total || 0);
+    let totalErrors = 0;
+    if (expr.total) {
+      totalErrors += (expr.errors?.invalidHosts || 0)
+        + (expr.errors?.outlierTemps || 0)
+        + (expr.errors?.outlierYields || 0)
+        + (expr.errors?.invalidResults || 0);
+    }
+    if (char.total) {
+      totalErrors += (char.invalidMethods || 0) + (char.outOfRange || 0) + (char.toDelete || 0);
+    }
+    if (diff.total) {
+      totalErrors += (diff.errors?.outlierRes || 0) + (diff.errors?.invalidSG || 0);
+    }
 
-  console.log('=== Summary ===');
-  console.log(`  Expression entries:        ${expr.total || 0}`);
-  console.log(`  Characterization entries:  ${char.total || 0}`);
-  console.log(`  Diffraction entries:       ${diff.total || 0}`);
-  console.log(`  Total entries:             ${totalEntries}`);
-  console.log(`  Total errors/warnings:     ${totalErrors}`);
-  if (totalEntries > 0) {
-    const accuracy = ((totalEntries - totalErrors) / totalEntries * 100).toFixed(1);
-    console.log(`  Overall accuracy estimate: ${accuracy}%`);
+    console.log('=== Summary ===');
+    console.log(`  Expression entries:        ${expr.total || 0}`);
+    console.log(`  Characterization entries:  ${char.total || 0}`);
+    console.log(`  Diffraction entries:       ${diff.total || 0}`);
+    console.log(`  Total entries:             ${totalEntries}`);
+    console.log(`  Total errors/warnings:     ${totalErrors}`);
+    if (totalEntries > 0) {
+      const accuracy = ((totalEntries - totalErrors) / totalEntries * 100).toFixed(1);
+      console.log(`  Overall accuracy estimate: ${accuracy}%`);
+    }
+    if (!dryRun) {
+      console.log(`  Characterization deleted:  ${char.deleted || 0}`);
+    } else {
+      console.log(`  Would delete (char):       ${char.toDelete || 0}`);
+    }
+    console.log(`\nMode: ${dryRun ? 'DRY-RUN (no changes)' : 'FIX (deletions applied)'}`);
+  } finally {
+    await pgClient.end();
   }
-  if (!dryRun) {
-    console.log(`  Characterization deleted:  ${char.deleted || 0}`);
-  } else {
-    console.log(`  Would delete (char):       ${char.toDelete || 0}`);
-  }
-  console.log(`\nMode: ${dryRun ? 'DRY-RUN (no changes)' : 'FIX (deletions applied)'}`);
 }
 
 main().catch(err => {

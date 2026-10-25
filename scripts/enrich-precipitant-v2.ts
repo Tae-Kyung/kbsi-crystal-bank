@@ -15,14 +15,15 @@
  */
 
 import dotenv from 'dotenv';
-import { createClient } from '@supabase/supabase-js';
+import pg from 'pg';
 
 dotenv.config({ path: '.env.local' });
 
-const supabase = createClient(
-  process.env.NEXT_PUBLIC_SUPABASE_URL!,
-  process.env.SUPABASE_SERVICE_ROLE_KEY || process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!
-);
+const pgClient = new pg.Client({
+  host: '203.255.78.89', port: 15432, database: 'kbsi_crystal_bank',
+  user: 'kbsi_app', password: 'SMmQhkEIeXivl5P0yrHWW1JhpwCcmWQg',
+  ssl: { rejectUnauthorized: false },
+});
 
 const args = process.argv.slice(2);
 const dryRun = args.includes('--dry-run');
@@ -350,15 +351,13 @@ async function phase1_regex(): Promise<PhaseStats> {
   const updateBatch: { id: number; precipitant_type: string; precipitant_conc?: number; precipitant_unit?: string }[] = [];
 
   while (hasMore) {
-    const { data, error } = await supabase
-      .from('kbsi_crystallization')
-      .select('id, condition_detail')
-      .not('condition_detail', 'is', null)
-      .is('precipitant_type', null)
-      .order('id')
-      .range(offset, offset + BATCH - 1);
+    const { rows: data } = await pgClient.query(
+      `SELECT id, condition_detail FROM kbsi_crystallization
+       WHERE condition_detail IS NOT NULL AND precipitant_type IS NULL
+       ORDER BY id LIMIT $1 OFFSET $2`,
+      [BATCH, offset]
+    );
 
-    if (error) { console.error('  DB Error:', error.message); break; }
     if (!data || data.length === 0) { hasMore = false; break; }
 
     stats.scanned += data.length;
@@ -411,10 +410,24 @@ async function flushUpdates(batch: { id: number; precipitant_type: string; preci
   for (let i = 0; i < batch.length; i += CHUNK) {
     const chunk = batch.slice(i, i + CHUNK);
     await Promise.all(chunk.map(u => {
-      const update: any = { precipitant_type: u.precipitant_type };
-      if (u.precipitant_conc) update.precipitant_conc = u.precipitant_conc;
-      if (u.precipitant_unit) update.precipitant_unit = u.precipitant_unit;
-      return supabase.from('kbsi_crystallization').update(update).eq('id', u.id);
+      const setClauses: string[] = ['precipitant_type = $1'];
+      const params: any[] = [u.precipitant_type];
+      let paramIdx = 2;
+      if (u.precipitant_conc) {
+        setClauses.push(`precipitant_conc = $${paramIdx}`);
+        params.push(u.precipitant_conc);
+        paramIdx++;
+      }
+      if (u.precipitant_unit) {
+        setClauses.push(`precipitant_unit = $${paramIdx}`);
+        params.push(u.precipitant_unit);
+        paramIdx++;
+      }
+      params.push(u.id);
+      return pgClient.query(
+        `UPDATE kbsi_crystallization SET ${setClauses.join(', ')} WHERE id = $${paramIdx}`,
+        params
+      );
     }));
   }
 }
@@ -429,13 +442,17 @@ async function phase2_pdbRefetch(): Promise<PhaseStats> {
 
   const stats = newStats();
 
-  // Find structures with PDB ID but no precipitant and no condition_detail
-  // Join: crystallization → construct → structure (pdb_id)
-  const { data: targets, error } = await supabase
-    .rpc('get_pdb_ids_missing_precipitant', {});
+  // Try RPC first
+  let targets: any[] | null = null;
+  try {
+    const { rows } = await pgClient.query('SELECT * FROM get_pdb_ids_missing_precipitant()');
+    targets = rows;
+  } catch {
+    targets = null;
+  }
 
   // If RPC doesn't exist, fall back to direct query
-  if (error || !targets) {
+  if (!targets || targets.length === 0) {
     console.log('  RPC unavailable, using direct query...');
     return await phase2_directQuery(stats);
   }
@@ -473,13 +490,24 @@ async function phase2_pdbRefetch(): Promise<PhaseStats> {
       if (extracted) {
         if (!dryRun) {
           for (const id of ids) {
-            const update: any = {
-              precipitant_type: extracted.type,
-              condition_detail: details,
-            };
-            if (extracted.conc) update.precipitant_conc = extracted.conc;
-            if (extracted.unit) update.precipitant_unit = extracted.unit;
-            await supabase.from('kbsi_crystallization').update(update).eq('id', id);
+            const setClauses: string[] = ['precipitant_type = $1', 'condition_detail = $2'];
+            const params: any[] = [extracted.type, details];
+            let paramIdx = 3;
+            if (extracted.conc) {
+              setClauses.push(`precipitant_conc = $${paramIdx}`);
+              params.push(extracted.conc);
+              paramIdx++;
+            }
+            if (extracted.unit) {
+              setClauses.push(`precipitant_unit = $${paramIdx}`);
+              params.push(extracted.unit);
+              paramIdx++;
+            }
+            params.push(id);
+            await pgClient.query(
+              `UPDATE kbsi_crystallization SET ${setClauses.join(', ')} WHERE id = $${paramIdx}`,
+              params
+            );
           }
         }
         updated += ids.length;
@@ -503,8 +531,6 @@ async function phase2_pdbRefetch(): Promise<PhaseStats> {
 }
 
 async function phase2_directQuery(stats: PhaseStats): Promise<PhaseStats> {
-  // Step 1: Get crystallization records missing both precipitant_type and condition_detail
-  // Step 2: For each, look up construct_id → structure pdb_id (separate lightweight queries)
   const BATCH = 1000;
   let offset = 0;
   let hasMore = true;
@@ -513,37 +539,25 @@ async function phase2_directQuery(stats: PhaseStats): Promise<PhaseStats> {
 
   console.log('  Step 1: Collecting crystallization IDs missing precipitant + condition_detail...');
 
-  // Pre-load construct→pdb mapping to avoid per-batch lookups (1000/page due to Supabase row limit)
+  // Pre-load construct→pdb mapping in a single query (no pagination needed with pg)
   console.log('  Pre-loading construct→pdb_id mapping...');
   const constructToPdb: Record<number, string> = {};
-  let structOffset = 0;
-  const STRUCT_PAGE = 1000;
-  while (true) {
-    const { data: structures } = await supabase
-      .from('kbsi_structure')
-      .select('construct_id, pdb_id')
-      .not('pdb_id', 'is', null)
-      .range(structOffset, structOffset + STRUCT_PAGE - 1);
-    if (!structures || structures.length === 0) break;
-    for (const s of structures) {
-      if (s.pdb_id) constructToPdb[s.construct_id] = s.pdb_id;
-    }
-    if (structures.length < STRUCT_PAGE) break;
-    structOffset += STRUCT_PAGE;
-    if (structOffset % 50000 === 0) console.log(`    ...loaded ${Object.keys(constructToPdb).length} mappings`);
+  const { rows: structures } = await pgClient.query(
+    `SELECT construct_id, pdb_id FROM kbsi_structure WHERE pdb_id IS NOT NULL`
+  );
+  for (const s of structures) {
+    if (s.pdb_id) constructToPdb[s.construct_id] = s.pdb_id;
   }
   console.log(`  Pre-loaded ${Object.keys(constructToPdb).length} construct→pdb mappings`);
 
   while (hasMore) {
-    const { data, error } = await supabase
-      .from('kbsi_crystallization')
-      .select('id, construct_id')
-      .is('precipitant_type', null)
-      .is('condition_detail', null)
-      .order('id')
-      .range(offset, offset + BATCH - 1);
+    const { rows: data } = await pgClient.query(
+      `SELECT id, construct_id FROM kbsi_crystallization
+       WHERE precipitant_type IS NULL AND condition_detail IS NULL
+       ORDER BY id LIMIT $1 OFFSET $2`,
+      [BATCH, offset]
+    );
 
-    if (error) { console.error('  Query error:', error.message); break; }
     if (!data || data.length === 0) { hasMore = false; break; }
 
     for (const row of data) {
@@ -583,12 +597,24 @@ async function phase2_directQuery(stats: PhaseStats): Promise<PhaseStats> {
       const ids = pdbToIds[pdbId];
       if (!dryRun) {
         for (const id of ids) {
-          await supabase.from('kbsi_crystallization').update({
-            precipitant_type: extracted.type,
-            condition_detail: details,
-            ...(extracted.conc ? { precipitant_conc: extracted.conc } : {}),
-            ...(extracted.unit ? { precipitant_unit: extracted.unit } : {}),
-          }).eq('id', id);
+          const setClauses: string[] = ['precipitant_type = $1', 'condition_detail = $2'];
+          const params: any[] = [extracted.type, details];
+          let paramIdx = 3;
+          if (extracted.conc) {
+            setClauses.push(`precipitant_conc = $${paramIdx}`);
+            params.push(extracted.conc);
+            paramIdx++;
+          }
+          if (extracted.unit) {
+            setClauses.push(`precipitant_unit = $${paramIdx}`);
+            params.push(extracted.unit);
+            paramIdx++;
+          }
+          params.push(id);
+          await pgClient.query(
+            `UPDATE kbsi_crystallization SET ${setClauses.join(', ')} WHERE id = $${paramIdx}`,
+            params
+          );
         }
       }
       stats.extracted += ids.length;
@@ -628,15 +654,14 @@ async function phase3_llmBatch(): Promise<PhaseStats> {
   const PAGE = 1000;
 
   while (records.length < llmLimit) {
-    const { data, error } = await supabase
-      .from('kbsi_crystallization')
-      .select('id, condition_detail')
-      .not('condition_detail', 'is', null)
-      .is('precipitant_type', null)
-      .order('id')
-      .range(offset, offset + PAGE - 1);
+    const { rows: data } = await pgClient.query(
+      `SELECT id, condition_detail FROM kbsi_crystallization
+       WHERE condition_detail IS NOT NULL AND precipitant_type IS NULL
+       ORDER BY id LIMIT $1 OFFSET $2`,
+      [PAGE, offset]
+    );
 
-    if (error || !data || data.length === 0) break;
+    if (!data || data.length === 0) break;
     records = records.concat(data as any[]);
     if (data.length < PAGE) break;
     offset += PAGE;
@@ -701,18 +726,48 @@ Only extract what is explicitly stated. Use standard chemical names.`;
 
       const precipType = normalizePrecipitant(parsed.precipitant_type);
       if (precipType === '__BUFFER__') continue; // Buffer misidentified as precipitant
-      const update: any = { precipitant_type: precipType };
+
+      const setClauses: string[] = ['precipitant_type = $1'];
+      const params: any[] = [precipType];
+      let paramIdx = 2;
+
       if (typeof parsed.precipitant_conc === 'number' && !isNaN(parsed.precipitant_conc)) {
-        update.precipitant_conc = parsed.precipitant_conc;
+        setClauses.push(`precipitant_conc = $${paramIdx}`);
+        params.push(parsed.precipitant_conc);
+        paramIdx++;
       }
-      if (parsed.precipitant_unit) update.precipitant_unit = parsed.precipitant_unit;
-      if (parsed.buffer_type) update.buffer_type = parsed.buffer_type;
-      if (parsed.salt_type) update.salt_type = parsed.salt_type;
-      if (typeof parsed.salt_conc === 'number') update.salt_conc = parsed.salt_conc;
-      if (parsed.additive) update.additive = parsed.additive;
+      if (parsed.precipitant_unit) {
+        setClauses.push(`precipitant_unit = $${paramIdx}`);
+        params.push(parsed.precipitant_unit);
+        paramIdx++;
+      }
+      if (parsed.buffer_type) {
+        setClauses.push(`buffer_type = $${paramIdx}`);
+        params.push(parsed.buffer_type);
+        paramIdx++;
+      }
+      if (parsed.salt_type) {
+        setClauses.push(`salt_type = $${paramIdx}`);
+        params.push(parsed.salt_type);
+        paramIdx++;
+      }
+      if (typeof parsed.salt_conc === 'number') {
+        setClauses.push(`salt_conc = $${paramIdx}`);
+        params.push(parsed.salt_conc);
+        paramIdx++;
+      }
+      if (parsed.additive) {
+        setClauses.push(`additive = $${paramIdx}`);
+        params.push(parsed.additive);
+        paramIdx++;
+      }
 
       if (!dryRun) {
-        await supabase.from('kbsi_crystallization').update(update).eq('id', id);
+        params.push(id);
+        await pgClient.query(
+          `UPDATE kbsi_crystallization SET ${setClauses.join(', ')} WHERE id = $${paramIdx}`,
+          params
+        );
       }
       stats.extracted++;
       stats.typeCounts[precipType] = (stats.typeCounts[precipType] || 0) + 1;
@@ -741,23 +796,20 @@ async function phase4_propagation(): Promise<PhaseStats> {
 
   const stats = newStats();
 
-  // SQL: For each construct, find the most common precipitant_type among successful
-  // crystallization records, then apply it to records of the same construct
-  // that are missing precipitant_type.
-  // This propagates known conditions within the same construct.
-
   const BATCH = 1000;
   let offset = 0;
   let hasMore = true;
 
-  // Step 1: Find constructs that have both:
-  //   - at least one crystallization WITH precipitant_type
-  //   - at least one crystallization WITHOUT precipitant_type
+  // Try RPC first
   while (hasMore) {
-    const { data, error } = await supabase
-      .rpc('propagate_precipitant_batch', { batch_offset: offset, batch_size: BATCH });
-
-    if (error) {
+    let data: any[] | null = null;
+    try {
+      const { rows } = await pgClient.query(
+        'SELECT * FROM propagate_precipitant_batch($1, $2)',
+        [offset, BATCH]
+      );
+      data = rows;
+    } catch {
       // RPC may not exist — fall back to manual approach
       if (offset === 0) {
         console.log('  RPC unavailable, using manual propagation...');
@@ -769,14 +821,24 @@ async function phase4_propagation(): Promise<PhaseStats> {
 
     for (const row of data) {
       if (!dryRun) {
-        await supabase
-          .from('kbsi_crystallization')
-          .update({
-            precipitant_type: row.precipitant_type,
-            ...(row.precipitant_conc ? { precipitant_conc: row.precipitant_conc } : {}),
-            ...(row.precipitant_unit ? { precipitant_unit: row.precipitant_unit } : {}),
-          })
-          .eq('id', row.target_id);
+        const setClauses: string[] = ['precipitant_type = $1'];
+        const params: any[] = [row.precipitant_type];
+        let paramIdx = 2;
+        if (row.precipitant_conc) {
+          setClauses.push(`precipitant_conc = $${paramIdx}`);
+          params.push(row.precipitant_conc);
+          paramIdx++;
+        }
+        if (row.precipitant_unit) {
+          setClauses.push(`precipitant_unit = $${paramIdx}`);
+          params.push(row.precipitant_unit);
+          paramIdx++;
+        }
+        params.push(row.target_id);
+        await pgClient.query(
+          `UPDATE kbsi_crystallization SET ${setClauses.join(', ')} WHERE id = $${paramIdx}`,
+          params
+        );
       }
       stats.extracted++;
       stats.typeCounts[row.precipitant_type] = (stats.typeCounts[row.precipitant_type] || 0) + 1;
@@ -804,14 +866,14 @@ async function phase4_manual(stats: PhaseStats): Promise<PhaseStats> {
 
   while (hasMore) {
     // Find crystallization records without precipitant_type
-    const { data, error } = await supabase
-      .from('kbsi_crystallization')
-      .select('id, construct_id')
-      .is('precipitant_type', null)
-      .order('construct_id')
-      .range(offset, offset + BATCH - 1);
+    const { rows: data } = await pgClient.query(
+      `SELECT id, construct_id FROM kbsi_crystallization
+       WHERE precipitant_type IS NULL
+       ORDER BY construct_id LIMIT $1 OFFSET $2`,
+      [BATCH, offset]
+    );
 
-    if (error || !data || data.length === 0) { hasMore = false; break; }
+    if (!data || data.length === 0) { hasMore = false; break; }
 
     // Group by construct_id
     const byConstruct: Record<number, number[]> = {};
@@ -828,12 +890,13 @@ async function phase4_manual(stats: PhaseStats): Promise<PhaseStats> {
         continue;
       }
 
-      const { data: donor } = await supabase
-        .from('kbsi_crystallization')
-        .select('precipitant_type, precipitant_conc, precipitant_unit')
-        .eq('construct_id', constructId)
-        .not('precipitant_type', 'is', null)
-        .limit(1);
+      const { rows: donor } = await pgClient.query(
+        `SELECT precipitant_type, precipitant_conc, precipitant_unit
+         FROM kbsi_crystallization
+         WHERE construct_id = $1 AND precipitant_type IS NOT NULL
+         LIMIT 1`,
+        [constructId]
+      );
 
       if (!donor || donor.length === 0) continue;
 
@@ -843,10 +906,24 @@ async function phase4_manual(stats: PhaseStats): Promise<PhaseStats> {
       if (!dryRun) {
         // Bulk update all IDs for this construct
         for (const id of ids) {
-          const update: any = { precipitant_type: d.precipitant_type };
-          if (d.precipitant_conc) update.precipitant_conc = d.precipitant_conc;
-          if (d.precipitant_unit) update.precipitant_unit = d.precipitant_unit;
-          await supabase.from('kbsi_crystallization').update(update).eq('id', id);
+          const setClauses: string[] = ['precipitant_type = $1'];
+          const params: any[] = [d.precipitant_type];
+          let paramIdx = 2;
+          if (d.precipitant_conc) {
+            setClauses.push(`precipitant_conc = $${paramIdx}`);
+            params.push(d.precipitant_conc);
+            paramIdx++;
+          }
+          if (d.precipitant_unit) {
+            setClauses.push(`precipitant_unit = $${paramIdx}`);
+            params.push(d.precipitant_unit);
+            paramIdx++;
+          }
+          params.push(id);
+          await pgClient.query(
+            `UPDATE kbsi_crystallization SET ${setClauses.join(', ')} WHERE id = $${paramIdx}`,
+            params
+          );
         }
       }
 
@@ -879,20 +956,21 @@ async function normalizeAll() {
   for (const [raw, norm] of Object.entries(NORMALIZE_MAP)) {
     if (raw === norm) continue;
 
-    const { count: c } = await supabase
-      .from('kbsi_crystallization')
-      .select('id', { count: 'exact', head: true })
-      .eq('precipitant_type', raw);
+    const { rows: [{ count: c }] } = await pgClient.query(
+      `SELECT COUNT(*) as count FROM kbsi_crystallization WHERE precipitant_type = $1`,
+      [raw]
+    );
 
-    if ((c ?? 0) > 0) {
+    const cnt = parseInt(c);
+    if (cnt > 0) {
       if (!dryRun) {
-        await supabase
-          .from('kbsi_crystallization')
-          .update({ precipitant_type: norm })
-          .eq('precipitant_type', raw);
+        await pgClient.query(
+          `UPDATE kbsi_crystallization SET precipitant_type = $1 WHERE precipitant_type = $2`,
+          [norm, raw]
+        );
       }
-      if ((c ?? 0) > 10) console.log(`  ${raw} → ${norm}: ${c} records`);
-      totalNormalized += c ?? 0;
+      if (cnt > 10) console.log(`  ${raw} → ${norm}: ${cnt} records`);
+      totalNormalized += cnt;
     }
   }
   console.log(`  ${dryRun ? 'Would normalize' : 'Normalized'}: ${fmt(totalNormalized)} records`);
@@ -902,85 +980,94 @@ async function normalizeAll() {
 // Main
 // ═══════════════════════════════════════════════════════
 async function main() {
-  console.log('╔' + '═'.repeat(58) + '╗');
-  console.log('║  Precipitant Enrichment v2 — Target: 50% Coverage        ║');
-  console.log('║  Phases: ' + phases.join(', ').padEnd(48) + '║');
-  console.log('║  Mode: ' + (dryRun ? 'DRY RUN' : 'LIVE').padEnd(50) + '║');
-  console.log('╚' + '═'.repeat(58) + '╝');
+  await pgClient.connect();
+  try {
+    console.log('╔' + '═'.repeat(58) + '╗');
+    console.log('║  Precipitant Enrichment v2 — Target: 50% Coverage        ║');
+    console.log('║  Phases: ' + phases.join(', ').padEnd(48) + '║');
+    console.log('║  Mode: ' + (dryRun ? 'DRY RUN' : 'LIVE').padEnd(50) + '║');
+    console.log('╚' + '═'.repeat(58) + '╝');
 
-  // Initial coverage
-  const { count: totalBefore } = await supabase
-    .from('kbsi_crystallization')
-    .select('id', { count: 'exact', head: true });
-  const { count: withPrecipBefore } = await supabase
-    .from('kbsi_crystallization')
-    .select('id', { count: 'exact', head: true })
-    .not('precipitant_type', 'is', null);
+    // Initial coverage
+    const { rows: [{ count: totalBefore }] } = await pgClient.query(
+      'SELECT COUNT(*) as count FROM kbsi_crystallization'
+    );
+    const { rows: [{ count: withPrecipBefore }] } = await pgClient.query(
+      'SELECT COUNT(*) as count FROM kbsi_crystallization WHERE precipitant_type IS NOT NULL'
+    );
 
-  console.log(`\nBefore: ${fmt(withPrecipBefore ?? 0)}/${fmt(totalBefore ?? 0)} (${pct(withPrecipBefore ?? 0, totalBefore ?? 1)})`);
-  const target50 = Math.ceil((totalBefore ?? 0) * 0.5);
-  console.log(`Target 50%: ${fmt(target50)} records need precipitant`);
-  console.log(`Gap: ${fmt(target50 - (withPrecipBefore ?? 0))} records to fill`);
+    const totalBeforeN = parseInt(totalBefore);
+    const withPrecipBeforeN = parseInt(withPrecipBefore);
 
-  const allStats: Record<string, PhaseStats> = {};
+    console.log(`\nBefore: ${fmt(withPrecipBeforeN)}/${fmt(totalBeforeN)} (${pct(withPrecipBeforeN, totalBeforeN)})`);
+    const target50 = Math.ceil(totalBeforeN * 0.5);
+    console.log(`Target 50%: ${fmt(target50)} records need precipitant`);
+    console.log(`Gap: ${fmt(target50 - withPrecipBeforeN)} records to fill`);
 
-  // Phase 1 (Regex) + Phase 2 (PDB) are independent → run in parallel
-  const parallelPhases: Promise<void>[] = [];
-  if (phases.includes(1)) {
-    parallelPhases.push(phase1_regex().then(s => { allStats['Phase 1 (Regex)'] = s; }));
-  }
-  if (phases.includes(2)) {
-    parallelPhases.push(phase2_pdbRefetch().then(s => { allStats['Phase 2 (PDB)'] = s; }));
-  }
-  if (parallelPhases.length > 0) {
-    console.log(`\n  >> Running Phase ${[phases.includes(1) && '1', phases.includes(2) && '2'].filter(Boolean).join(' + ')} in parallel...`);
-    await Promise.all(parallelPhases);
-  }
+    const allStats: Record<string, PhaseStats> = {};
 
-  // Phase 3 (LLM) depends on 1+2 results (processes remaining nulls)
-  if (phases.includes(3)) allStats['Phase 3 (LLM)'] = await phase3_llmBatch();
-  // Phase 4 (Propagation) depends on all prior phases
-  if (phases.includes(4)) allStats['Phase 4 (Propagation)'] = await phase4_propagation();
-
-  // Normalize all
-  await normalizeAll();
-
-  // Final coverage
-  const { count: totalAfter } = await supabase
-    .from('kbsi_crystallization')
-    .select('id', { count: 'exact', head: true });
-  const { count: withPrecipAfter } = await supabase
-    .from('kbsi_crystallization')
-    .select('id', { count: 'exact', head: true })
-    .not('precipitant_type', 'is', null);
-
-  console.log('\n' + '═'.repeat(60));
-  console.log('SUMMARY');
-  console.log('═'.repeat(60));
-
-  for (const [name, s] of Object.entries(allStats)) {
-    console.log(`  ${name}: +${fmt(s.extracted)} records`);
-  }
-
-  const totalAdded = Object.values(allStats).reduce((sum, s) => sum + s.extracted, 0);
-  console.log(`\n  Total added: +${fmt(totalAdded)}`);
-  console.log(`  Before: ${fmt(withPrecipBefore ?? 0)} (${pct(withPrecipBefore ?? 0, totalBefore ?? 1)})`);
-
-  if (dryRun) {
-    const projected = (withPrecipBefore ?? 0) + totalAdded;
-    console.log(`  Projected: ${fmt(projected)} (${pct(projected, totalAfter ?? 1)})`);
-    if (projected >= target50) {
-      console.log(`  >>> 50% TARGET ACHIEVABLE <<<`);
-    } else {
-      console.log(`  Remaining gap: ${fmt(target50 - projected)} records`);
+    // Phase 1 (Regex) + Phase 2 (PDB) are independent → run in parallel
+    const parallelPhases: Promise<void>[] = [];
+    if (phases.includes(1)) {
+      parallelPhases.push(phase1_regex().then(s => { allStats['Phase 1 (Regex)'] = s; }));
     }
-  } else {
-    console.log(`  After: ${fmt(withPrecipAfter ?? 0)} (${pct(withPrecipAfter ?? 0, totalAfter ?? 1)})`);
-    if ((withPrecipAfter ?? 0) >= target50) {
-      console.log(`  >>> 50% TARGET ACHIEVED <<<`);
-    } else {
-      console.log(`  Remaining gap: ${fmt(target50 - (withPrecipAfter ?? 0))} records`);
+    if (phases.includes(2)) {
+      parallelPhases.push(phase2_pdbRefetch().then(s => { allStats['Phase 2 (PDB)'] = s; }));
     }
+    if (parallelPhases.length > 0) {
+      console.log(`\n  >> Running Phase ${[phases.includes(1) && '1', phases.includes(2) && '2'].filter(Boolean).join(' + ')} in parallel...`);
+      await Promise.all(parallelPhases);
+    }
+
+    // Phase 3 (LLM) depends on 1+2 results (processes remaining nulls)
+    if (phases.includes(3)) allStats['Phase 3 (LLM)'] = await phase3_llmBatch();
+    // Phase 4 (Propagation) depends on all prior phases
+    if (phases.includes(4)) allStats['Phase 4 (Propagation)'] = await phase4_propagation();
+
+    // Normalize all
+    await normalizeAll();
+
+    // Final coverage
+    const { rows: [{ count: totalAfter }] } = await pgClient.query(
+      'SELECT COUNT(*) as count FROM kbsi_crystallization'
+    );
+    const { rows: [{ count: withPrecipAfter }] } = await pgClient.query(
+      'SELECT COUNT(*) as count FROM kbsi_crystallization WHERE precipitant_type IS NOT NULL'
+    );
+
+    const totalAfterN = parseInt(totalAfter);
+    const withPrecipAfterN = parseInt(withPrecipAfter);
+
+    console.log('\n' + '═'.repeat(60));
+    console.log('SUMMARY');
+    console.log('═'.repeat(60));
+
+    for (const [name, s] of Object.entries(allStats)) {
+      console.log(`  ${name}: +${fmt(s.extracted)} records`);
+    }
+
+    const totalAdded = Object.values(allStats).reduce((sum, s) => sum + s.extracted, 0);
+    console.log(`\n  Total added: +${fmt(totalAdded)}`);
+    console.log(`  Before: ${fmt(withPrecipBeforeN)} (${pct(withPrecipBeforeN, totalBeforeN)})`);
+
+    if (dryRun) {
+      const projected = withPrecipBeforeN + totalAdded;
+      console.log(`  Projected: ${fmt(projected)} (${pct(projected, totalAfterN)})`);
+      if (projected >= target50) {
+        console.log(`  >>> 50% TARGET ACHIEVABLE <<<`);
+      } else {
+        console.log(`  Remaining gap: ${fmt(target50 - projected)} records`);
+      }
+    } else {
+      console.log(`  After: ${fmt(withPrecipAfterN)} (${pct(withPrecipAfterN, totalAfterN)})`);
+      if (withPrecipAfterN >= target50) {
+        console.log(`  >>> 50% TARGET ACHIEVED <<<`);
+      } else {
+        console.log(`  Remaining gap: ${fmt(target50 - withPrecipAfterN)} records`);
+      }
+    }
+  } finally {
+    await pgClient.end();
   }
 }
 

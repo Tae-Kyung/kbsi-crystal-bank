@@ -5,15 +5,16 @@
  * npx tsx scripts/harvest-construct-design.ts [--limit N] [--offset N] [--dry-run]
  */
 
-import dotenv from 'dotenv';
-import { createClient } from '@supabase/supabase-js';
+import pg from 'pg';
 
-dotenv.config({ path: '.env.local' });
-
-const supabase = createClient(
-  process.env.NEXT_PUBLIC_SUPABASE_URL!,
-  process.env.SUPABASE_SERVICE_ROLE_KEY!
-);
+const client = new pg.Client({
+  host: '203.255.78.89',
+  port: 15432,
+  database: 'kbsi_crystal_bank',
+  user: 'kbsi_app',
+  password: 'SMmQhkEIeXivl5P0yrHWW1JhpwCcmWQg',
+  ssl: { rejectUnauthorized: false },
+});
 
 const EPMC_API = 'https://www.ebi.ac.uk/europepmc/webservices/rest';
 
@@ -98,94 +99,98 @@ async function main() {
   console.log('Construct 설계 정보 추출 (vector, tag, cleavage)');
   console.log(`limit: ${limit}, offset: ${startOffset}, dry-run: ${dryRun}\n`);
 
-  // Expression이 있는 construct의 DOI 조회 (이미 full text 접근 성공한 것)
-  let expressions: any[] = [];
-  let offset = startOffset;
-  while (expressions.length < limit) {
-    const { data } = await supabase
-      .from('kbsi_expression')
-      .select('construct_id, source_id')
-      .eq('source_db', 'PubMed')
-      .not('source_id', 'is', null)
-      .order('id')
-      .range(offset, offset + 999);
-    if (!data || data.length === 0) break;
-    expressions = expressions.concat(data);
-    if (data.length < 1000) break;
-    offset += 1000;
+  await client.connect();
+  try {
+    // Expression이 있는 construct의 DOI 조회 (이미 full text 접근 성공한 것)
+    let expressions: any[] = [];
+    let offset = startOffset;
+    while (expressions.length < limit) {
+      const { rows: data } = await client.query(
+        'SELECT construct_id, source_id FROM kbsi_expression WHERE source_db = $1 AND source_id IS NOT NULL ORDER BY id OFFSET $2 LIMIT 1000',
+        ['PubMed', offset]
+      );
+      if (!data || data.length === 0) break;
+      expressions = expressions.concat(data);
+      if (data.length < 1000) break;
+      offset += 1000;
+    }
+    expressions = expressions.slice(0, limit);
+
+    // 이미 vector가 있는 construct 제외
+    const constructIds = [...new Set(expressions.map(e => e.construct_id))];
+    const { rows: hasVector } = await client.query(
+      'SELECT id FROM kbsi_construct WHERE id = ANY($1) AND vector IS NOT NULL',
+      [constructIds.slice(0, 1000)]
+    );
+    const skipSet = new Set((hasVector || []).map((c: any) => c.id));
+
+    const targets = expressions.filter(e => !skipSet.has(e.construct_id));
+    // DOI 중복 제거 (같은 DOI에서 여러 construct)
+    const seen = new Set<string>();
+    const uniqueTargets = targets.filter(t => {
+      const key = `${t.construct_id}:${t.source_id}`;
+      if (seen.has(key)) return false;
+      seen.add(key);
+      return true;
+    });
+
+    console.log(`Expression 데이터: ${expressions.length}건`);
+    console.log(`Vector 미보유: ${uniqueTargets.length}건\n`);
+
+    let totalUpdated = 0, noFullText = 0, noData = 0;
+    const isValid = (v: any) => v != null && v !== 'null' && v !== '';
+
+    for (let i = 0; i < uniqueTargets.length; i++) {
+      const { construct_id, source_id: doi } = uniqueTargets[i];
+
+      const text = await getFullText(doi);
+      if (!text) { noFullText++; continue; }
+
+      if (dryRun) {
+        console.log(`[${i + 1}] construct=${construct_id} DOI=${doi.slice(0, 35)} | ${text.length} chars`);
+        totalUpdated++;
+        continue;
+      }
+
+      const parsed = await parseWithLLM(apiKey!, text);
+      if (!parsed?.construct) { noData++; continue; }
+
+      const c = parsed.construct;
+      const updates: string[] = [];
+      const values: any[] = [];
+      let paramIdx = 1;
+
+      if (isValid(c.vector)) { updates.push(`vector = $${paramIdx++}`); values.push(c.vector); }
+      if (isValid(c.tag)) { updates.push(`tag_name = $${paramIdx++}`); values.push(c.tag); }
+      if (isValid(c.tag_position)) { updates.push(`tag_position = $${paramIdx++}`); values.push(c.tag_position); }
+      if (isValid(c.cleavage_site)) { updates.push(`cleavage_site = $${paramIdx++}`); values.push(c.cleavage_site); }
+      if (c.codon_optimized === true || c.codon_optimized === false) { updates.push(`codon_optimized = $${paramIdx++}`); values.push(c.codon_optimized); }
+
+      if (updates.length > 0) {
+        values.push(construct_id);
+        const { rowCount } = await client.query(
+          `UPDATE kbsi_construct SET ${updates.join(', ')} WHERE id = $${paramIdx} AND vector IS NULL`,
+          values
+        );
+        if (rowCount && rowCount > 0) totalUpdated++;
+      }
+
+      if ((i + 1) % 50 === 0) {
+        console.log(`[${i + 1}/${uniqueTargets.length}] updated: ${totalUpdated}, noText: ${noFullText}, noData: ${noData}`);
+      }
+
+      await sleep(300);
+    }
+
+    console.log(`\n${'═'.repeat(50)}`);
+    console.log(`완료 ${dryRun ? '(dry-run)' : ''}`);
+    console.log(`  Updated: ${totalUpdated}`);
+    console.log(`  Full text 없음: ${noFullText}`);
+    console.log(`  LLM 추출 없음: ${noData}`);
+    console.log('═'.repeat(50));
+  } finally {
+    await client.end();
   }
-  expressions = expressions.slice(0, limit);
-
-  // 이미 vector가 있는 construct 제외
-  const constructIds = [...new Set(expressions.map(e => e.construct_id))];
-  const { data: hasVector } = await supabase
-    .from('kbsi_construct')
-    .select('id')
-    .in('id', constructIds.slice(0, 1000))
-    .not('vector', 'is', null);
-  const skipSet = new Set((hasVector || []).map((c: any) => c.id));
-
-  const targets = expressions.filter(e => !skipSet.has(e.construct_id));
-  // DOI 중복 제거 (같은 DOI에서 여러 construct)
-  const seen = new Set<string>();
-  const uniqueTargets = targets.filter(t => {
-    const key = `${t.construct_id}:${t.source_id}`;
-    if (seen.has(key)) return false;
-    seen.add(key);
-    return true;
-  });
-
-  console.log(`Expression 데이터: ${expressions.length}건`);
-  console.log(`Vector 미보유: ${uniqueTargets.length}건\n`);
-
-  let totalUpdated = 0, noFullText = 0, noData = 0;
-  const isValid = (v: any) => v != null && v !== 'null' && v !== '';
-
-  for (let i = 0; i < uniqueTargets.length; i++) {
-    const { construct_id, source_id: doi } = uniqueTargets[i];
-
-    const text = await getFullText(doi);
-    if (!text) { noFullText++; continue; }
-
-    if (dryRun) {
-      console.log(`[${i + 1}] construct=${construct_id} DOI=${doi.slice(0, 35)} | ${text.length} chars`);
-      totalUpdated++;
-      continue;
-    }
-
-    const parsed = await parseWithLLM(apiKey!, text);
-    if (!parsed?.construct) { noData++; continue; }
-
-    const c = parsed.construct;
-    const update: any = {};
-    if (isValid(c.vector)) update.vector = c.vector;
-    if (isValid(c.tag)) update.tag_name = c.tag;
-    if (isValid(c.tag_position)) update.tag_position = c.tag_position;
-    if (isValid(c.cleavage_site)) update.cleavage_site = c.cleavage_site;
-    if (c.codon_optimized === true || c.codon_optimized === false) update.codon_optimized = c.codon_optimized;
-
-    if (Object.keys(update).length > 0) {
-      const { error } = await supabase
-        .from('kbsi_construct')
-        .update(update)
-        .eq('id', construct_id)
-        .is('vector', null); // 기존 값 보호
-      if (!error) totalUpdated++;
-    }
-
-    if ((i + 1) % 50 === 0) {
-      console.log(`[${i + 1}/${uniqueTargets.length}] updated: ${totalUpdated}, noText: ${noFullText}, noData: ${noData}`);
-    }
-
-    await sleep(300);
-  }
-
-  console.log(`\n${'═'.repeat(50)}`);
-  console.log(`완료 ${dryRun ? '(dry-run)' : ''}`);
-  console.log(`  Updated: ${totalUpdated}`);
-  console.log(`  Full text 없음: ${noFullText}`);
-  console.log(`  LLM 추출 없음: ${noData}`);
-  console.log('═'.repeat(50));
 }
 
 main().catch(console.error);

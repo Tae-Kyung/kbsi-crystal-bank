@@ -10,15 +10,16 @@
  *   --concurrency 5   동시 PDB fetch 수 (기본: 5)
  */
 
-import dotenv from 'dotenv';
-import { createClient } from '@supabase/supabase-js';
+import pg from 'pg';
 
-dotenv.config({ path: '.env.local' });
-
-const supabase = createClient(
-  process.env.NEXT_PUBLIC_SUPABASE_URL!,
-  process.env.SUPABASE_SERVICE_ROLE_KEY || process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!
-);
+const client = new pg.Client({
+  host: '203.255.78.89',
+  port: 15432,
+  database: 'kbsi_crystal_bank',
+  user: 'kbsi_app',
+  password: 'SMmQhkEIeXivl5P0yrHWW1JhpwCcmWQg',
+  ssl: { rejectUnauthorized: false },
+});
 
 const PDB_API = 'https://data.rcsb.org/rest/v1/core';
 const SEARCH_API = 'https://search.rcsb.org/rcsbsearch/v2/query';
@@ -115,50 +116,49 @@ async function importEntry(pdb: NonNullable<Awaited<ReturnType<typeof fetchPDB>>
   if (!proteinName) return null;
 
   // Protein upsert
-  const { data: existing } = await supabase
-    .from('kbsi_protein').select('id').eq('full_name', proteinName).maybeSingle();
+  const { rows: existingRows } = await client.query(
+    `SELECT id FROM kbsi_protein WHERE full_name = $1 LIMIT 1`,
+    [proteinName]
+  );
 
   let proteinId: number;
-  if (existing) {
-    proteinId = existing.id;
+  if (existingRows.length > 0) {
+    proteinId = existingRows[0].id;
   } else {
-    const { data: newP, error } = await supabase
-      .from('kbsi_protein').insert({ full_name: proteinName, organism: pdb.organism }).select('id').single();
-    if (error) throw new Error(`Protein: ${error.message}`);
-    proteinId = newP.id;
+    const { rows: newRows } = await client.query(
+      `INSERT INTO kbsi_protein (full_name, organism) VALUES ($1, $2) RETURNING id`,
+      [proteinName, pdb.organism]
+    );
+    proteinId = newRows[0].id;
   }
 
   // Construct
-  const { data: newC, error: cErr } = await supabase
-    .from('kbsi_construct')
-    .insert({
-      protein_id: proteinId, name: `${pdb.pdbId}-chain`,
-      construct_type: 'full-length', expression_system: pdb.expression?.host || null,
-      seq_final: pdb.sequence?.slice(0, 5000) || null,
-    })
-    .select('id').single();
-  if (cErr) throw new Error(`Construct: ${cErr.message}`);
-  const constructId = newC.id;
+  const { rows: cRows } = await client.query(
+    `INSERT INTO kbsi_construct (protein_id, name, construct_type, expression_system, seq_final)
+     VALUES ($1, $2, $3, $4, $5) RETURNING id`,
+    [proteinId, `${pdb.pdbId}-chain`, 'full-length', pdb.expression?.host || null, pdb.sequence?.slice(0, 5000) || null]
+  );
+  const constructId = cRows[0].id;
 
   // Expression
   if (pdb.expression?.host) {
-    await supabase.from('kbsi_expression').insert({
-      construct_id: constructId, host: pdb.expression.host,
-      strain: pdb.expression.strain, source_type: 'database',
-      source_db: 'PDB', source_id: pdb.pdbId,
-    });
+    await client.query(
+      `INSERT INTO kbsi_expression (construct_id, host, strain, source_type, source_db, source_id)
+       VALUES ($1, $2, $3, $4, $5, $6)`,
+      [constructId, pdb.expression.host, pdb.expression.strain, 'database', 'PDB', pdb.pdbId]
+    );
   }
 
   // Crystallization
   if (pdb.crystallization) {
-    await supabase.from('kbsi_crystallization').insert({
-      construct_id: constructId,
-      ph: pdb.crystallization.ph, temperature: pdb.crystallization.temperature,
-      condition_detail: pdb.crystallization.details?.slice(0, 500) || null,
-      outcome: pdb.crystallization.ph != null ? 'diffraction_quality' : null,
-      source_type: 'database', source_db: 'PDB', source_id: pdb.pdbId,
-      notes: `PDB ${pdb.pdbId}`,
-    });
+    await client.query(
+      `INSERT INTO kbsi_crystallization (construct_id, ph, temperature, condition_detail, outcome, source_type, source_db, source_id, notes)
+       VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9)`,
+      [constructId, pdb.crystallization.ph, pdb.crystallization.temperature,
+       pdb.crystallization.details?.slice(0, 500) || null,
+       pdb.crystallization.ph != null ? 'diffraction_quality' : null,
+       'database', 'PDB', pdb.pdbId, `PDB ${pdb.pdbId}`]
+    );
   }
 
   // Structure
@@ -166,17 +166,18 @@ async function importEntry(pdb: NonNullable<Awaited<ReturnType<typeof fetchPDB>>
     : pdb.method.includes('NMR') ? 'NMR'
     : pdb.method.includes('ELECTRON') ? 'Cryo-EM' : pdb.method;
 
-  await supabase.from('kbsi_structure').insert({
-    construct_id: constructId, method: normalizedMethod,
-    resolution: pdb.resolution, pdb_id: pdb.pdbId, source_type: 'database',
-    source_db: 'PDB', source_id: pdb.pdbId,
-  });
+  await client.query(
+    `INSERT INTO kbsi_structure (construct_id, method, resolution, pdb_id, source_type, source_db, source_id)
+     VALUES ($1, $2, $3, $4, $5, $6, $7)`,
+    [constructId, normalizedMethod, pdb.resolution, pdb.pdbId, 'database', 'PDB', pdb.pdbId]
+  );
 
   // UniProt ID
   if (pdb.uniprotId) {
-    await supabase.from('kbsi_database_id').insert({
-      protein_id: proteinId, db_name: 'UniProt', db_id: pdb.uniprotId,
-    }).then(() => {});
+    await client.query(
+      `INSERT INTO kbsi_database_id (protein_id, db_name, db_id) VALUES ($1, $2, $3) ON CONFLICT DO NOTHING`,
+      [proteinId, 'UniProt', pdb.uniprotId]
+    ).catch(() => {});
   }
 
   return { proteinId, constructId };
@@ -212,76 +213,82 @@ async function main() {
   const concurrency = parseInt(getArg('concurrency', '5'));
   const dryRun = args.includes('--dry-run');
 
-  // 기존 PDB ID 조회
-  console.log('기존 PDB ID 조회 중...');
-  const { data: existingStructures } = await supabase
-    .from('kbsi_structure').select('pdb_id').not('pdb_id', 'is', null);
-  const existingPdbIds = new Set(
-    (existingStructures || []).map((s: any) => s.pdb_id?.toUpperCase())
-  );
-  console.log(`기존 DB: ${existingPdbIds.size}개 PDB 구조`);
+  await client.connect();
+  try {
+    // 기존 PDB ID 조회
+    console.log('기존 PDB ID 조회 중...');
+    const { rows: existingStructures } = await client.query(
+      `SELECT pdb_id FROM kbsi_structure WHERE pdb_id IS NOT NULL`
+    );
+    const existingPdbIds = new Set(
+      existingStructures.map((s: any) => s.pdb_id?.toUpperCase())
+    );
+    console.log(`기존 DB: ${existingPdbIds.size}개 PDB 구조`);
 
-  // 전체 검색 건수 확인
-  const { total } = await searchPDBIds(0, 0, resolution);
-  const targetTotal = Math.min(total, maxTotal);
-  console.log(`PDB 검색 대상: ${total.toLocaleString()}건 (수집 목표: ${targetTotal.toLocaleString()}건)${resolution ? ` [≤${resolution}A]` : ''}\n`);
+    // 전체 검색 건수 확인
+    const { total } = await searchPDBIds(0, 0, resolution);
+    const targetTotal = Math.min(total, maxTotal);
+    console.log(`PDB 검색 대상: ${total.toLocaleString()}건 (수집 목표: ${targetTotal.toLocaleString()}건)${resolution ? ` [≤${resolution}A]` : ''}\n`);
 
-  let totalImported = 0;
-  let totalSkipped = 0;
-  let totalFailed = 0;
-  const startTime = Date.now();
+    let totalImported = 0;
+    let totalSkipped = 0;
+    let totalFailed = 0;
+    const startTime = Date.now();
 
-  for (let offset = startOffset; offset < startOffset + targetTotal; offset += batchSize) {
-    if (totalImported >= maxTotal) break;
+    for (let offset = startOffset; offset < startOffset + targetTotal; offset += batchSize) {
+      if (totalImported >= maxTotal) break;
 
-    const { ids } = await searchPDBIds(offset, batchSize, resolution);
-    if (ids.length === 0) break;
+      const { ids } = await searchPDBIds(offset, batchSize, resolution);
+      if (ids.length === 0) break;
 
-    const newIds = ids.filter(id => !existingPdbIds.has(id.toUpperCase()));
-    const skipCount = ids.length - newIds.length;
-    totalSkipped += skipCount;
+      const newIds = ids.filter(id => !existingPdbIds.has(id.toUpperCase()));
+      const skipCount = ids.length - newIds.length;
+      totalSkipped += skipCount;
 
-    const elapsed = ((Date.now() - startTime) / 1000).toFixed(0);
-    const rate = totalImported > 0 ? (totalImported / parseFloat(elapsed) * 60).toFixed(0) : '—';
-    console.log(`[offset ${offset}] 검색: ${ids.length} | 신규: ${newIds.length} | skip: ${skipCount} | 누적: ${totalImported} | ${elapsed}s (${rate}/min)`);
+      const elapsed = ((Date.now() - startTime) / 1000).toFixed(0);
+      const rate = totalImported > 0 ? (totalImported / parseFloat(elapsed) * 60).toFixed(0) : '—';
+      console.log(`[offset ${offset}] 검색: ${ids.length} | 신규: ${newIds.length} | skip: ${skipCount} | 누적: ${totalImported} | ${elapsed}s (${rate}/min)`);
 
-    if (newIds.length === 0) continue;
+      if (newIds.length === 0) continue;
 
-    // 병렬 fetch + import
-    const results = await processInParallel(newIds, async (pdbId) => {
-      try {
-        const entry = await fetchPDB(pdbId);
-        if (!entry) return { pdbId, status: 'fetch_fail' as const };
+      // 병렬 fetch + import
+      const results = await processInParallel(newIds, async (pdbId) => {
+        try {
+          const entry = await fetchPDB(pdbId);
+          if (!entry) return { pdbId, status: 'fetch_fail' as const };
 
-        if (dryRun) {
-          return { pdbId, status: 'ok' as const, resolution: entry.resolution, ph: entry.crystallization?.ph };
+          if (dryRun) {
+            return { pdbId, status: 'ok' as const, resolution: entry.resolution, ph: entry.crystallization?.ph };
+          }
+
+          await importEntry(entry);
+          existingPdbIds.add(pdbId.toUpperCase());
+          return { pdbId, status: 'ok' as const };
+        } catch (err: any) {
+          return { pdbId, status: 'error' as const, message: err.message };
         }
+      }, concurrency);
 
-        await importEntry(entry);
-        existingPdbIds.add(pdbId.toUpperCase());
-        return { pdbId, status: 'ok' as const };
-      } catch (err: any) {
-        return { pdbId, status: 'error' as const, message: err.message };
-      }
-    }, concurrency);
+      const ok = results.filter(r => r.status === 'ok').length;
+      const fail = results.filter(r => r.status !== 'ok').length;
+      totalImported += ok;
+      totalFailed += fail;
 
-    const ok = results.filter(r => r.status === 'ok').length;
-    const fail = results.filter(r => r.status !== 'ok').length;
-    totalImported += ok;
-    totalFailed += fail;
+      // Rate limiting
+      await sleep(100);
+    }
 
-    // Rate limiting
-    await sleep(100);
+    const elapsed = ((Date.now() - startTime) / 1000).toFixed(1);
+    console.log(`\n${'═'.repeat(60)}`);
+    console.log(`완료 ${dryRun ? '(dry-run)' : ''}`);
+    console.log(`Import: ${totalImported.toLocaleString()}건`);
+    console.log(`Skip:   ${totalSkipped.toLocaleString()}건 (이미 존재)`);
+    console.log(`실패:   ${totalFailed.toLocaleString()}건`);
+    console.log(`소요:   ${elapsed}s (${(totalImported / (parseFloat(elapsed) || 1) * 60).toFixed(0)}건/분)`);
+    console.log('═'.repeat(60));
+  } finally {
+    await client.end();
   }
-
-  const elapsed = ((Date.now() - startTime) / 1000).toFixed(1);
-  console.log(`\n${'═'.repeat(60)}`);
-  console.log(`완료 ${dryRun ? '(dry-run)' : ''}`);
-  console.log(`Import: ${totalImported.toLocaleString()}건`);
-  console.log(`Skip:   ${totalSkipped.toLocaleString()}건 (이미 존재)`);
-  console.log(`실패:   ${totalFailed.toLocaleString()}건`);
-  console.log(`소요:   ${elapsed}s (${(totalImported / (parseFloat(elapsed) || 1) * 60).toFixed(0)}건/분)`);
-  console.log('═'.repeat(60));
 }
 
 function sleep(ms: number) { return new Promise(r => setTimeout(r, ms)); }

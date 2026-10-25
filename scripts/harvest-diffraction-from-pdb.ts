@@ -10,15 +10,16 @@
  *   --dry-run         미리보기 (DB 삽입 안 함)
  */
 
-import dotenv from 'dotenv';
-import { createClient } from '@supabase/supabase-js';
+import pg from 'pg';
 
-dotenv.config({ path: '.env.local' });
-
-const supabase = createClient(
-  process.env.NEXT_PUBLIC_SUPABASE_URL!,
-  process.env.SUPABASE_SERVICE_ROLE_KEY!
-);
+const client = new pg.Client({
+  host: '203.255.78.89',
+  port: 15432,
+  database: 'kbsi_crystal_bank',
+  user: 'kbsi_app',
+  password: 'SMmQhkEIeXivl5P0yrHWW1JhpwCcmWQg',
+  ssl: { rejectUnauthorized: false },
+});
 
 const PDB_API = 'https://data.rcsb.org/rest/v1/core/entry';
 const BATCH_SIZE = 50;
@@ -133,115 +134,119 @@ async function main() {
   console.log('=== PDB Diffraction 데이터 수집 ===');
   console.log(`  limit: ${limit === Infinity ? '전체' : limit}, offset: ${offsetArg}, dry-run: ${dryRun}`);
 
-  // 1) kbsi_structure에서 pdb_id가 있는 엔트리 조회
-  console.log('\n[1] kbsi_structure에서 PDB 엔트리 조회...');
-  let structures: StructureRow[] = [];
-  let dbOffset = 0;
-  while (true) {
-    const { data, error } = await supabase
-      .from('kbsi_structure')
-      .select('id, construct_id, pdb_id')
-      .not('pdb_id', 'is', null)
-      .order('id', { ascending: true })
-      .range(dbOffset, dbOffset + 999);
-    if (error) {
-      console.error('  구조 조회 에러:', error.message);
-      break;
+  await client.connect();
+  try {
+    // 1) kbsi_structure에서 pdb_id가 있는 엔트리 조회
+    console.log('\n[1] kbsi_structure에서 PDB 엔트리 조회...');
+    let structures: StructureRow[] = [];
+    let dbOffset = 0;
+    while (true) {
+      const { rows: data } = await client.query(
+        'SELECT id, construct_id, pdb_id FROM kbsi_structure WHERE pdb_id IS NOT NULL ORDER BY id ASC OFFSET $1 LIMIT 1000',
+        [dbOffset]
+      );
+      if (!data || data.length === 0) break;
+      structures = structures.concat(data as StructureRow[]);
+      if (data.length < 1000) break;
+      dbOffset += 1000;
     }
-    if (!data || data.length === 0) break;
-    structures = structures.concat(data as StructureRow[]);
-    if (data.length < 1000) break;
-    dbOffset += 1000;
-  }
-  console.log(`  전체 PDB 구조: ${structures.length}개`);
+    console.log(`  전체 PDB 구조: ${structures.length}개`);
 
-  // 2) 이미 kbsi_diffraction에 있는 construct_id + source_id 조합 조회
-  console.log('\n[2] 기존 diffraction 레코드 확인...');
-  const existingSet = new Set<string>();
-  let diffOffset = 0;
-  while (true) {
-    const { data, error } = await supabase
-      .from('kbsi_diffraction')
-      .select('construct_id, source_id')
-      .eq('source_db', 'PDB')
-      .range(diffOffset, diffOffset + 999);
-    if (error) {
-      console.error('  diffraction 조회 에러:', error.message);
-      break;
+    // 2) 이미 kbsi_diffraction에 있는 construct_id + source_id 조합 조회
+    console.log('\n[2] 기존 diffraction 레코드 확인...');
+    const existingSet = new Set<string>();
+    let diffOffset = 0;
+    while (true) {
+      const { rows: data } = await client.query(
+        "SELECT construct_id, source_id FROM kbsi_diffraction WHERE source_db = 'PDB' OFFSET $1 LIMIT 1000",
+        [diffOffset]
+      );
+      if (!data || data.length === 0) break;
+      for (const row of data) {
+        existingSet.add(`${row.construct_id}:${row.source_id}`);
+      }
+      if (data.length < 1000) break;
+      diffOffset += 1000;
     }
-    if (!data || data.length === 0) break;
-    for (const row of data) {
-      existingSet.add(`${row.construct_id}:${row.source_id}`);
-    }
-    if (data.length < 1000) break;
-    diffOffset += 1000;
-  }
-  console.log(`  기존 diffraction: ${existingSet.size}개`);
+    console.log(`  기존 diffraction: ${existingSet.size}개`);
 
-  // 3) 필터: 이미 있는 것 제외
-  const targets = structures.filter(
-    (s) => !existingSet.has(`${s.construct_id}:${s.pdb_id}`)
-  );
-  console.log(`  신규 대상: ${targets.length}개`);
+    // 3) 필터: 이미 있는 것 제외
+    const targets = structures.filter(
+      (s) => !existingSet.has(`${s.construct_id}:${s.pdb_id}`)
+    );
+    console.log(`  신규 대상: ${targets.length}개`);
 
-  // offset/limit 적용
-  const sliced = targets.slice(offsetArg, offsetArg + (limit === Infinity ? targets.length : limit));
-  console.log(`  처리 예정: ${sliced.length}개 (offset ${offsetArg})`);
+    // offset/limit 적용
+    const sliced = targets.slice(offsetArg, offsetArg + (limit === Infinity ? targets.length : limit));
+    console.log(`  처리 예정: ${sliced.length}개 (offset ${offsetArg})`);
 
-  // 4) 배치 처리
-  let inserted = 0;
-  let skippedNotXray = 0;
-  let fetchFailed = 0;
-  let insertFailed = 0;
+    // 4) 배치 처리
+    let inserted = 0;
+    let skippedNotXray = 0;
+    let fetchFailed = 0;
+    let insertFailed = 0;
 
-  for (let i = 0; i < sliced.length; i += BATCH_SIZE) {
-    const batch = sliced.slice(i, i + BATCH_SIZE);
-    const records: DiffractionRecord[] = [];
+    for (let i = 0; i < sliced.length; i += BATCH_SIZE) {
+      const batch = sliced.slice(i, i + BATCH_SIZE);
+      const records: DiffractionRecord[] = [];
 
-    for (const structure of batch) {
-      const record = await fetchPDBEntry(structure.pdb_id);
-      if (!record) {
-        // null = fetch 실패 or non-X-ray
-        // 구분을 위해 빠른 재시도 없이 카운트만
-        fetchFailed++;
+      for (const structure of batch) {
+        const record = await fetchPDBEntry(structure.pdb_id);
+        if (!record) {
+          fetchFailed++;
+          await sleep(API_DELAY_MS);
+          continue;
+        }
+        record.construct_id = structure.construct_id;
+        records.push(record);
         await sleep(API_DELAY_MS);
-        continue;
       }
-      record.construct_id = structure.construct_id;
-      records.push(record);
-      await sleep(API_DELAY_MS);
-    }
 
-    if (records.length > 0 && !dryRun) {
-      const { error } = await supabase.from('kbsi_diffraction').insert(records);
-      if (error) {
-        console.error(`  배치 삽입 에러 (offset ${i}):`, error.message);
-        insertFailed += records.length;
-      } else {
+      if (records.length > 0 && !dryRun) {
+        // Batch insert using multi-row VALUES
+        const cols = ['construct_id', 'source_type', 'source_db', 'source_id', 'resolution', 'space_group', 'unit_cell', 'beamline', 'phasing', 'data_quality', 'is_validated'];
+        const values: any[] = [];
+        const placeholders: string[] = [];
+        records.forEach((rec, idx) => {
+          const base = idx * cols.length;
+          placeholders.push(`(${cols.map((_, ci) => `$${base + ci + 1}`).join(', ')})`);
+          values.push(rec.construct_id, rec.source_type, rec.source_db, rec.source_id, rec.resolution, rec.space_group, rec.unit_cell, rec.beamline, rec.phasing, rec.data_quality, rec.is_validated);
+        });
+        try {
+          await client.query(
+            `INSERT INTO kbsi_diffraction (${cols.join(', ')}) VALUES ${placeholders.join(', ')}`,
+            values
+          );
+          inserted += records.length;
+        } catch (e: any) {
+          console.error(`  배치 삽입 에러 (offset ${i}):`, e.message);
+          insertFailed += records.length;
+        }
+      } else if (dryRun) {
         inserted += records.length;
+        if (records.length > 0) {
+          console.log(`  [DRY-RUN] 배치 ${Math.floor(i / BATCH_SIZE) + 1}: ${records.length}건 (예: ${records[0].source_id} res=${records[0].resolution} sg=${records[0].space_group})`);
+        }
       }
-    } else if (dryRun) {
-      inserted += records.length;
-      if (records.length > 0) {
-        console.log(`  [DRY-RUN] 배치 ${Math.floor(i / BATCH_SIZE) + 1}: ${records.length}건 (예: ${records[0].source_id} res=${records[0].resolution} sg=${records[0].space_group})`);
+
+      const processed = Math.min(i + BATCH_SIZE, sliced.length);
+      if (processed % 100 === 0 || processed === sliced.length) {
+        console.log(`  진행: ${processed}/${sliced.length} (삽입: ${inserted}, 실패: ${fetchFailed})`);
       }
     }
 
-    const processed = Math.min(i + BATCH_SIZE, sliced.length);
-    if (processed % 100 === 0 || processed === sliced.length) {
-      console.log(`  진행: ${processed}/${sliced.length} (삽입: ${inserted}, 실패: ${fetchFailed})`);
-    }
+    // 5) 요약
+    console.log('\n=== 완료 ===');
+    console.log(`  전체 PDB 구조:   ${structures.length}`);
+    console.log(`  기존 diffraction: ${existingSet.size}`);
+    console.log(`  처리 대상:        ${sliced.length}`);
+    console.log(`  삽입${dryRun ? '(예정)' : ''}:        ${inserted}`);
+    console.log(`  API 실패/비X-ray: ${fetchFailed}`);
+    if (insertFailed > 0) console.log(`  DB 삽입 실패:     ${insertFailed}`);
+    if (dryRun) console.log('  (DRY-RUN 모드 — 실제 DB 변경 없음)');
+  } finally {
+    await client.end();
   }
-
-  // 5) 요약
-  console.log('\n=== 완료 ===');
-  console.log(`  전체 PDB 구조:   ${structures.length}`);
-  console.log(`  기존 diffraction: ${existingSet.size}`);
-  console.log(`  처리 대상:        ${sliced.length}`);
-  console.log(`  삽입${dryRun ? '(예정)' : ''}:        ${inserted}`);
-  console.log(`  API 실패/비X-ray: ${fetchFailed}`);
-  if (insertFailed > 0) console.log(`  DB 삽입 실패:     ${insertFailed}`);
-  if (dryRun) console.log('  (DRY-RUN 모드 — 실제 DB 변경 없음)');
 }
 
 main().catch((e) => {

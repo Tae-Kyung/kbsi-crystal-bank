@@ -1,9 +1,154 @@
 import { query, queryOne, scalar, getDbStatus } from '@/lib/db';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
-import { Database, Activity, RefreshCw, Shield } from 'lucide-react';
+import { Database, Activity, RefreshCw, Shield, FlaskConical } from 'lucide-react';
+import { readdirSync, readFileSync, existsSync } from 'fs';
+import { resolve } from 'path';
 
 export const dynamic = 'force-dynamic';
+
+const AI_RESULTS_DIR = resolve(process.cwd(), 'data', 'ai-scientist-results');
+
+interface AiHypothesisResult {
+  id: string;
+  name: string;
+  status: 'confirmed' | 'rejected' | 'inconclusive' | 'error';
+  p_value: number | null;
+  effect_size: number | null;
+  sample_size: number;
+  summary: string;
+  timestamp: string;
+  source: 'built-in' | 'discovered';
+}
+
+function loadAiResults(): AiHypothesisResult[] {
+  if (!existsSync(AI_RESULTS_DIR)) return [];
+  const files = readdirSync(AI_RESULTS_DIR).filter(f => f.endsWith('-latest.json'));
+  const results: AiHypothesisResult[] = [];
+  for (const file of files) {
+    try {
+      const content = readFileSync(resolve(AI_RESULTS_DIR, file), 'utf-8');
+      results.push(JSON.parse(content));
+    } catch { /* skip */ }
+  }
+  // Fallback: load latest run file
+  if (results.length === 0) {
+    const runFiles = readdirSync(AI_RESULTS_DIR)
+      .filter(f => f.startsWith('run-') && f.endsWith('.json'))
+      .sort().reverse();
+    if (runFiles.length > 0) {
+      try {
+        const parsed = JSON.parse(readFileSync(resolve(AI_RESULTS_DIR, runFiles[0]), 'utf-8'));
+        if (Array.isArray(parsed)) results.push(...parsed);
+      } catch { /* skip */ }
+    }
+  }
+  return results.sort((a, b) => a.id.localeCompare(b.id));
+}
+
+const STATUS_STYLES: Record<string, string> = {
+  confirmed: 'bg-green-100 text-green-800 dark:bg-green-900 dark:text-green-200',
+  rejected: 'bg-red-100 text-red-800 dark:bg-red-900 dark:text-red-200',
+  inconclusive: 'bg-yellow-100 text-yellow-800 dark:bg-yellow-900 dark:text-yellow-200',
+  error: 'bg-gray-100 text-gray-800 dark:bg-gray-900 dark:text-gray-200',
+};
+
+function AiScientistCard() {
+  const results = loadAiResults();
+  const confirmed = results.filter(r => r.status === 'confirmed').length;
+  const rejected = results.filter(r => r.status === 'rejected').length;
+
+  return (
+    <Card>
+      <CardHeader>
+        <CardTitle className="text-base flex items-center gap-2">
+          <FlaskConical className="h-4 w-4" />
+          AI Scientist — Hypothesis Results ({results.length})
+        </CardTitle>
+      </CardHeader>
+      <CardContent>
+        {results.length === 0 ? (
+          <div className="text-sm text-muted-foreground">
+            No results yet. Run: <code className="bg-muted px-1.5 py-0.5 rounded text-xs">npx tsx scripts/ai-scientist-v2.ts</code>
+          </div>
+        ) : (
+          <>
+            <div className="grid grid-cols-4 gap-3 mb-4">
+              <div className="text-center p-2 rounded-lg bg-muted/50">
+                <div className="text-lg font-bold">{results.length}</div>
+                <div className="text-[10px] text-muted-foreground">Total</div>
+              </div>
+              <div className="text-center p-2 rounded-lg bg-green-50 dark:bg-green-950">
+                <div className="text-lg font-bold text-green-700 dark:text-green-300">{confirmed}</div>
+                <div className="text-[10px] text-muted-foreground">Confirmed</div>
+              </div>
+              <div className="text-center p-2 rounded-lg bg-red-50 dark:bg-red-950">
+                <div className="text-lg font-bold text-red-700 dark:text-red-300">{rejected}</div>
+                <div className="text-[10px] text-muted-foreground">Rejected</div>
+              </div>
+              <div className="text-center p-2 rounded-lg bg-yellow-50 dark:bg-yellow-950">
+                <div className="text-lg font-bold text-yellow-700 dark:text-yellow-300">
+                  {results.length - confirmed - rejected}
+                </div>
+                <div className="text-[10px] text-muted-foreground">Other</div>
+              </div>
+            </div>
+
+            <div className="rounded-md border overflow-hidden">
+              <table className="w-full text-sm">
+                <thead className="bg-muted/50">
+                  <tr>
+                    <th className="px-3 py-2 text-left font-medium">ID</th>
+                    <th className="px-3 py-2 text-left font-medium">Hypothesis</th>
+                    <th className="px-3 py-2 text-left font-medium">Status</th>
+                    <th className="px-3 py-2 text-right font-medium">p-value</th>
+                    <th className="px-3 py-2 text-right font-medium">Effect</th>
+                    <th className="px-3 py-2 text-right font-medium">n</th>
+                    <th className="px-3 py-2 text-left font-medium">Source</th>
+                    <th className="px-3 py-2 text-left font-medium">Last Run</th>
+                  </tr>
+                </thead>
+                <tbody className="divide-y">
+                  {results.map(r => (
+                    <tr key={r.id} className="hover:bg-muted/30">
+                      <td className="px-3 py-2 text-xs font-mono font-medium">{r.id}</td>
+                      <td className="px-3 py-2 text-xs" title={r.summary}>{r.name}</td>
+                      <td className="px-3 py-2">
+                        <Badge className={`text-[10px] ${STATUS_STYLES[r.status] || ''}`}>
+                          {r.status}
+                        </Badge>
+                      </td>
+                      <td className="px-3 py-2 text-xs font-mono text-right">
+                        {r.p_value != null ? r.p_value.toExponential(2) : '-'}
+                      </td>
+                      <td className="px-3 py-2 text-xs font-mono text-right">
+                        {r.effect_size != null ? r.effect_size.toFixed(4) : '-'}
+                      </td>
+                      <td className="px-3 py-2 text-xs font-mono text-right">
+                        {r.sample_size.toLocaleString()}
+                      </td>
+                      <td className="px-3 py-2 text-xs">{r.source}</td>
+                      <td className="px-3 py-2 text-xs text-muted-foreground">
+                        {r.timestamp ? new Date(r.timestamp).toLocaleDateString('ko-KR') : '-'}
+                      </td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+
+            <div className="mt-3 text-[10px] text-muted-foreground">
+              Commands: <code className="bg-muted px-1 rounded">npx tsx scripts/ai-scientist-v2.ts</code> |
+              <code className="bg-muted px-1 rounded ml-1">--discover</code> |
+              <code className="bg-muted px-1 rounded ml-1">--report</code> |
+              <code className="bg-muted px-1 rounded ml-1">--hypothesis PH001</code>
+            </div>
+          </>
+        )}
+      </CardContent>
+    </Card>
+  );
+}
 
 const SCRIPTS = [
   { name: 'bulk-pdb-sweep', type: '수집', target: 'protein, construct, cryst, structure', schedule: '주 1회', cmd: 'npx tsx scripts/bulk-pdb-sweep.ts --limit 50000' },
@@ -323,6 +468,9 @@ export default async function AdminPage() {
           </div>
         </CardContent>
       </Card>
+
+      {/* AI Scientist */}
+      <AiScientistCard />
 
       {/* Script Catalog */}
       <Card>

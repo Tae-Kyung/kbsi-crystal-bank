@@ -7,15 +7,16 @@
  * npx tsx scripts/normalize-organism.ts [--dry-run]
  */
 
-import dotenv from 'dotenv';
-import { createClient } from '@supabase/supabase-js';
+import pg from 'pg';
 
-dotenv.config({ path: '.env.local' });
-
-const supabase = createClient(
-  process.env.NEXT_PUBLIC_SUPABASE_URL!,
-  process.env.SUPABASE_SERVICE_ROLE_KEY!
-);
+const client = new pg.Client({
+  host: '203.255.78.89',
+  port: 15432,
+  database: 'kbsi_crystal_bank',
+  user: 'kbsi_app',
+  password: 'SMmQhkEIeXivl5P0yrHWW1JhpwCcmWQg',
+  ssl: { rejectUnauthorized: false },
+});
 
 // 약어 → 정식 이름 매핑
 const ABBREVIATION_MAP: Record<string, string> = {
@@ -84,74 +85,74 @@ async function main() {
   const dryRun = process.argv.includes('--dry-run');
   console.log(`=== Organism 정규화 === (dry-run: ${dryRun})\n`);
 
-  // 모든 고유 organism 조회
-  const organisms = new Map<string, number[]>(); // organism → protein IDs
-  let offset = 0;
-  while (true) {
-    const { data } = await supabase
-      .from('kbsi_protein')
-      .select('id, organism')
-      .not('organism', 'is', null)
-      .order('id')
-      .range(offset, offset + 999);
-    if (!data || data.length === 0) break;
-    data.forEach((p: any) => {
-      if (!organisms.has(p.organism)) organisms.set(p.organism, []);
-      organisms.get(p.organism)!.push(p.id);
+  await client.connect();
+  try {
+    // 모든 고유 organism 조회
+    const organisms = new Map<string, number[]>(); // organism → protein IDs
+    let offset = 0;
+    while (true) {
+      const { rows: data } = await client.query(
+        'SELECT id, organism FROM kbsi_protein WHERE organism IS NOT NULL ORDER BY id OFFSET $1 LIMIT 1000',
+        [offset]
+      );
+      if (!data || data.length === 0) break;
+      data.forEach((p: any) => {
+        if (!organisms.has(p.organism)) organisms.set(p.organism, []);
+        organisms.get(p.organism)!.push(p.id);
+      });
+      if (data.length < 1000) break;
+      offset += 1000;
+    }
+
+    console.log(`고유 organism: ${organisms.size}개\n`);
+
+    // 정규화 매핑 생성
+    const changes: { from: string; to: string; count: number }[] = [];
+    for (const [original, ids] of organisms) {
+      const normalized = normalize(original);
+      if (normalized !== original) {
+        changes.push({ from: original, to: normalized, count: ids.length });
+      }
+    }
+
+    console.log(`변경 대상: ${changes.length}개\n`);
+    changes.sort((a, b) => b.count - a.count);
+    changes.forEach(c => {
+      console.log(`  "${c.from}" → "${c.to}" (${c.count}건)`);
     });
-    if (data.length < 1000) break;
-    offset += 1000;
-  }
 
-  console.log(`고유 organism: ${organisms.size}개\n`);
-
-  // 정규화 매핑 생성
-  const changes: { from: string; to: string; count: number }[] = [];
-  for (const [original, ids] of organisms) {
-    const normalized = normalize(original);
-    if (normalized !== original) {
-      changes.push({ from: original, to: normalized, count: ids.length });
+    if (dryRun) {
+      console.log(`\n(DRY-RUN — DB 변경 없음)`);
+      return;
     }
-  }
 
-  console.log(`변경 대상: ${changes.length}개\n`);
-  changes.sort((a, b) => b.count - a.count);
-  changes.forEach(c => {
-    console.log(`  "${c.from}" → "${c.to}" (${c.count}건)`);
-  });
+    // UPDATE — organism_normalized에 저장 (원본 organism 보존)
+    console.log(`\n업데이트 실행 (organism_normalized)...`);
+    let updated = 0;
 
-  if (dryRun) {
-    console.log(`\n(DRY-RUN — DB 변경 없음)`);
-    return;
-  }
-
-  // UPDATE — organism_normalized에 저장 (원본 organism 보존)
-  console.log(`\n업데이트 실행 (organism_normalized)...`);
-  let updated = 0;
-
-  // 모든 protein에 대해 organism_normalized 설정
-  let updateOffset = 0;
-  while (true) {
-    const { data } = await supabase
-      .from('kbsi_protein')
-      .select('id, organism')
-      .not('organism', 'is', null)
-      .is('organism_normalized', null)
-      .order('id')
-      .range(updateOffset, updateOffset + 999);
-    if (!data || data.length === 0) break;
-    for (const p of data) {
-      const normalized = normalize(p.organism);
-      await supabase.from('kbsi_protein').update({ organism_normalized: normalized }).eq('id', p.id);
-      updated++;
+    // 모든 protein에 대해 organism_normalized 설정
+    let updateOffset = 0;
+    while (true) {
+      const { rows: data } = await client.query(
+        'SELECT id, organism FROM kbsi_protein WHERE organism IS NOT NULL AND organism_normalized IS NULL ORDER BY id OFFSET $1 LIMIT 1000',
+        [updateOffset]
+      );
+      if (!data || data.length === 0) break;
+      for (const p of data) {
+        const normalized = normalize(p.organism);
+        await client.query('UPDATE kbsi_protein SET organism_normalized = $1 WHERE id = $2', [normalized, p.id]);
+        updated++;
+      }
+      if (data.length < 1000) break;
+      updateOffset += 1000;
+      if (updated % 5000 === 0) console.log(`  ${updated}건...`);
     }
-    if (data.length < 1000) break;
-    updateOffset += 1000;
-    if (updated % 5000 === 0) console.log(`  ${updated}건...`);
-  }
 
-  console.log(`\n완료: ${updated}건 organism_normalized 설정`);
-  console.log(`원본 organism은 보존됨`);
+    console.log(`\n완료: ${updated}건 organism_normalized 설정`);
+    console.log(`원본 organism은 보존됨`);
+  } finally {
+    await client.end();
+  }
 }
 
 main().catch(console.error);

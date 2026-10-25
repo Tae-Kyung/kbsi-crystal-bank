@@ -12,14 +12,18 @@
 import { readFile } from 'fs/promises';
 import { join } from 'path';
 import dotenv from 'dotenv';
-import { createClient } from '@supabase/supabase-js';
+import pg from 'pg';
 
 dotenv.config({ path: '.env.local' });
 
-const supabase = createClient(
-  process.env.NEXT_PUBLIC_SUPABASE_URL!,
-  process.env.SUPABASE_SERVICE_ROLE_KEY || process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!
-);
+const client = new pg.Client({
+  host: '203.255.78.89',
+  port: 15432,
+  database: 'kbsi_crystal_bank',
+  user: 'kbsi_app',
+  password: 'SMmQhkEIeXivl5P0yrHWW1JhpwCcmWQg',
+  ssl: { rejectUnauthorized: false },
+});
 
 const DATA_DIR = join(process.cwd(), 'data', 'targettrack');
 const INPUT_FILE = join(DATA_DIR, 'crystallization_protocols.json');
@@ -64,129 +68,133 @@ async function main() {
   const apiKey = process.env.OPENAI_API_KEY;
   if (!apiKey) { console.error('OPENAI_API_KEY 필요'); process.exit(1); }
 
-  // 프로토콜 로드
-  const raw = await readFile(INPUT_FILE, 'utf-8');
-  const protocols: Protocol[] = JSON.parse(raw);
-  console.log(`전체 프로토콜: ${protocols.length}건`);
+  await client.connect();
+  try {
+    // 프로토콜 로드
+    const raw = await readFile(INPUT_FILE, 'utf-8');
+    const protocols: Protocol[] = JSON.parse(raw);
+    console.log(`전체 프로토콜: ${protocols.length}건`);
 
-  // 이미 import된 TargetTrack ID 조회
-  const { data: existing } = await supabase
-    .from('kbsi_construct')
-    .select('name')
-    .like('name', 'TT-%');
-  const existingIds = new Set((existing || []).map((c: any) => c.name.replace('TT-', '')));
-  console.log(`이미 import됨: ${existingIds.size}건`);
-
-  // 신규 대상 필터
-  const targets = protocols
-    .filter(p => !existingIds.has(p.id))
-    .slice(offset, offset + limit);
-  console.log(`신규 대상: ${targets.length}건 (offset: ${offset})\n`);
-
-  let success = 0;
-  let failed = 0;
-  const startTime = Date.now();
-
-  // 배치 처리
-  for (let batchStart = 0; batchStart < targets.length; batchStart += batchSize) {
-    const batch = targets.slice(batchStart, batchStart + batchSize);
-
-    // 병렬 LLM 호출
-    const results = await Promise.all(
-      batch.map(async (p) => {
-        const parsed = await parseWithLLM(apiKey, p.text);
-        return { protocol: p, parsed };
-      })
+    // 이미 import된 TargetTrack ID 조회
+    const { rows: existing } = await client.query(
+      `SELECT name FROM kbsi_construct WHERE name LIKE $1`,
+      ['TT-%']
     );
+    const existingIds = new Set(existing.map((c: any) => c.name.replace('TT-', '')));
+    console.log(`이미 import됨: ${existingIds.size}건`);
 
-    // 순차 DB insert
-    for (let ri = 0; ri < results.length; ri++) {
-      const { protocol: p, parsed } = results[ri];
-      const progress = `[${batchStart + ri + 1}/${targets.length}]`;
+    // 신규 대상 필터
+    const targets = protocols
+      .filter(p => !existingIds.has(p.id))
+      .slice(offset, offset + limit);
+    console.log(`신규 대상: ${targets.length}건 (offset: ${offset})\n`);
 
-      if (!parsed) {
-        console.log(`${progress} ${p.id}: ⚠ LLM 파싱 실패`);
-        failed++;
-        continue;
-      }
+    let success = 0;
+    let failed = 0;
+    const startTime = Date.now();
 
-      const outcome = parsed.outcome || 'diffraction_quality';
-      const summary = `${parsed.precipitant_type || '?'} ${parsed.precipitant_conc || ''}${parsed.precipitant_unit || ''} | pH ${parsed.ph || '?'} | ${parsed.temperature || '?'}°C`;
+    // 배치 처리
+    for (let batchStart = 0; batchStart < targets.length; batchStart += batchSize) {
+      const batch = targets.slice(batchStart, batchStart + batchSize);
 
-      if (dryRun) {
-        console.log(`${progress} ${p.id}: ${summary} | ${outcome}`);
-        success++;
-        continue;
-      }
+      // 병렬 LLM 호출
+      const results = await Promise.all(
+        batch.map(async (p) => {
+          const parsed = await parseWithLLM(apiKey, p.text);
+          return { protocol: p, parsed };
+        })
+      );
 
-      try {
-        const proteinName = parsed.protein_name || p.name || `TargetTrack ${p.id}`;
+      // 순차 DB insert
+      for (let ri = 0; ri < results.length; ri++) {
+        const { protocol: p, parsed } = results[ri];
+        const progress = `[${batchStart + ri + 1}/${targets.length}]`;
 
-        // Protein upsert
-        const { data: existingP } = await supabase
-          .from('kbsi_protein')
-          .select('id')
-          .eq('full_name', proteinName)
-          .maybeSingle();
-
-        let proteinId: number;
-        if (existingP) {
-          proteinId = existingP.id;
-        } else {
-          const { data: newP, error: pErr } = await supabase
-            .from('kbsi_protein')
-            .insert({ full_name: proteinName, organism: parsed.organism || null })
-            .select('id')
-            .single();
-          if (pErr) { console.log(`${progress} ${p.id}: ⚠ Protein: ${pErr.message}`); failed++; continue; }
-          proteinId = newP.id;
+        if (!parsed) {
+          console.log(`${progress} ${p.id}: WARNING LLM 파싱 실패`);
+          failed++;
+          continue;
         }
 
-        // Construct
-        const { data: newC, error: cErr } = await supabase
-          .from('kbsi_construct')
-          .insert({ protein_id: proteinId, name: `TT-${p.id}`, construct_type: 'full-length' })
-          .select('id')
-          .single();
-        if (cErr) { console.log(`${progress} ${p.id}: ⚠ Construct: ${cErr.message}`); failed++; continue; }
+        const outcome = parsed.outcome || 'diffraction_quality';
+        const summary = `${parsed.precipitant_type || '?'} ${parsed.precipitant_conc || ''}${parsed.precipitant_unit || ''} | pH ${parsed.ph || '?'} | ${parsed.temperature || '?'}°C`;
 
-        // Crystallization
-        const isValid = (v: any) => v != null && v !== 'null' && v !== '';
-        const isNum = (v: any) => typeof v === 'number' && !isNaN(v);
-        const crystData: any = {
-          construct_id: newC.id, source_type: 'literature', outcome,
-          condition_detail: p.text.slice(0, 500), notes: `TargetTrack ${p.id}`,
-        };
-        if (isValid(parsed.precipitant_type)) crystData.precipitant_type = parsed.precipitant_type;
-        if (isNum(parsed.precipitant_conc)) crystData.precipitant_conc = parsed.precipitant_conc;
-        if (isValid(parsed.precipitant_unit)) crystData.precipitant_unit = parsed.precipitant_unit;
-        if (isValid(parsed.buffer_type)) crystData.buffer_type = parsed.buffer_type;
-        if (isNum(parsed.ph)) crystData.ph = parsed.ph;
-        if (isNum(parsed.temperature)) crystData.temperature = parsed.temperature;
-        if (isValid(parsed.salt_type)) crystData.salt_type = parsed.salt_type;
-        if (isNum(parsed.salt_conc)) crystData.salt_conc = parsed.salt_conc;
-        if (isNum(parsed.protein_concentration)) crystData.protein_concentration = parsed.protein_concentration;
-        if (isValid(parsed.additive)) crystData.additive = parsed.additive;
+        if (dryRun) {
+          console.log(`${progress} ${p.id}: ${summary} | ${outcome}`);
+          success++;
+          continue;
+        }
 
-        const { error: xErr } = await supabase.from('kbsi_crystallization').insert(crystData);
-        if (xErr) { console.log(`${progress} ${p.id}: ⚠ Cryst: ${xErr.message}`); failed++; continue; }
+        try {
+          const proteinName = parsed.protein_name || p.name || `TargetTrack ${p.id}`;
 
-        console.log(`${progress} ${p.id}: ✓ ${summary} | P:${proteinId} C:${newC.id}`);
-        success++;
-      } catch (err: any) {
-        console.log(`${progress} ${p.id}: ✗ ${err.message}`);
-        failed++;
+          // Protein upsert
+          const { rows: existingP } = await client.query(
+            `SELECT id FROM kbsi_protein WHERE full_name = $1 LIMIT 1`,
+            [proteinName]
+          );
+
+          let proteinId: number;
+          if (existingP.length > 0) {
+            proteinId = existingP[0].id;
+          } else {
+            const { rows: newP } = await client.query(
+              `INSERT INTO kbsi_protein (full_name, organism) VALUES ($1, $2) RETURNING id`,
+              [proteinName, parsed.organism || null]
+            );
+            proteinId = newP[0].id;
+          }
+
+          // Construct
+          const { rows: newC } = await client.query(
+            `INSERT INTO kbsi_construct (protein_id, name, construct_type) VALUES ($1, $2, $3) RETURNING id`,
+            [proteinId, `TT-${p.id}`, 'full-length']
+          );
+          const constructId = newC[0].id;
+
+          // Crystallization
+          const isValid = (v: any) => v != null && v !== 'null' && v !== '';
+          const isNum = (v: any) => typeof v === 'number' && !isNaN(v);
+
+          const cols: string[] = ['construct_id', 'source_type', 'outcome', 'condition_detail', 'notes'];
+          const vals: any[] = [constructId, 'literature', outcome, p.text.slice(0, 500), `TargetTrack ${p.id}`];
+
+          if (isValid(parsed.precipitant_type)) { cols.push('precipitant_type'); vals.push(parsed.precipitant_type); }
+          if (isNum(parsed.precipitant_conc)) { cols.push('precipitant_conc'); vals.push(parsed.precipitant_conc); }
+          if (isValid(parsed.precipitant_unit)) { cols.push('precipitant_unit'); vals.push(parsed.precipitant_unit); }
+          if (isValid(parsed.buffer_type)) { cols.push('buffer_type'); vals.push(parsed.buffer_type); }
+          if (isNum(parsed.ph)) { cols.push('ph'); vals.push(parsed.ph); }
+          if (isNum(parsed.temperature)) { cols.push('temperature'); vals.push(parsed.temperature); }
+          if (isValid(parsed.salt_type)) { cols.push('salt_type'); vals.push(parsed.salt_type); }
+          if (isNum(parsed.salt_conc)) { cols.push('salt_conc'); vals.push(parsed.salt_conc); }
+          if (isNum(parsed.protein_concentration)) { cols.push('protein_concentration'); vals.push(parsed.protein_concentration); }
+          if (isValid(parsed.additive)) { cols.push('additive'); vals.push(parsed.additive); }
+
+          const placeholders = vals.map((_, i) => `$${i + 1}`).join(', ');
+          await client.query(
+            `INSERT INTO kbsi_crystallization (${cols.join(', ')}) VALUES (${placeholders})`,
+            vals
+          );
+
+          console.log(`${progress} ${p.id}: OK ${summary} | P:${proteinId} C:${constructId}`);
+          success++;
+        } catch (err: any) {
+          console.log(`${progress} ${p.id}: FAIL ${err.message}`);
+          failed++;
+        }
       }
+
+      // 배치 간 딜레이
+      await sleep(500);
     }
 
-    // 배치 간 딜레이
-    await sleep(500);
+    const elapsed = ((Date.now() - startTime) / 1000).toFixed(1);
+    console.log(`\n${'═'.repeat(50)}`);
+    console.log(`완료: 성공 ${success}, 실패 ${failed}, 소요 ${elapsed}s ${dryRun ? '(dry-run)' : ''}`);
+    console.log(`속도: ${(success / (parseFloat(elapsed) || 1) * 60).toFixed(0)}건/분`);
+  } finally {
+    await client.end();
   }
-
-  const elapsed = ((Date.now() - startTime) / 1000).toFixed(1);
-  console.log(`\n${'═'.repeat(50)}`);
-  console.log(`완료: 성공 ${success}, 실패 ${failed}, 소요 ${elapsed}s ${dryRun ? '(dry-run)' : ''}`);
-  console.log(`속도: ${(success / (parseFloat(elapsed) || 1) * 60).toFixed(0)}건/분`);
 }
 
 async function parseWithLLM(apiKey: string, text: string): Promise<any | null> {

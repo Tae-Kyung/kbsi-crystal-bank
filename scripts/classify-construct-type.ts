@@ -5,15 +5,16 @@
  * npx tsx scripts/classify-construct-type.ts [--dry-run] [--limit N]
  */
 
-import dotenv from 'dotenv';
-import { createClient } from '@supabase/supabase-js';
+import pg from 'pg';
 
-dotenv.config({ path: '.env.local' });
-
-const supabase = createClient(
-  process.env.NEXT_PUBLIC_SUPABASE_URL!,
-  process.env.SUPABASE_SERVICE_ROLE_KEY!
-);
+const client = new pg.Client({
+  host: '203.255.78.89',
+  port: 15432,
+  database: 'kbsi_crystal_bank',
+  user: 'kbsi_app',
+  password: 'SMmQhkEIeXivl5P0yrHWW1JhpwCcmWQg',
+  ssl: { rejectUnauthorized: false },
+});
 
 // construct_type 분류 규칙
 function classifyType(name: string, fullName: string): string | null {
@@ -46,60 +47,74 @@ async function main() {
   console.log(`=== Construct Type 자동 분류 + Tag 추출 ===`);
   console.log(`dry-run: ${dryRun}, limit: ${limit === Infinity ? '전체' : limit}\n`);
 
-  // construct_type이 NULL이거나 full-length인 것 대상
-  let constructs: any[] = [];
-  let offset = 0;
-  while (constructs.length < limit) {
-    const { data } = await supabase
-      .from('kbsi_construct')
-      .select('id, name, protein_id, construct_type, tag_name, kbsi_protein(full_name)')
-      .or('construct_type.is.null,construct_type.eq.full-length')
-      .range(offset, offset + 999);
-    if (!data || data.length === 0) break;
-    constructs.push(...data);
-    if (data.length < 1000) break;
-    offset += 1000;
-  }
-  if (limit !== Infinity) constructs = constructs.slice(0, limit);
-  console.log(`대상: ${constructs.length}건\n`);
+  await client.connect();
+  try {
+    // construct_type이 NULL이거나 full-length인 것 대상
+    let constructs: any[] = [];
+    let offset = 0;
+    while (constructs.length < limit) {
+      const { rows: data } = await client.query(
+        `SELECT c.id, c.name, c.protein_id, c.construct_type, c.tag_name, p.full_name AS protein_full_name
+         FROM kbsi_construct c
+         LEFT JOIN kbsi_protein p ON c.protein_id = p.id
+         WHERE c.construct_type IS NULL OR c.construct_type = 'full-length'
+         OFFSET $1 LIMIT 1000`,
+        [offset]
+      );
+      if (!data || data.length === 0) break;
+      constructs.push(...data);
+      if (data.length < 1000) break;
+      offset += 1000;
+    }
+    if (limit !== Infinity) constructs = constructs.slice(0, limit);
+    console.log(`대상: ${constructs.length}건\n`);
 
-  let typeUpdated = 0;
-  let tagUpdated = 0;
-  const typeDist: Record<string, number> = {};
+    let typeUpdated = 0;
+    let tagUpdated = 0;
+    const typeDist: Record<string, number> = {};
 
-  for (let i = 0; i < constructs.length; i++) {
-    const c = constructs[i];
-    const cName = c.name || '';
-    const pName = c.kbsi_protein?.full_name || '';
+    for (let i = 0; i < constructs.length; i++) {
+      const c = constructs[i];
+      const cName = c.name || '';
+      const pName = c.protein_full_name || '';
 
-    const cType = classifyType(cName, pName);
-    const tagInfo = c.tag_name ? null : extractTag(cName, pName);
+      const cType = classifyType(cName, pName);
+      const tagInfo = c.tag_name ? null : extractTag(cName, pName);
 
-    if (cType) typeDist[cType] = (typeDist[cType] || 0) + 1;
+      if (cType) typeDist[cType] = (typeDist[cType] || 0) + 1;
 
-    if (!dryRun && (cType || tagInfo)) {
-      const update: any = {};
-      if (cType) update.construct_type = cType;
-      if (tagInfo) { update.tag_name = tagInfo.tag; update.tag_position = tagInfo.position; }
-      await supabase.from('kbsi_construct').update(update).eq('id', c.id);
-      if (cType) typeUpdated++;
-      if (tagInfo) tagUpdated++;
-    } else {
-      if (cType) typeUpdated++;
-      if (tagInfo) tagUpdated++;
+      if (!dryRun && (cType || tagInfo)) {
+        const updates: string[] = [];
+        const values: any[] = [];
+        let paramIdx = 1;
+        if (cType) { updates.push(`construct_type = $${paramIdx++}`); values.push(cType); }
+        if (tagInfo) {
+          updates.push(`tag_name = $${paramIdx++}`); values.push(tagInfo.tag);
+          updates.push(`tag_position = $${paramIdx++}`); values.push(tagInfo.position);
+        }
+        values.push(c.id);
+        await client.query(`UPDATE kbsi_construct SET ${updates.join(', ')} WHERE id = $${paramIdx}`, values);
+        if (cType) typeUpdated++;
+        if (tagInfo) tagUpdated++;
+      } else {
+        if (cType) typeUpdated++;
+        if (tagInfo) tagUpdated++;
+      }
+
+      if ((i + 1) % 10000 === 0) {
+        console.log(`  [${i + 1}/${constructs.length}] type: ${typeUpdated}, tag: ${tagUpdated}`);
+      }
     }
 
-    if ((i + 1) % 10000 === 0) {
-      console.log(`  [${i + 1}/${constructs.length}] type: ${typeUpdated}, tag: ${tagUpdated}`);
-    }
+    console.log(`\n${'═'.repeat(50)}`);
+    console.log(`완료 ${dryRun ? '(DRY-RUN)' : ''}`);
+    console.log(`  construct_type 분류: ${typeUpdated}건`);
+    console.log(`  tag_name 추출: ${tagUpdated}건`);
+    console.log(`  타입 분포:`, typeDist);
+    console.log('═'.repeat(50));
+  } finally {
+    await client.end();
   }
-
-  console.log(`\n${'═'.repeat(50)}`);
-  console.log(`완료 ${dryRun ? '(DRY-RUN)' : ''}`);
-  console.log(`  construct_type 분류: ${typeUpdated}건`);
-  console.log(`  tag_name 추출: ${tagUpdated}건`);
-  console.log(`  타입 분포:`, typeDist);
-  console.log('═'.repeat(50));
 }
 
 main().catch(console.error);

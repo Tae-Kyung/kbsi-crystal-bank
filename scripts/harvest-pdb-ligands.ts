@@ -10,15 +10,16 @@
  *   --dry-run         미리보기 (DB 변경 없음)
  */
 
-import dotenv from 'dotenv';
-import { createClient } from '@supabase/supabase-js';
+import pg from 'pg';
 
-dotenv.config({ path: '.env.local' });
-
-const supabase = createClient(
-  process.env.NEXT_PUBLIC_SUPABASE_URL!,
-  process.env.SUPABASE_SERVICE_ROLE_KEY || process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!
-);
+const client = new pg.Client({
+  host: '203.255.78.89',
+  port: 15432,
+  database: 'kbsi_crystal_bank',
+  user: 'kbsi_app',
+  password: 'SMmQhkEIeXivl5P0yrHWW1JhpwCcmWQg',
+  ssl: { rejectUnauthorized: false },
+});
 
 const RCSB_BASE = 'https://data.rcsb.org/rest/v1/core';
 
@@ -130,30 +131,14 @@ async function fetchChemComp(compId: string): Promise<ChemCompInfo | null> {
  * kbsi_structure에서 pdb_id가 있는 엔트리를 페이지네이션으로 가져오기
  */
 async function fetchStructuresWithPdb(offset: number, limit: number) {
-  const rows: { id: number; construct_id: number; pdb_id: string }[] = [];
-  const pageSize = 1000;
-  let fetched = 0;
-
-  while (fetched < limit) {
-    const batchSize = Math.min(pageSize, limit - fetched);
-    const { data, error } = await supabase
-      .from('kbsi_structure')
-      .select('id, construct_id, pdb_id')
-      .not('pdb_id', 'is', null)
-      .order('id', { ascending: true })
-      .range(offset + fetched, offset + fetched + batchSize - 1);
-
-    if (error) {
-      console.error('DB 조회 에러:', error.message);
-      break;
-    }
-    if (!data || data.length === 0) break;
-    rows.push(...data);
-    fetched += data.length;
-    if (data.length < batchSize) break; // no more rows
-  }
-
-  return rows;
+  const { rows } = await client.query(
+    `SELECT id, construct_id, pdb_id FROM kbsi_structure
+     WHERE pdb_id IS NOT NULL
+     ORDER BY id ASC
+     LIMIT $1 OFFSET $2`,
+    [limit, offset]
+  );
+  return rows as { id: number; construct_id: number; pdb_id: string }[];
 }
 
 async function main() {
@@ -162,134 +147,127 @@ async function main() {
   const offset = parseInt(args[args.indexOf('--offset') + 1] || '0') || 0;
   const dryRun = args.includes('--dry-run');
 
-  console.log('PDB 구조 → 리간드 추출');
-  console.log(`offset: ${offset}, limit: ${limit === Infinity ? 'ALL' : limit}, dry-run: ${dryRun}\n`);
+  await client.connect();
+  try {
+    console.log('PDB 구조 → 리간드 추출');
+    console.log(`offset: ${offset}, limit: ${limit === Infinity ? 'ALL' : limit}, dry-run: ${dryRun}\n`);
 
-  // 1) DB에서 pdb_id가 있는 structure 목록 가져오기
-  const fetchLimit = limit === Infinity ? 999999 : limit;
-  const structures = await fetchStructuresWithPdb(offset, fetchLimit);
-  console.log(`PDB 엔트리: ${structures.length}개\n`);
+    // 1) DB에서 pdb_id가 있는 structure 목록 가져오기
+    const fetchLimit = limit === Infinity ? 999999 : limit;
+    const structures = await fetchStructuresWithPdb(offset, fetchLimit);
+    console.log(`PDB 엔트리: ${structures.length}개\n`);
 
-  if (structures.length === 0) {
-    console.log('처리할 데이터 없음');
-    return;
-  }
-
-  // 기존 PDB 소스 리간드 캐시: source_id(comp_id) → ligand_id
-  const ligandIdCache = new Map<string, number>();
-
-  let totalNewLigands = 0;
-  let totalNewBindings = 0;
-  let totalSkipped = 0;
-  let totalErrors = 0;
-  let processed = 0;
-
-  for (const structure of structures) {
-    processed++;
-    const pdbId = structure.pdb_id.toUpperCase();
-
-    // 2) PDB에서 nonpolymer entity(리간드) 조회
-    const compIds = await fetchNonpolymerEntities(pdbId);
-    await sleep(200);
-
-    if (compIds.length === 0) {
-      totalSkipped++;
-      if (processed % 100 === 0) {
-        printProgress(processed, structures.length, totalNewLigands, totalNewBindings);
-      }
-      continue;
+    if (structures.length === 0) {
+      console.log('처리할 데이터 없음');
+      return;
     }
 
-    // 3) 각 comp_id에 대해 처리
-    for (const compId of compIds) {
-      const chemInfo = await fetchChemComp(compId);
-      if (!chemInfo) continue;
+    // 기존 PDB 소스 리간드 캐시: source_id(comp_id) → ligand_id
+    const ligandIdCache = new Map<string, number>();
 
-      if (dryRun) {
-        console.log(`  [${pdbId}] ${compId}: ${chemInfo.name} | MW=${chemInfo.mw} | SMILES=${chemInfo.smiles?.substring(0, 50) ?? 'N/A'}`);
-        totalNewBindings++;
+    let totalNewLigands = 0;
+    let totalNewBindings = 0;
+    let totalSkipped = 0;
+    let totalErrors = 0;
+    let processed = 0;
+
+    for (const structure of structures) {
+      processed++;
+      const pdbId = structure.pdb_id.toUpperCase();
+
+      // 2) PDB에서 nonpolymer entity(리간드) 조회
+      const compIds = await fetchNonpolymerEntities(pdbId);
+      await sleep(200);
+
+      if (compIds.length === 0) {
+        totalSkipped++;
+        if (processed % 100 === 0) {
+          printProgress(processed, structures.length, totalNewLigands, totalNewBindings);
+        }
         continue;
       }
 
-      try {
-        // 3a) kbsi_ligand: source_db='PDB', source_id=comp_id로 찾거나 삽입
-        let ligandId = ligandIdCache.get(compId);
+      // 3) 각 comp_id에 대해 처리
+      for (const compId of compIds) {
+        const chemInfo = await fetchChemComp(compId);
+        if (!chemInfo) continue;
 
-        if (!ligandId) {
-          const { data: existing } = await supabase
-            .from('kbsi_ligand')
-            .select('id')
-            .eq('source_db', 'PDB')
-            .eq('source_id', compId)
-            .maybeSingle();
-
-          if (existing) {
-            ligandId = existing.id as number;
-            ligandIdCache.set(compId, ligandId);
-          } else {
-            const { data: newL, error } = await supabase
-              .from('kbsi_ligand')
-              .insert({
-                name: chemInfo.name,
-                smiles: chemInfo.smiles,
-                inchi: chemInfo.inchi,
-                mw: chemInfo.mw,
-                source: `PDB HET ${compId}`,
-                source_db: 'PDB',
-                source_id: compId,
-              })
-              .select('id')
-              .single();
-
-            if (error) {
-              totalErrors++;
-              continue;
-            }
-            ligandId = newL.id as number;
-            ligandIdCache.set(compId, ligandId);
-            totalNewLigands++;
-          }
+        if (dryRun) {
+          console.log(`  [${pdbId}] ${compId}: ${chemInfo.name} | MW=${chemInfo.mw} | SMILES=${chemInfo.smiles?.substring(0, 50) ?? 'N/A'}`);
+          totalNewBindings++;
+          continue;
         }
 
-        // 3b) kbsi_construct_ligand: upsert
-        const { error: bErr } = await supabase
-          .from('kbsi_construct_ligand')
-          .upsert(
-            {
-              construct_id: structure.construct_id,
-              ligand_id: ligandId,
-              source_db: 'PDB',
-              source_id: pdbId,
-              notes: `Bound ligand ${compId} from PDB ${pdbId}`,
-            },
-            { onConflict: 'construct_id,ligand_id' }
+        try {
+          // 3a) kbsi_ligand: source_db='PDB', source_id=comp_id로 찾거나 삽입
+          let ligandId = ligandIdCache.get(compId);
+
+          if (!ligandId) {
+            const { rows: existingRows } = await client.query(
+              `SELECT id FROM kbsi_ligand WHERE source_db = $1 AND source_id = $2 LIMIT 1`,
+              ['PDB', compId]
+            );
+
+            if (existingRows.length > 0) {
+              ligandId = existingRows[0].id as number;
+              ligandIdCache.set(compId, ligandId);
+            } else {
+              const { rows: newRows } = await client.query(
+                `INSERT INTO kbsi_ligand (name, smiles, inchi, mw, source, source_db, source_id)
+                 VALUES ($1, $2, $3, $4, $5, $6, $7)
+                 RETURNING id`,
+                [chemInfo.name, chemInfo.smiles, chemInfo.inchi, chemInfo.mw, `PDB HET ${compId}`, 'PDB', compId]
+              );
+
+              if (newRows.length === 0) {
+                totalErrors++;
+                continue;
+              }
+              ligandId = newRows[0].id as number;
+              ligandIdCache.set(compId, ligandId);
+              totalNewLigands++;
+            }
+          }
+
+          // 3b) kbsi_construct_ligand: upsert
+          const { rowCount } = await client.query(
+            `INSERT INTO kbsi_construct_ligand (construct_id, ligand_id, source_db, source_id, notes)
+             VALUES ($1, $2, $3, $4, $5)
+             ON CONFLICT (construct_id, ligand_id) DO UPDATE SET
+               source_db = EXCLUDED.source_db,
+               source_id = EXCLUDED.source_id,
+               notes = EXCLUDED.notes`,
+            [structure.construct_id, ligandId, 'PDB', pdbId, `Bound ligand ${compId} from PDB ${pdbId}`]
           );
 
-        if (bErr) {
+          if (rowCount && rowCount > 0) {
+            totalNewBindings++;
+          } else {
+            totalErrors++;
+          }
+        } catch {
           totalErrors++;
-        } else {
-          totalNewBindings++;
         }
-      } catch {
-        totalErrors++;
+      }
+
+      if (processed % 100 === 0) {
+        printProgress(processed, structures.length, totalNewLigands, totalNewBindings);
       }
     }
 
-    if (processed % 100 === 0) {
-      printProgress(processed, structures.length, totalNewLigands, totalNewBindings);
-    }
+    // Summary
+    console.log(`\n${'═'.repeat(50)}`);
+    console.log(`완료 ${dryRun ? '(dry-run)' : ''}`);
+    console.log(`처리된 PDB 엔트리: ${processed}개`);
+    console.log(`리간드 없음 (건너뜀): ${totalSkipped}개`);
+    console.log(`신규 리간드: ${totalNewLigands}건`);
+    console.log(`바인딩 데이터: ${totalNewBindings}건`);
+    console.log(`chemcomp 캐시: ${chemCompCache.size}개`);
+    console.log(`에러: ${totalErrors}건`);
+    console.log('═'.repeat(50));
+  } finally {
+    await client.end();
   }
-
-  // Summary
-  console.log(`\n${'═'.repeat(50)}`);
-  console.log(`완료 ${dryRun ? '(dry-run)' : ''}`);
-  console.log(`처리된 PDB 엔트리: ${processed}개`);
-  console.log(`리간드 없음 (건너뜀): ${totalSkipped}개`);
-  console.log(`신규 리간드: ${totalNewLigands}건`);
-  console.log(`바인딩 데이터: ${totalNewBindings}건`);
-  console.log(`chemcomp 캐시: ${chemCompCache.size}개`);
-  console.log(`에러: ${totalErrors}건`);
-  console.log('═'.repeat(50));
 }
 
 function printProgress(

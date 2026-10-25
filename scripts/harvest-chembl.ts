@@ -8,15 +8,16 @@
  *   --dry-run         미리보기
  */
 
-import dotenv from 'dotenv';
-import { createClient } from '@supabase/supabase-js';
+import pg from 'pg';
 
-dotenv.config({ path: '.env.local' });
-
-const supabase = createClient(
-  process.env.NEXT_PUBLIC_SUPABASE_URL!,
-  process.env.SUPABASE_SERVICE_ROLE_KEY || process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!
-);
+const client = new pg.Client({
+  host: '203.255.78.89',
+  port: 15432,
+  database: 'kbsi_crystal_bank',
+  user: 'kbsi_app',
+  password: 'SMmQhkEIeXivl5P0yrHWW1JhpwCcmWQg',
+  ssl: { rejectUnauthorized: false },
+});
 
 const CHEMBL_API = 'https://www.ebi.ac.uk/chembl/api/data';
 
@@ -83,114 +84,132 @@ async function main() {
   const limitPerTarget = parseInt(args[args.indexOf('--limit') + 1] || '50');
   const dryRun = args.includes('--dry-run');
 
-  console.log(`ChEMBL 약물-타겟 바인딩 데이터 수집`);
-  console.log(`타겟: ${Object.keys(TARGET_MAP).length}개, 타겟당 최대: ${limitPerTarget}건\n`);
+  await client.connect();
+  try {
+    console.log(`ChEMBL 약물-타겟 바인딩 데이터 수집`);
+    console.log(`타겟: ${Object.keys(TARGET_MAP).length}개, 타겟당 최대: ${limitPerTarget}건\n`);
 
-  let totalLigands = 0;
-  let totalBindings = 0;
+    let totalLigands = 0;
+    let totalBindings = 0;
 
-  for (const [name, target] of Object.entries(TARGET_MAP)) {
-    console.log(`[${name}] ${target.chembl_id} (${target.gene})`);
+    for (const [name, target] of Object.entries(TARGET_MAP)) {
+      console.log(`[${name}] ${target.chembl_id} (${target.gene})`);
 
-    // DB에서 해당 단백질의 construct 찾기
-    const { data: proteins } = await supabase
-      .from('kbsi_protein')
-      .select('id')
-      .or(`gene_name.ilike.%${target.gene}%,abbreviation.ilike.%${name}%,full_name.ilike.%${name}%`)
-      .limit(1);
+      // DB에서 해당 단백질의 construct 찾기
+      const { rows: proteins } = await client.query(
+        `SELECT id FROM kbsi_protein
+         WHERE gene_name ILIKE $1 OR abbreviation ILIKE $2 OR full_name ILIKE $3
+         LIMIT 1`,
+        [`%${target.gene}%`, `%${name}%`, `%${name}%`]
+      );
 
-    let constructId: number | null = null;
-    if (proteins && proteins.length > 0) {
-      const { data: constructs } = await supabase
-        .from('kbsi_construct')
-        .select('id')
-        .eq('protein_id', proteins[0].id)
-        .limit(1);
-      constructId = constructs?.[0]?.id || null;
-    }
-
-    if (!constructId) {
-      console.log(`  → DB에 해당 단백질 없음, 건너뜀`);
-      continue;
-    }
-
-    // ChEMBL에서 활성 데이터 fetch
-    const activities = await fetchActivities(target.chembl_id, limitPerTarget);
-    console.log(`  → ${activities.length}건 활성 데이터`);
-
-    if (activities.length === 0) continue;
-
-    // 고유 분자만 (SMILES 기준 중복 제거)
-    const uniqueMolecules = new Map<string, ChEMBLActivity>();
-    for (const a of activities) {
-      if (a.canonical_smiles && !uniqueMolecules.has(a.canonical_smiles)) {
-        uniqueMolecules.set(a.canonical_smiles, a);
+      let constructId: number | null = null;
+      if (proteins.length > 0) {
+        const { rows: constructs } = await client.query(
+          `SELECT id FROM kbsi_construct WHERE protein_id = $1 LIMIT 1`,
+          [proteins[0].id]
+        );
+        constructId = constructs.length > 0 ? constructs[0].id : null;
       }
-    }
 
-    let imported = 0;
-    for (const [smiles, activity] of uniqueMolecules) {
-      const ligandName = activity.molecule_pref_name || activity.molecule_chembl_id;
-
-      if (dryRun) {
-        console.log(`    ${ligandName} | ${activity.standard_type}: ${activity.standard_value} ${activity.standard_units} | pChEMBL: ${activity.pchembl_value}`);
-        imported++;
+      if (!constructId) {
+        console.log(`  → DB에 해당 단백질 없음, 건너뜀`);
         continue;
       }
 
-      try {
-        // Ligand upsert
-        const { data: existingLigand } = await supabase
-          .from('kbsi_ligand')
-          .select('id')
-          .eq('smiles', smiles)
-          .maybeSingle();
+      // ChEMBL에서 활성 데이터 fetch
+      const activities = await fetchActivities(target.chembl_id, limitPerTarget);
+      console.log(`  → ${activities.length}건 활성 데이터`);
 
-        let ligandId: number;
-        if (existingLigand) {
-          ligandId = existingLigand.id;
-        } else {
-          const { data: newL, error } = await supabase
-            .from('kbsi_ligand')
-            .insert({ name: ligandName, smiles, source: `ChEMBL ${activity.molecule_chembl_id}`, source_db: 'ChEMBL', source_id: activity.molecule_chembl_id })
-            .select('id')
-            .single();
-          if (error) continue;
-          ligandId = newL.id;
-          totalLigands++;
+      if (activities.length === 0) continue;
+
+      // 고유 분자만 (SMILES 기준 중복 제거)
+      const uniqueMolecules = new Map<string, ChEMBLActivity>();
+      for (const a of activities) {
+        if (a.canonical_smiles && !uniqueMolecules.has(a.canonical_smiles)) {
+          uniqueMolecules.set(a.canonical_smiles, a);
         }
+      }
 
-        // Construct-Ligand 바인딩
-        const bindingData: any = {
-          construct_id: constructId,
-          ligand_id: ligandId,
-          source_db: 'ChEMBL',
-          source_id: String(activity.activity_id),
-          notes: `${activity.standard_type}: ${activity.standard_value} ${activity.standard_units || ''} (pChEMBL: ${activity.pchembl_value}) [${activity.molecule_chembl_id}]`,
-        };
-        if (activity.standard_type === 'Kd') bindingData.binding_kd = activity.standard_value;
-        if (activity.standard_type === 'IC50') bindingData.binding_ic50 = activity.standard_value;
+      let imported = 0;
+      for (const [smiles, activity] of uniqueMolecules) {
+        const ligandName = activity.molecule_pref_name || activity.molecule_chembl_id;
 
-        const { error: bErr } = await supabase
-          .from('kbsi_construct_ligand')
-          .upsert(bindingData, { onConflict: 'construct_id,ligand_id' });
-
-        if (!bErr) {
+        if (dryRun) {
+          console.log(`    ${ligandName} | ${activity.standard_type}: ${activity.standard_value} ${activity.standard_units} | pChEMBL: ${activity.pchembl_value}`);
           imported++;
-          totalBindings++;
+          continue;
         }
-      } catch {}
+
+        try {
+          // Ligand upsert
+          const { rows: existingRows } = await client.query(
+            `SELECT id FROM kbsi_ligand WHERE smiles = $1 LIMIT 1`,
+            [smiles]
+          );
+
+          let ligandId: number;
+          if (existingRows.length > 0) {
+            ligandId = existingRows[0].id;
+          } else {
+            const { rows: newRows } = await client.query(
+              `INSERT INTO kbsi_ligand (name, smiles, source, source_db, source_id)
+               VALUES ($1, $2, $3, $4, $5) RETURNING id`,
+              [ligandName, smiles, `ChEMBL ${activity.molecule_chembl_id}`, 'ChEMBL', activity.molecule_chembl_id]
+            );
+            if (newRows.length === 0) continue;
+            ligandId = newRows[0].id;
+            totalLigands++;
+          }
+
+          // Construct-Ligand 바인딩
+          const notes = `${activity.standard_type}: ${activity.standard_value} ${activity.standard_units || ''} (pChEMBL: ${activity.pchembl_value}) [${activity.molecule_chembl_id}]`;
+          const bindingKd = activity.standard_type === 'Kd' ? activity.standard_value : null;
+          const bindingIc50 = activity.standard_type === 'IC50' ? activity.standard_value : null;
+
+          const upsertQuery = bindingKd != null
+            ? `INSERT INTO kbsi_construct_ligand (construct_id, ligand_id, source_db, source_id, notes, binding_kd)
+               VALUES ($1, $2, $3, $4, $5, $6)
+               ON CONFLICT (construct_id, ligand_id) DO UPDATE SET
+                 source_db = EXCLUDED.source_db, source_id = EXCLUDED.source_id,
+                 notes = EXCLUDED.notes, binding_kd = EXCLUDED.binding_kd`
+            : bindingIc50 != null
+            ? `INSERT INTO kbsi_construct_ligand (construct_id, ligand_id, source_db, source_id, notes, binding_ic50)
+               VALUES ($1, $2, $3, $4, $5, $6)
+               ON CONFLICT (construct_id, ligand_id) DO UPDATE SET
+                 source_db = EXCLUDED.source_db, source_id = EXCLUDED.source_id,
+                 notes = EXCLUDED.notes, binding_ic50 = EXCLUDED.binding_ic50`
+            : `INSERT INTO kbsi_construct_ligand (construct_id, ligand_id, source_db, source_id, notes)
+               VALUES ($1, $2, $3, $4, $5)
+               ON CONFLICT (construct_id, ligand_id) DO UPDATE SET
+                 source_db = EXCLUDED.source_db, source_id = EXCLUDED.source_id,
+                 notes = EXCLUDED.notes`;
+
+          const bindingVal = bindingKd ?? bindingIc50;
+          const params = bindingVal != null
+            ? [constructId, ligandId, 'ChEMBL', String(activity.activity_id), notes, bindingVal]
+            : [constructId, ligandId, 'ChEMBL', String(activity.activity_id), notes];
+
+          const { rowCount } = await client.query(upsertQuery, params);
+          if (rowCount && rowCount > 0) {
+            imported++;
+            totalBindings++;
+          }
+        } catch {}
+      }
+
+      console.log(`  → ${imported}건 import ${dryRun ? '(dry-run)' : ''}`);
+      await sleep(300);
     }
 
-    console.log(`  → ${imported}건 import ${dryRun ? '(dry-run)' : ''}`);
-    await sleep(300);
+    console.log(`\n${'═'.repeat(50)}`);
+    console.log(`완료 ${dryRun ? '(dry-run)' : ''}`);
+    console.log(`신규 리간드: ${totalLigands}건`);
+    console.log(`바인딩 데이터: ${totalBindings}건`);
+    console.log('═'.repeat(50));
+  } finally {
+    await client.end();
   }
-
-  console.log(`\n${'═'.repeat(50)}`);
-  console.log(`완료 ${dryRun ? '(dry-run)' : ''}`);
-  console.log(`신규 리간드: ${totalLigands}건`);
-  console.log(`바인딩 데이터: ${totalBindings}건`);
-  console.log('═'.repeat(50));
 }
 
 function sleep(ms: number) { return new Promise(r => setTimeout(r, ms)); }
