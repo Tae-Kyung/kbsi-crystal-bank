@@ -32,7 +32,7 @@
 \setlist{nosep, leftmargin=1.5em}
 
 % ─── Title ───
-\title{\textbf{KBSI-CrystalBank: A Comprehensive AI-Ready Database of 1.16~Million Protein Crystallization Conditions Including Failure Data}}
+\title{\textbf{KBSI-CrystalBank: A Comprehensive AI-Ready Database of 1.66~Million Protein Crystallization Conditions Including Failure Data}}
 
 \author{
   Author~1\textsuperscript{1,*},
@@ -52,7 +52,7 @@
 % ABSTRACT
 % ═══════════════════════════════════════════════════════
 \begin{abstract}
-Protein crystallization remains the primary bottleneck in macromolecular X-ray crystallography, yet existing databases record only successful conditions, discarding the vast majority of experimental outcomes. Here we present KBSI-CrystalBank, a comprehensive database containing 1,161,043 crystallization conditions for 59,349 proteins, uniquely combining 233,655 experimentally derived conditions with 927,388 systematically generated negative controls. The database integrates the complete protein production pipeline---expression (29,153 records), purification (13,356), characterization (7,195), crystallization, diffraction (478,202), and structure determination (286,454)---extracted from public repositories and scientific literature using a validated LLM pipeline (81.4\% accuracy). Each protein is annotated with ESM-2 sequence embeddings (284,184 proteins, 1,280 dimensions), enabling similarity-based condition transfer. We demonstrate the utility of this resource through a crystallization success prediction benchmark achieving 91.9\% accuracy using XGBoost with ESM-2 features, where pH and temperature emerge as dominant predictors. Data quality is ensured by a 10-dimensional validation framework (67 automated checks across accuracy, consistency, integrity, deduplication, extensibility, completeness, distribution, provenance, timeliness, and conformity), achieving an overall grade of B (78\% pass rate). KBSI-CrystalBank is freely accessible via a web platform, REST API, and an AI-agent-compatible MCP server with 18 programmatic tools, establishing a foundation for AI-driven crystallization optimization.
+Protein crystallization remains the primary bottleneck in macromolecular X-ray crystallography, yet existing databases record only successful conditions, discarding the vast majority of experimental outcomes. Here we present KBSI-CrystalBank, a comprehensive database containing 1,659,500 crystallization conditions for 59,349 proteins, uniquely combining 489,827 experimentally derived conditions with 1,169,673 systematically generated negative controls. The database integrates the complete protein production pipeline---expression (210,723 records), purification (11,359), characterization (5,833), crystallization, diffraction (337,591), and structure determination (216,786)---extracted from public repositories and scientific literature using a validated LLM pipeline (81.4\% accuracy). Each protein is annotated with ESM-2 sequence embeddings (214,918 constructs, 1,280 dimensions), enabling similarity-based condition transfer. We demonstrate the utility of this resource through a crystallization success prediction benchmark achieving 88.4\% accuracy using XGBoost with ESM-2 features and Optuna hyperparameter tuning on a balanced dataset of 50,000 samples, where pH and temperature emerge as dominant predictors. Data quality is ensured by a 10-dimensional validation framework (67 automated checks across accuracy, consistency, integrity, deduplication, extensibility, completeness, distribution, provenance, timeliness, and conformity), achieving an overall grade of B (78\% pass rate). KBSI-CrystalBank is freely accessible via a web platform, REST API, and an AI-agent-compatible MCP server with 18 programmatic tools, establishing a foundation for AI-driven crystallization optimization.
 \end{abstract}
 
 \noindent\textbf{Keywords:} protein crystallization, structural biology, machine learning, database, failure data, negative controls, ESM-2, MCP
@@ -71,14 +71,14 @@ Several databases address portions of this problem. The PDB records crystallizat
 KBSI-CrystalBank addresses these gaps through five key contributions:
 
 \begin{enumerate}
-  \item \textbf{Scale and completeness}: 1,161,043 crystallization conditions linked to 59,349 proteins through 286,581 constructs, with structured fields for pH (99.5\% coverage), temperature (94.2\%), precipitant type (56.6\%), and concentration.
-  \item \textbf{Failure data inclusion}: 927,388 systematically generated negative controls using 14 biophysically motivated strategies, providing balanced training data for ML models. Each synthetic record is transparently tagged with its generation strategy and provenance.
-  \item \textbf{Full pipeline integration}: Expression (29,153), purification (13,356), and characterization (7,195) records extracted from literature using a validated LLM pipeline, linked to downstream crystallization outcomes through a construct-centric data model.
-  \item \textbf{Sequence-level representations}: ESM-2 protein language model embeddings (1,280 dimensions) computed for 284,184 proteins (99.2\% coverage), enabling similarity-based condition transfer and feature-rich ML training.
+  \item \textbf{Scale and completeness}: 1,659,500 crystallization conditions linked to 59,349 proteins through 216,900 constructs, with structured fields for pH (99.4\% coverage), temperature (92.6\%), precipitant type (96.0\%), and concentration.
+  \item \textbf{Failure data inclusion}: 1,169,673 systematically generated negative controls using 14 biophysically motivated strategies, providing balanced training data for ML models. Each synthetic record is transparently tagged with its generation strategy and provenance.
+  \item \textbf{Full pipeline integration}: Expression (210,723), purification (11,359), and characterization (5,833) records extracted from literature using a validated LLM pipeline, linked to downstream crystallization outcomes through a construct-centric data model.
+  \item \textbf{Sequence-level representations}: ESM-2 protein language model embeddings (1,280 dimensions) computed for 214,918 constructs (99.1\% coverage), enabling similarity-based condition transfer and feature-rich ML training.
   \item \textbf{AI accessibility}: A Model Context Protocol (MCP) server exposing 18 programmatic tools, enabling AI agents to search, analyze, and reason over the database without manual intervention.
 \end{enumerate}
 
-We validate the resource through a 10-dimensional data quality framework comprising 67 automated checks (overall grade~B, 78\% pass rate), cross-reference verification against source databases (98.5--100\% concordance), a crystallization success prediction benchmark (94.2\% accuracy, F1 92.4\% with LightGBM + ESM-2), and systematic characterization of data distributions to guide appropriate use.
+We validate the resource through a 10-dimensional data quality framework comprising 67 automated checks (overall grade~B, 78\% pass rate), cross-reference verification against source databases (98.5--100\% concordance), a crystallization success prediction benchmark (88.4\% accuracy, F1 88.8\% with XGBoost + ESM-2 + Optuna on 50,000 balanced samples), and systematic characterization of data distributions to guide appropriate use.
 
 % ═══════════════════════════════════════════════════════
 % METHODS
@@ -128,7 +128,7 @@ Validation against 500 manually curated records yielded 81.4\% overall accuracy,
 
 \subsection*{Negative control synthesis}
 
-To address the absence of failure data, we generated 927,388 synthetic negative controls using 14 biophysically motivated strategies (Table~\ref{tab:negatives}):
+To address the absence of failure data, we generated 1,169,673 synthetic negative controls using 14 biophysically motivated strategies (Table~\ref{tab:negatives}):
 
 \textbf{Extreme condition perturbation} (4 strategies): extreme pH ($<2.0$ or $>12.0$), extreme temperature ($<-10$\textdegree C or $>55$\textdegree C), extreme precipitant concentration ($3\times$ maximum), and zero precipitant (buffer-only).
 
@@ -140,7 +140,7 @@ Each synthetic record is tagged with \texttt{source\_type = `synthetic'} and a \
 
 \subsection*{ESM-2 protein embeddings}
 
-Per-protein sequence embeddings were computed using the ESM-2 model (esm2\_t33\_650M\_UR50D, 1,280 dimensions)~\cite{lin2023} deployed on an NVIDIA RTX~A6000 GPU server. For each protein sequence, we extracted the mean-pooled representation from the final transformer layer. Embeddings are stored in a PostgreSQL database with pgvector indexing (IVFFlat, 100 lists) for efficient cosine similarity search, enabling sub-second nearest-neighbor queries across 284,184 proteins.
+Per-protein sequence embeddings were computed using the ESM-2 model (esm2\_t33\_650M\_UR50D, 1,280 dimensions)~\cite{lin2023} deployed on an NVIDIA RTX~A6000 GPU server. For each protein sequence, we extracted the mean-pooled representation from the final transformer layer. Embeddings are stored in a PostgreSQL database with pgvector indexing (IVFFlat, 100 lists) for efficient cosine similarity search, enabling sub-second nearest-neighbor queries across 214,918 constructs.
 
 \subsection*{Database schema and design}
 
@@ -164,7 +164,7 @@ To demonstrate the utility of KBSI-CrystalBank, we established a crystallization
 
 \textbf{Models}: $k$-Nearest Neighbors ($k = 1, 3, 5, 7$), Random Forest, XGBoost, and Logistic Regression, with 5-fold stratified cross-validation.
 
-\textbf{Best result}: LightGBM with ESM-2 features achieved 94.2\% accuracy, 90.9\% precision, 92.4\% F1 score, AUC-ROC 98.4\%. Feature importance analysis identified precipitant category (25.8\%) and pH (25.0\%) as dominant predictors (Fig.~\ref{fig:benchmark}).
+\textbf{Best result}: XGBoost with ESM-2 features and Optuna hyperparameter tuning achieved 88.4\% accuracy, 85.9\% precision, 88.8\% F1 score, AUC-ROC 94.9\% on 50,000 balanced samples (25,000 success + 25,000 failure). 5-fold cross-validation yielded F1 89.0 $\pm$ 0.2\%, AUC 95.2 $\pm$ 0.2\%. Feature importance analysis identified pH (6.2\%), precipitant concentration (5.3\%), and temperature (4.7\%) as top predictors (Fig.~\ref{fig:benchmark}).
 
 % ═══════════════════════════════════════════════════════
 % DATA RECORDS
@@ -173,11 +173,11 @@ To demonstrate the utility of KBSI-CrystalBank, we established a crystallization
 
 \subsection*{Database statistics}
 
-Table~\ref{tab:statistics} summarizes the database contents (snapshot date: 2026-10-21).
+Table~\ref{tab:statistics} summarizes the database contents (snapshot date: 2026-10-24).
 
 \begin{table}[H]
 \centering
-\caption{Database statistics summary (snapshot 2026-10-21).}
+\caption{Database statistics summary (snapshot 2026-10-24).}
 \label{tab:statistics}
 \small
 \begin{tabular}{lrl}
@@ -185,18 +185,18 @@ Table~\ref{tab:statistics} summarizes the database contents (snapshot date: 2026
 \textbf{Entity} & \textbf{Records} & \textbf{Coverage notes} \\
 \midrule
 Proteins & 59,349 & Deduplicated by sequence hash \\
-Constructs & 286,581 & Including truncations, tags, mutations \\
-Crystallization conditions & 1,161,043 & 233,655 experimental + 927,388 synthetic \\
-Structures & 286,454 & X-ray, NMR, Cryo-EM \\
-Expression records & 29,153 & LLM-extracted from literature \\
-Purification records & 13,356 & LLM-extracted from literature \\
-Characterization records & 7,195 & DLS, SEC-MALS, thermal shift, SDS-PAGE \\
-Diffraction records & 478,202 & Resolution, space group, cell parameters \\
+Constructs & 216,900 & Deduplicated (incl.\ truncations, tags, mutations) \\
+Crystallization conditions & 1,659,500 & 489,827 experimental + 1,169,673 synthetic \\
+Structures & 216,786 & X-ray, NMR, Cryo-EM \\
+Expression records & 210,723 & PDB entity harvest + LLM extraction \\
+Purification records & 11,359 & LLM-extracted from literature \\
+Characterization records & 5,833 & DLS, SEC-MALS, thermal shift, SDS-PAGE \\
+Diffraction records & 337,591 & Resolution, space group, cell parameters \\
 NMR experiments & 14,552 & Spectrometer, field strength, labeling \\
 Ligands & 182,285 & PDB, ChEMBL, BindingDB \\
 Binding measurements & 519,480 & IC\textsubscript{50}, $K_d$, $K_i$ values \\
-Mutations & 10,922 & Site-directed and natural variants \\
-ESM-2 embeddings & 284,184 & 99.2\% coverage, 1,280 dimensions \\
+Mutations & 8,184 & Site-directed and natural variants \\
+ESM-2 embeddings & 214,918 & 99.1\% coverage, 1,280 dimensions \\
 References & 126,331 & 98.7\% structure-to-publication linkage \\
 Gene name annotations & 37,151 & 62.6\% of proteins \\
 \bottomrule
@@ -214,13 +214,13 @@ Gene name annotations & 37,151 & 62.6\% of proteins \\
 \toprule
 \textbf{Field} & \textbf{Non-null records} & \textbf{Coverage} \\
 \midrule
-pH & 1,155,478 & 99.5\% \\
-Temperature & 1,094,127 & 94.2\% \\
-Precipitant type & 657,254 & 56.6\% \\
-Precipitant concentration & $\sim$657,000 & $\sim$56.6\% \\
-Method & $\sim$200,000 & $\sim$17.2\% \\
-Buffer & $\sim$180,000 & $\sim$15.5\% \\
-Outcome & 1,145,719 & 98.7\% \\
+pH & 1,649,604 & 99.4\% \\
+Temperature & 1,536,717 & 92.6\% \\
+Precipitant type & 1,593,120 & 96.0\% \\
+Precipitant concentration & $\sim$1,593,000 & $\sim$96.0\% \\
+Method & $\sim$200,000 & $\sim$12.1\% \\
+Buffer & $\sim$180,000 & $\sim$10.8\% \\
+Outcome & 1,638,131 & 98.7\% \\
 \bottomrule
 \end{tabular}
 \end{table}
@@ -245,7 +245,7 @@ We developed a 10-dimensional data quality framework to systematically assess KB
 
 \begin{table}[H]
 \centering
-\caption{10-Dimension Data Quality Assessment (snapshot 2026-10-21, 67 checks).}
+\caption{10-Dimension Data Quality Assessment (snapshot 2026-10-24, 67 checks).}
 \label{tab:quality}
 \small
 \begin{tabular}{clcccp{5.5cm}}
@@ -254,10 +254,10 @@ We developed a 10-dimensional data quality framework to systematically assess KB
 \midrule
 1 & Accuracy & 8 & 6 & B & pH/temp outliers minimal; 24 resolution outliers \\
 2 & Consistency & 6 & 6 & A & Zero orphan records; zero contradictions \\
-3 & Integrity & 5 & 5 & A & ESM-2 99.2\%; references 98.7\%; BMRB 66.0\% \\
+3 & Integrity & 5 & 5 & A & ESM-2 99.1\%; references 98.7\%; BMRB 66.0\% \\
 4 & Deduplication & 4 & 4 & A & Sequence hash 99.2\%; unique constraints enforced \\
 5 & Extensibility & 5 & 4 & B & Gene name 62.6\%; UniProt 68.8\%; organism 93.7\% \\
-6 & Completeness & 16 & 12 & B & pH 99.5\%; temperature 94.2\%; outcome 98.7\% \\
+6 & Completeness & 16 & 12 & B & pH 99.4\%; temperature 92.6\%; precipitant 96.0\%; outcome 98.7\% \\
 7 & Distribution & 6 & 6 & A & Balanced classes; 416 organisms; no excessive bias \\
 8 & Provenance & 6 & 4 & B & source\_type 100\%; PDB ID 100\%; DOI 61.6\% \\
 9 & Timeliness & 5 & 4 & B & Active updates; weekly snapshots \\
@@ -272,13 +272,13 @@ We developed a 10-dimensional data quality framework to systematically assess KB
 
 \textbf{Consistency} verifies cross-field logical coherence: zero orphan constructs, zero orphan structures, zero logical contradictions, and all pI values within [0, 14].
 
-\textbf{Integrity} assesses referential completeness: 98.7\% structure--reference linkage, 99.2\% ESM-2 embedding coverage, 66.0\% NMR--BMRB linkage, and zero staging backlog.
+\textbf{Integrity} assesses referential completeness: 98.7\% structure--reference linkage, 99.1\% ESM-2 embedding coverage, 66.0\% NMR--BMRB linkage, and zero staging backlog.
 
-\textbf{Deduplication} ensures unique entity representation: SHA-256 sequence hashes for 99.2\% of proteins, database-level unique constraints, and 182,285 deduplicated ligands.
+\textbf{Deduplication} ensures unique entity representation: SHA-256 sequence hashes for 99.1\% of proteins, database-level unique constraints, and 182,285 deduplicated ligands.
 
-\textbf{Extensibility} measures annotation richness: gene names (62.6\%), UniProt mappings (68.8\%), organism annotation (93.7\%), 10,922 mutations, and 7,195 characterization records.
+\textbf{Extensibility} measures annotation richness: gene names (62.6\%), UniProt mappings (68.8\%), organism annotation (93.7\%), 8,184 mutations, and 5,833 characterization records.
 
-\textbf{Completeness} quantifies non-null field coverage at three levels: crystallization fields (pH 99.5\%, temperature 94.2\%, outcome 98.7\%), protein annotations (organism 93.7\%, abbreviation 92.4\%), and pipeline stages (expression 10.2\%, purification 4.7\% of constructs).
+\textbf{Completeness} quantifies non-null field coverage at three levels: crystallization fields (pH 99.4\%, temperature 92.6\%, precipitant 96.0\%, outcome 98.7\%), protein annotations (organism 93.7\%, abbreviation 92.4\%), and pipeline stages (expression 10.2\%, purification 4.7\% of constructs).
 
 \textbf{Distribution} assesses class balance: 218,329 successes (18.8\%) vs.\ 942,714 failures, 416 unique organisms with \textit{Homo sapiens} at 27.6\%, pH mean 6.79 (std 1.24), temperature mean 17.8\textdegree C (std 7.0\textdegree C).
 
@@ -311,7 +311,7 @@ Gene names & NCBI Gene cross-check ($n = 37{,}151$) & 99.8\% \\
 
 \subsection*{Prediction benchmark validation}
 
-The benchmark was validated through: (1)~stratified 5-fold cross-validation ensuring proteins in the test fold do not appear in the training fold; (2)~ablation studies showing ESM-2 removal reduced accuracy from 94.2\% to 93.3\% ($\Delta = -0.9\%$); and (3)~feature importance stability with pH and temperature consistently ranking as top-2 predictors (CV~$<$~8\%).
+The benchmark was validated through: (1)~stratified 5-fold cross-validation ensuring proteins in the test fold do not appear in the training fold; (2)~ablation studies showing ESM-2 removal reduced accuracy from 88.4\% to 87.5\% ($\Delta = -0.9\%$); and (3)~feature importance stability with pH, precipitant concentration, and temperature consistently ranking as top-3 predictors (CV~$<$~8\%).
 
 \subsection*{Negative control quality assessment}
 
@@ -336,7 +336,7 @@ Synthetic negatives were evaluated for biological plausibility: 100\% of extreme
 \begin{enumerate}
   \item Synthetic negatives are computationally generated, not experimentally observed. Users should filter on \texttt{source\_type} and perform sensitivity analyses with and without synthetic data.
   \item LLM extraction accuracy (81.4\%) means $\sim$1 in 5 expression/purification records may contain errors.
-  \item Precipitant type coverage (56.6\%) is moderate compared to pH and temperature, reflecting the diversity of free-text naming conventions.
+  \item Precipitant type coverage (96.0\%) is now near-complete following systematic enrichment from PDB re-fetch and normalization, though free-text naming diversity required extensive mapping rules.
   \item The database inherits the PDB's bias toward well-studied organisms and druggable protein families.
   \item Crystallization is stochastic; the database captures reported conditions, not full experimental variability.
 \end{enumerate}
@@ -367,7 +367,7 @@ Analytics (3) & \texttt{get\_statistics}, \texttt{get\_data\_quality}, \texttt{g
 % ═══════════════════════════════════════════════════════
 \section*{Code Availability}
 
-The KBSI-CrystalBank platform source code, including all data collection scripts, the web application, and the MCP server, is available at \url{https://github.com/Tae-Kyung/kbsi-crystal-bank} under the MIT license. The data collection pipeline is implemented in TypeScript (Node.js) with 41 automated scripts orchestrated by a DAG-based pipeline runner. The web platform is built with Next.js~15, React~19, and Supabase (PostgreSQL). ESM-2 inference runs on a dedicated GPU server (NVIDIA RTX~A6000) via a FastAPI endpoint.
+The KBSI-CrystalBank platform source code, including all data collection scripts, the web application, and the MCP server, is available at \url{https://github.com/Tae-Kyung/kbsi-crystal-bank} under the MIT license. The data collection pipeline is implemented in TypeScript (Node.js) with 41 automated scripts orchestrated by a DAG-based pipeline runner. The web platform is built with Next.js~15, React~19, with Lab PostgreSQL~16.9 as the primary data store and Supabase for authentication. ESM-2 inference runs on a dedicated GPU server (NVIDIA RTX~A6000) via a FastAPI endpoint.
 
 % ═══════════════════════════════════════════════════════
 % ACKNOWLEDGEMENTS
@@ -399,7 +399,7 @@ The authors declare no competing interests.
 \begin{figure}[H]
 \centering
 \includegraphics[width=\textwidth]{figures/fig1_overview.png}
-\caption{\textbf{KBSI-CrystalBank overview.} (a)~Data sources and integration pipeline showing five primary data sources converging into the unified database schema. (b)~DAG-based collection pipeline with five processing layers from primary harvest through validation (41 scripts total). (c)~Database scale: 1.16M crystallization conditions across 59,349 proteins.}
+\caption{\textbf{KBSI-CrystalBank overview.} (a)~Data sources and integration pipeline showing five primary data sources converging into the unified database schema. (b)~DAG-based collection pipeline with five processing layers from primary harvest through validation (41 scripts total). (c)~Database scale: 1.66M crystallization conditions across 59,349 proteins.}
 \label{fig:overview}
 \end{figure}
 
@@ -427,7 +427,7 @@ The authors declare no competing interests.
 \begin{figure}[H]
 \centering
 \includegraphics[width=\textwidth]{figures/fig5_benchmark.png}
-\caption{\textbf{Crystallization success prediction benchmark.} (a)~Model comparison ($k$-NN, Random Forest, XGBoost, Logistic Regression). (b)~Feature importance from XGBoost showing pH (25.0\%) and temperature (16.5\%) as dominant predictors. (c)~ROC curves. (d)~Ablation: with vs.\ without ESM-2 embeddings ($\Delta = +4.6\%$).}
+\caption{\textbf{Crystallization success prediction benchmark.} (a)~Model comparison ($k$-NN, Random Forest, XGBoost, Logistic Regression). (b)~Feature importance from XGBoost-Optuna showing pH (6.2\%), precipitant concentration (5.3\%), and temperature (4.7\%) as top predictors. (c)~ROC curves (AUC-ROC 94.9\%). (d)~Ablation: with vs.\ without ESM-2 embeddings ($\Delta = +0.9\%$).}
 \label{fig:benchmark}
 \end{figure}
 
