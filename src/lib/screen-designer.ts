@@ -99,6 +99,12 @@ function round(v: number, decimals = 1): number {
  * Get top precipitant stats for proteins of a given organism.
  */
 async function getTopPrecipitants(organism: string): Promise<PrecipitantStats[]> {
+  const isAll = organism === '*';
+  const whereClause = isAll
+    ? 'WHERE cr.precipitant_type IS NOT NULL AND cr.outcome IS NOT NULL'
+    : 'WHERE p.organism = $1 AND cr.precipitant_type IS NOT NULL AND cr.outcome IS NOT NULL';
+  const params = isAll ? [] : [organism];
+
   const rows = await query<{
     precipitant_type: string;
     success: string;
@@ -119,9 +125,7 @@ async function getTopPrecipitants(organism: string): Promise<PrecipitantStats[]>
        FROM kbsi_crystallization cr
        JOIN kbsi_construct c ON c.id = cr.construct_id
        JOIN kbsi_protein p ON p.id = c.protein_id
-       WHERE (p.organism = $1 OR $1 = '%')
-         AND cr.precipitant_type IS NOT NULL
-         AND cr.outcome IS NOT NULL
+       ${whereClause}
      ),
      stats AS (
        SELECT precipitant_type,
@@ -135,7 +139,7 @@ async function getTopPrecipitants(organism: string): Promise<PrecipitantStats[]>
          ROUND(MIN(precipitant_conc)::numeric, 1) as min_conc,
          ROUND(MAX(precipitant_conc)::numeric, 1) as max_conc,
          MODE() WITHIN GROUP (ORDER BY COALESCE(precipitant_unit, '%w/v')) as common_unit,
-         MODE() WITHIN GROUP (ORDER BY COALESCE(buffer, 'Tris-HCl')) as common_buffer
+         MODE() WITHIN GROUP (ORDER BY COALESCE(buffer_type, 'Tris-HCl')) as common_buffer
        FROM base
        GROUP BY precipitant_type
        HAVING COUNT(*) >= 10
@@ -144,7 +148,7 @@ async function getTopPrecipitants(organism: string): Promise<PrecipitantStats[]>
      FROM stats
      ORDER BY success::float / total DESC
      LIMIT 5`,
-    [organism]
+    params
   );
 
   return rows.map((r) => ({
@@ -168,6 +172,10 @@ async function getTopPrecipitants(organism: string): Promise<PrecipitantStats[]>
  * Get wildcard conditions: unusual but successful conditions.
  */
 async function getWildcardConditions(organism: string): Promise<WildCardCondition[]> {
+  const isAll = organism === '*';
+  const whereOrganism = isAll ? '' : 'AND p.organism = $1';
+  const params = isAll ? [] : [organism];
+
   const rows = await query<WildCardCondition>(
     `SELECT cr.precipitant_type, cr.precipitant_conc, cr.precipitant_unit,
             cr.ph, cr.temperature, cr.additive, cr.buffer_type,
@@ -178,16 +186,16 @@ async function getWildcardConditions(organism: string): Promise<WildCardConditio
      FROM kbsi_crystallization cr
      JOIN kbsi_construct c ON c.id = cr.construct_id
      JOIN kbsi_protein p ON p.id = c.protein_id
-     WHERE (p.organism = $1 OR $1 = '%')
-       AND cr.outcome IN ('single_crystal','diffraction_quality')
+     WHERE cr.outcome IN ('single_crystal','diffraction_quality')
        AND cr.additive IS NOT NULL
        AND cr.precipitant_type IS NOT NULL
+       ${whereOrganism}
      GROUP BY cr.precipitant_type, cr.precipitant_conc, cr.precipitant_unit,
               cr.ph, cr.temperature, cr.additive, cr.buffer_type
      HAVING COUNT(*) >= 3
      ORDER BY RANDOM()
      LIMIT 5`,
-    [organism]
+    params
   );
   return rows;
 }
@@ -196,18 +204,22 @@ async function getWildcardConditions(organism: string): Promise<WildCardConditio
  * Get failure patterns to avoid.
  */
 async function getFailurePatterns(organism: string): Promise<Set<string>> {
+  const isAll = organism === '*';
+  const whereOrganism = isAll ? '' : 'AND p.organism = $1';
+  const params = isAll ? [] : [organism];
+
   const rows = await query<{ key: string }>(
     `SELECT DISTINCT precipitant_type || '|' || ROUND(ph::numeric, 0)::text || '|' || ROUND(temperature::numeric, 0)::text as key
      FROM kbsi_crystallization cr
      JOIN kbsi_construct c ON c.id = cr.construct_id
      JOIN kbsi_protein p ON p.id = c.protein_id
-     WHERE (p.organism = $1 OR $1 = '%')
-       AND cr.outcome IN ('no_crystal','precipitate','clear_drop','phase_separation')
+     WHERE cr.outcome IN ('precipitate','clear','phase_separation')
        AND cr.precipitant_type IS NOT NULL
+       ${whereOrganism}
      GROUP BY precipitant_type, ROUND(ph::numeric, 0), ROUND(temperature::numeric, 0)
      HAVING COUNT(*) >= 20
        AND COUNT(*) FILTER (WHERE cr.outcome IN ('single_crystal','diffraction_quality')) = 0`,
-    [organism]
+    params
   );
   return new Set(rows.map((r) => r.key));
 }
@@ -248,9 +260,9 @@ export async function designScreen(proteinId: number): Promise<ScreenDesign> {
 
   if (precipStats.length === 0) {
     // Fallback: use all organisms
-    precipStats = await getTopPrecipitants('%');
-    wildcards = await getWildcardConditions('%');
-    failurePatterns = await getFailurePatterns('%');
+    precipStats = await getTopPrecipitants('*');
+    wildcards = await getWildcardConditions('*');
+    failurePatterns = await getFailurePatterns('*');
     dataSource = 'All organisms (fallback)';
   }
 
@@ -260,13 +272,12 @@ export async function designScreen(proteinId: number): Promise<ScreenDesign> {
 
   // 3. Compute meta-stats
   const totalTrials = precipStats.reduce((s, p) => s + p.total, 0);
+  const isAllData = dataSource !== organism;
   const proteinCount = await queryOne<{ cnt: string }>(
-    `SELECT COUNT(DISTINCT p.id) as cnt
-     FROM kbsi_protein p
-     JOIN kbsi_construct c ON c.protein_id = p.id
-     JOIN kbsi_crystallization cr ON cr.construct_id = c.id
-     WHERE (p.organism = $1 OR $1 = '%') AND cr.outcome IS NOT NULL`,
-    [organism]
+    isAllData
+      ? `SELECT COUNT(DISTINCT p.id) as cnt FROM kbsi_protein p JOIN kbsi_construct c ON c.protein_id = p.id JOIN kbsi_crystallization cr ON cr.construct_id = c.id WHERE cr.outcome IS NOT NULL`
+      : `SELECT COUNT(DISTINCT p.id) as cnt FROM kbsi_protein p JOIN kbsi_construct c ON c.protein_id = p.id JOIN kbsi_crystallization cr ON cr.construct_id = c.id WHERE p.organism = $1 AND cr.outcome IS NOT NULL`,
+    isAllData ? [] : [organism]
   );
 
   const top1 = precipStats[0];
