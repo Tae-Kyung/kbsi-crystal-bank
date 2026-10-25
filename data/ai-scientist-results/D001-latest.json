@@ -1,0 +1,37 @@
+{
+  "id": "D001",
+  "name": "Organism comparison: Scheffersomyces stipitis CBS 6054 vs Solanum habrochaites",
+  "h0": "Scheffersomyces stipitis CBS 6054 and Solanum habrochaites have equal crystallization success rates",
+  "h1": "Scheffersomyces stipitis CBS 6054 has significantly higher success than Solanum habrochaites",
+  "status": "confirmed",
+  "p_value": 0.0000653595736243571,
+  "statistic": 15.940657365103352,
+  "effect_size": 0.24388535174372766,
+  "ci_lower": null,
+  "ci_upper": null,
+  "sample_size": 268,
+  "test_type": "chi2_contingency",
+  "summary": "CONFIRMED — H0 rejected, significant effect found. p=6.54e-5, effect_size=0.2439, n=268",
+  "data": {
+    "query_rows": 2,
+    "raw_sample": [
+      {
+        "organism": "Scheffersomyces stipitis CBS 6054",
+        "total": "154",
+        "success": "35"
+      },
+      {
+        "organism": "Solanum habrochaites",
+        "total": "114",
+        "success": "5"
+      }
+    ],
+    "stats": {
+      "p_value": 0.0000653595736243571,
+      "statistic": 15.940657365103352,
+      "effect_size": 0.24388535174372766
+    }
+  },
+  "timestamp": "2026-10-25T09:17:42.214Z",
+  "source": "discovered"
+}

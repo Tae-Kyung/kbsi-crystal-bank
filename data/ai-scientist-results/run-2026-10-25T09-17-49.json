@@ -1,0 +1,179 @@
+[
+  {
+    "id": "D001",
+    "name": "Organism comparison: Scheffersomyces stipitis CBS 6054 vs Solanum habrochaites",
+    "h0": "Scheffersomyces stipitis CBS 6054 and Solanum habrochaites have equal crystallization success rates",
+    "h1": "Scheffersomyces stipitis CBS 6054 has significantly higher success than Solanum habrochaites",
+    "status": "confirmed",
+    "p_value": 0.0000653595736243571,
+    "statistic": 15.940657365103352,
+    "effect_size": 0.24388535174372766,
+    "ci_lower": null,
+    "ci_upper": null,
+    "sample_size": 268,
+    "test_type": "chi2_contingency",
+    "summary": "CONFIRMED — H0 rejected, significant effect found. p=6.54e-5, effect_size=0.2439, n=268",
+    "data": {
+      "query_rows": 2,
+      "raw_sample": [
+        {
+          "organism": "Scheffersomyces stipitis CBS 6054",
+          "total": "154",
+          "success": "35"
+        },
+        {
+          "organism": "Solanum habrochaites",
+          "total": "114",
+          "success": "5"
+        }
+      ],
+      "stats": {
+        "p_value": 0.0000653595736243571,
+        "statistic": 15.940657365103352,
+        "effect_size": 0.24388535174372766
+      }
+    },
+    "timestamp": "2026-10-25T09:17:42.214Z",
+    "source": "discovered"
+  },
+  {
+    "id": "D002",
+    "name": "Resolution by precipitant: 3-methyl-1,5-pentanediol vs PEG Smear Broad",
+    "h0": "Precipitant type does not affect diffraction resolution",
+    "h1": "3-methyl-1,5-pentanediol yields better resolution than PEG Smear Broad",
+    "status": "confirmed",
+    "p_value": 4.055148606894387e-98,
+    "statistic": 56586,
+    "effect_size": 0.8136522008311983,
+    "ci_lower": null,
+    "ci_upper": null,
+    "sample_size": 2733,
+    "test_type": "mannwhitney",
+    "summary": "CONFIRMED. p=4.06e-98, effect=0.8137, n=2733. Mean res: 0.91 vs 1.52 A",
+    "data": {
+      "best": "3-methyl-1,5-pentanediol",
+      "worst": "PEG Smear Broad",
+      "n_a": 244,
+      "n_b": 2489,
+      "stats": {
+        "p_value": 4.055148606894387e-98,
+        "statistic": 56586,
+        "effect_size": 0.8136522008311983
+      }
+    },
+    "timestamp": "2026-10-25T09:17:44.149Z",
+    "source": "discovered"
+  },
+  {
+    "id": "D003",
+    "name": "pH preference: Cryphonectria parasitica vs Entamoeba histolytica",
+    "h0": "These organisms do not differ in optimal crystallization pH",
+    "h1": "Optimal pH differs significantly between these organisms",
+    "status": "confirmed",
+    "p_value": 4.3834545866696966e-108,
+    "statistic": 14875,
+    "effect_size": 0.7339569323222206,
+    "ci_lower": null,
+    "ci_upper": null,
+    "sample_size": 1080,
+    "test_type": "mannwhitney",
+    "summary": "CONFIRMED. p=4.38e-108, effect=0.7340. Mean pH: 4.62 vs 6.21",
+    "data": {
+      "organism_a": "Cryphonectria parasitica",
+      "organism_b": "Entamoeba histolytica",
+      "n_a": 964,
+      "n_b": 116,
+      "stats": {
+        "p_value": 4.3834545866696966e-108,
+        "statistic": 14875,
+        "effect_size": 0.7339569323222206
+      }
+    },
+    "timestamp": "2026-10-25T09:17:45.628Z",
+    "source": "discovered"
+  },
+  {
+    "id": "D004",
+    "name": "Temperature preference for Brevundimonas diminuta",
+    "h0": "Brevundimonas diminuta has equal success at 4C and 18C",
+    "h1": "Brevundimonas diminuta shows temperature preference for crystallization",
+    "status": "confirmed",
+    "p_value": 0.0003008400418332597,
+    "statistic": 13.065156653691135,
+    "effect_size": 0.16655085139756884,
+    "ci_lower": null,
+    "ci_upper": null,
+    "sample_size": 471,
+    "test_type": "chi2_contingency",
+    "summary": "CONFIRMED. p=3.01e-4. Brevundimonas diminuta: 4C 28.8% vs 18C 11.4%",
+    "data": {
+      "organism": "Brevundimonas diminuta",
+      "cold": {
+        "total": 66,
+        "success": 19
+      },
+      "room": {
+        "total": 405,
+        "success": 46
+      },
+      "stats": {
+        "p_value": 0.0003008400418332597,
+        "statistic": 13.065156653691135,
+        "effect_size": 0.16655085139756884
+      }
+    },
+    "timestamp": "2026-10-25T09:17:48.017Z",
+    "source": "discovered"
+  },
+  {
+    "id": "D005",
+    "name": "Precipitant concentration vs success",
+    "h0": "Precipitant concentration does not affect crystallization success",
+    "h1": "Certain concentration ranges yield higher success rates",
+    "status": "confirmed",
+    "p_value": 0,
+    "statistic": 11308.862160738423,
+    "effect_size": 0.15887618973148512,
+    "ci_lower": null,
+    "ci_upper": null,
+    "sample_size": 1244835,
+    "test_type": "chi2",
+    "summary": "CONFIRMED. p=0.00e+0, Cramer's V=0.1589, n=1244835",
+    "data": {
+      "bins": [
+        {
+          "conc_bin": "0-5%",
+          "total": "320254",
+          "success": "21130"
+        },
+        {
+          "conc_bin": "15-25%",
+          "total": "307850",
+          "success": "36790"
+        },
+        {
+          "conc_bin": "25-35%",
+          "total": "222064",
+          "success": "26781"
+        },
+        {
+          "conc_bin": "35%+",
+          "total": "182724",
+          "success": "8372"
+        },
+        {
+          "conc_bin": "5-15%",
+          "total": "211943",
+          "success": "18933"
+        }
+      ],
+      "stats": {
+        "p_value": 0,
+        "statistic": 11308.862160738423,
+        "effect_size": 0.15887618973148512
+      }
+    },
+    "timestamp": "2026-10-25T09:17:49.381Z",
+    "source": "discovered"
+  }
+]

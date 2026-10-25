@@ -1,0 +1,33 @@
+{
+  "id": "D004",
+  "name": "Temperature preference for Brevundimonas diminuta",
+  "h0": "Brevundimonas diminuta has equal success at 4C and 18C",
+  "h1": "Brevundimonas diminuta shows temperature preference for crystallization",
+  "status": "confirmed",
+  "p_value": 0.0003008400418332597,
+  "statistic": 13.065156653691135,
+  "effect_size": 0.16655085139756884,
+  "ci_lower": null,
+  "ci_upper": null,
+  "sample_size": 471,
+  "test_type": "chi2_contingency",
+  "summary": "CONFIRMED. p=3.01e-4. Brevundimonas diminuta: 4C 28.8% vs 18C 11.4%",
+  "data": {
+    "organism": "Brevundimonas diminuta",
+    "cold": {
+      "total": 66,
+      "success": 19
+    },
+    "room": {
+      "total": 405,
+      "success": 46
+    },
+    "stats": {
+      "p_value": 0.0003008400418332597,
+      "statistic": 13.065156653691135,
+      "effect_size": 0.16655085139756884
+    }
+  },
+  "timestamp": "2026-10-25T09:17:48.017Z",
+  "source": "discovered"
+}

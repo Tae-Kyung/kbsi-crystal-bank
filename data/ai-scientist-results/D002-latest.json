@@ -1,0 +1,28 @@
+{
+  "id": "D002",
+  "name": "Resolution by precipitant: 3-methyl-1,5-pentanediol vs PEG Smear Broad",
+  "h0": "Precipitant type does not affect diffraction resolution",
+  "h1": "3-methyl-1,5-pentanediol yields better resolution than PEG Smear Broad",
+  "status": "confirmed",
+  "p_value": 4.055148606894387e-98,
+  "statistic": 56586,
+  "effect_size": 0.8136522008311983,
+  "ci_lower": null,
+  "ci_upper": null,
+  "sample_size": 2733,
+  "test_type": "mannwhitney",
+  "summary": "CONFIRMED. p=4.06e-98, effect=0.8137, n=2733. Mean res: 0.91 vs 1.52 A",
+  "data": {
+    "best": "3-methyl-1,5-pentanediol",
+    "worst": "PEG Smear Broad",
+    "n_a": 244,
+    "n_b": 2489,
+    "stats": {
+      "p_value": 4.055148606894387e-98,
+      "statistic": 56586,
+      "effect_size": 0.8136522008311983
+    }
+  },
+  "timestamp": "2026-10-25T09:17:44.149Z",
+  "source": "discovered"
+}

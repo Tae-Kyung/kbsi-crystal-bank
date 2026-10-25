@@ -1,0 +1,28 @@
+{
+  "id": "D003",
+  "name": "pH preference: Cryphonectria parasitica vs Entamoeba histolytica",
+  "h0": "These organisms do not differ in optimal crystallization pH",
+  "h1": "Optimal pH differs significantly between these organisms",
+  "status": "confirmed",
+  "p_value": 4.3834545866696966e-108,
+  "statistic": 14875,
+  "effect_size": 0.7339569323222206,
+  "ci_lower": null,
+  "ci_upper": null,
+  "sample_size": 1080,
+  "test_type": "mannwhitney",
+  "summary": "CONFIRMED. p=4.38e-108, effect=0.7340. Mean pH: 4.62 vs 6.21",
+  "data": {
+    "organism_a": "Cryphonectria parasitica",
+    "organism_b": "Entamoeba histolytica",
+    "n_a": 964,
+    "n_b": 116,
+    "stats": {
+      "p_value": 4.3834545866696966e-108,
+      "statistic": 14875,
+      "effect_size": 0.7339569323222206
+    }
+  },
+  "timestamp": "2026-10-25T09:17:45.628Z",
+  "source": "discovered"
+}

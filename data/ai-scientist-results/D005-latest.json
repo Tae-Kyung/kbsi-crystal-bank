@@ -1,0 +1,51 @@
+{
+  "id": "D005",
+  "name": "Precipitant concentration vs success",
+  "h0": "Precipitant concentration does not affect crystallization success",
+  "h1": "Certain concentration ranges yield higher success rates",
+  "status": "confirmed",
+  "p_value": 0,
+  "statistic": 11308.862160738423,
+  "effect_size": 0.15887618973148512,
+  "ci_lower": null,
+  "ci_upper": null,
+  "sample_size": 1244835,
+  "test_type": "chi2",
+  "summary": "CONFIRMED. p=0.00e+0, Cramer's V=0.1589, n=1244835",
+  "data": {
+    "bins": [
+      {
+        "conc_bin": "0-5%",
+        "total": "320254",
+        "success": "21130"
+      },
+      {
+        "conc_bin": "15-25%",
+        "total": "307850",
+        "success": "36790"
+      },
+      {
+        "conc_bin": "25-35%",
+        "total": "222064",
+        "success": "26781"
+      },
+      {
+        "conc_bin": "35%+",
+        "total": "182724",
+        "success": "8372"
+      },
+      {
+        "conc_bin": "5-15%",
+        "total": "211943",
+        "success": "18933"
+      }
+    ],
+    "stats": {
+      "p_value": 0,
+      "statistic": 11308.862160738423,
+      "effect_size": 0.15887618973148512
+    }
+  },
+  "timestamp": "2026-10-25T09:17:49.381Z",
+  "source": "discovered"
+}
