@@ -115,7 +115,7 @@ async function getTopPrecipitants(organism: string): Promise<PrecipitantStats[]>
   }>(
     `WITH base AS (
        SELECT cr.precipitant_type, cr.outcome, cr.ph, cr.precipitant_conc,
-              cr.temperature, cr.precipitant_unit, cr.buffer
+              cr.temperature, cr.precipitant_unit, cr.buffer_type
        FROM kbsi_crystallization cr
        JOIN kbsi_construct c ON c.id = cr.construct_id
        JOIN kbsi_protein p ON p.id = c.protein_id
@@ -170,7 +170,7 @@ async function getTopPrecipitants(organism: string): Promise<PrecipitantStats[]>
 async function getWildcardConditions(organism: string): Promise<WildCardCondition[]> {
   const rows = await query<WildCardCondition>(
     `SELECT cr.precipitant_type, cr.precipitant_conc, cr.precipitant_unit,
-            cr.ph, cr.temperature, cr.additive, cr.buffer,
+            cr.ph, cr.temperature, cr.additive, cr.buffer_type,
             ROUND(
               COUNT(*) FILTER (WHERE cr.outcome IN ('single_crystal','diffraction_quality'))::numeric
               / GREATEST(COUNT(*), 1), 2
@@ -183,7 +183,7 @@ async function getWildcardConditions(organism: string): Promise<WildCardConditio
        AND cr.additive IS NOT NULL
        AND cr.precipitant_type IS NOT NULL
      GROUP BY cr.precipitant_type, cr.precipitant_conc, cr.precipitant_unit,
-              cr.ph, cr.temperature, cr.additive, cr.buffer
+              cr.ph, cr.temperature, cr.additive, cr.buffer_type
      HAVING COUNT(*) >= 3
      ORDER BY RANDOM()
      LIMIT 5`,
