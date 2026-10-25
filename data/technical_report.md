@@ -1,7 +1,7 @@
 # KBSI 단백질 결정화은행 기술 보고서
 
 
-## DB 최신 수치 (2026-10-24, 자동 생성)
+## DB 최신 수치 (2026-10-25, 자동 생성)
 
 | 엔티티 | 건수 |
 |--------|------|
@@ -15,8 +15,8 @@
 | Diffraction | 337,591 |
 | NMR Experiments | 14,552 |
 | NMR Chemical Shifts | 2,836,767 |
-| Ligands | 182,285 |
-| Bindings | 382,576 |
+| Ligands | 245,349 |
+| Bindings | 1,350,885 |
 | Mutations | 8,184 |
 | ESM-2 Embeddings | 214918 (99.1%) |
 | References | 126,331 |

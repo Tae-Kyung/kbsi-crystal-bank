@@ -93,7 +93,7 @@ KBSI-CrystalBank integrates data from five primary sources (Fig.~\ref{fig:overvi
 
 \textbf{TargetTrack.} Expression system, purification strategy, and construct design metadata were obtained from the TargetTrack database maintained by the Protein Structure Initiative~\cite{berman2009psi}. Records were matched to PDB entries via target identifiers and sequence alignment.
 
-\textbf{ChEMBL and BindingDB.} Ligand binding data (IC\textsubscript{50}, $K_d$, $K_i$ values) were harvested from ChEMBL~\cite{zdrazil2024}, BindingDB~\cite{gilson2016}, and DrugBank (via UniProt cross-references) and linked to proteins via UniProt identifier mapping. This yielded 186,856 unique ligands with 755,958 binding measurements.
+\textbf{ChEMBL and BindingDB.} Ligand binding data (IC\textsubscript{50}, $K_d$, $K_i$ values) were harvested from ChEMBL~\cite{zdrazil2024}, BindingDB~\cite{gilson2016}, and DrugBank (via UniProt cross-references) and linked to proteins via UniProt identifier mapping. This yielded 243,794 unique ligands with 1,342,953 binding measurements.
 
 \textbf{Europe PMC and CrossRef.} Publication metadata including DOIs, titles, authors, and journal information were collected for 126,331 references (98.7\% of structures linked to at least one publication).
 
@@ -149,7 +149,7 @@ We chose ESM-2 embeddings over traditional sequence alignment tools such as BLAS
   \item \textbf{Speed for interactive use}: BLAST requires 30+ seconds per query via NCBI servers, while our pre-computed embeddings with HNSW indexing return results in 7 milliseconds from the local database, enabling real-time condition recommendation during experimental planning.
 \end{enumerate}
 
-Critically, whereas BLAST answers ``which proteins share sequence similarity?'', our system extends this to ``what crystallization conditions succeeded for structurally similar proteins?'' by coupling ESM-2 similarity search with 1.66 million crystallization records, 755,958 ligand-binding measurements, and real-time success probability estimation. This enables automated generation of protein-specific 24-condition crystallization screens, replacing generic commercial screens (96 conditions, $\sim$5\% success rate) with targeted conditions based on the database (Table~\ref{tab:blast_comparison}).
+Critically, whereas BLAST answers ``which proteins share sequence similarity?'', our system extends this to ``what crystallization conditions succeeded for structurally similar proteins?'' by coupling ESM-2 similarity search with 1.66 million crystallization records, 1,342,953 ligand-binding measurements, and real-time success probability estimation. This enables automated generation of protein-specific 24-condition crystallization screens, replacing generic commercial screens (96 conditions, $\sim$5\% success rate) with targeted conditions based on the database (Table~\ref{tab:blast_comparison}).
 
 We emphasize that BLAST and ESM-2 are complementary rather than competing tools: BLAST provides statistically rigorous alignment with E-values for evolutionary analysis, while ESM-2 embeddings are better suited for the specific task of crystallization condition transfer across protein families.
 
@@ -223,8 +223,8 @@ Purification records & 11,359 & LLM-extracted from literature \\
 Characterization records & 5,833 & DLS, SEC-MALS, thermal shift, SDS-PAGE \\
 Diffraction records & 337,591 & Resolution, space group, cell parameters \\
 NMR experiments & 14,552 & Spectrometer, field strength, labeling \\
-Ligands & 186,856 & PDB, ChEMBL, BindingDB, DrugBank \\
-Binding measurements & 755,958 & IC\textsubscript{50}, $K_d$, $K_i$ values \\
+Ligands & 243,794 & PDB, ChEMBL, BindingDB, DrugBank \\
+Binding measurements & 1,342,953 & IC\textsubscript{50}, $K_d$, $K_i$ values \\
 Mutations & 8,184 & Site-directed and natural variants \\
 ESM-2 embeddings & 214,918 & 99.1\% coverage, 1,280 dimensions \\
 References & 126,331 & 98.7\% structure-to-publication linkage \\
@@ -304,7 +304,7 @@ We developed a 10-dimensional data quality framework to systematically assess KB
 
 \textbf{Integrity} assesses referential completeness: 98.7\% structure--reference linkage, 99.1\% ESM-2 embedding coverage, 66.0\% NMR--BMRB linkage, and zero staging backlog.
 
-\textbf{Deduplication} ensures unique entity representation: SHA-256 sequence hashes for 99.1\% of proteins, database-level unique constraints, and 186,856 deduplicated ligands.
+\textbf{Deduplication} ensures unique entity representation: SHA-256 sequence hashes for 99.1\% of proteins, database-level unique constraints, and 243,794 deduplicated ligands.
 
 \textbf{Extensibility} measures annotation richness: gene names (68.2\%), UniProt mappings (68.8\%), organism annotation (93.7\%), 8,184 mutations, and 5,833 characterization records.
 
@@ -343,6 +343,20 @@ Gene names & NCBI Gene cross-check ($n = 37{,}151$) & 99.8\% \\
 
 The benchmark was validated through: (1)~stratified 5-fold cross-validation ensuring proteins in the test fold do not appear in the training fold; (2)~ablation studies showing ESM-2 removal reduced accuracy from 88.4\% to 87.5\% ($\Delta = -0.9\%$); and (3)~feature importance stability with pH, precipitant concentration, and temperature consistently ranking as top-3 predictors (CV~$<$~8\%).
 
+\subsection*{Automated hypothesis discovery}
+
+We deployed an AI Scientist agent that autonomously generates and tests hypotheses against the full database (1.66 million records). The agent executes SQL queries, performs statistical tests (chi-square, Mann-Whitney U, Spearman correlation) via scipy, and determines significance at $\alpha = 0.05$ with effect size estimation. Key findings from 13 hypotheses (8 pre-defined + 5 auto-discovered):
+
+\begin{itemize}
+  \item \textbf{Additive effect (PH008)}: Crystallization conditions containing additives (e.g., glycerol, DTT, MgCl\textsubscript{2}) showed 15.5\% success rate compared to 8.8\% without additives---a 1.8-fold improvement ($\chi^2$ test, $p \approx 0$, $n = 1{,}659{,}500$). This suggests systematic additive screening as a general optimization strategy.
+  \item \textbf{Precipitant concentration optimum (D005)}: Success rate peaks at 15--35\% precipitant concentration (12.0--12.1\%) and drops sharply above 35\% (4.6\%), providing practical guidance for initial screen design ($p \approx 0$, Cram\'{e}r's $V = 0.159$, $n = 1{,}244{,}835$).
+  \item \textbf{Temperature preference (PH006)}: 18\textdegree C yields 12.6\% success versus 11.6\% at 4\textdegree C ($p = 7.0 \times 10^{-30}$), though organism-specific exceptions exist: \textit{Brevundimonas diminuta} shows 28.8\% success at 4\textdegree C versus 11.4\% at 18\textdegree C (D004, $p = 3.0 \times 10^{-4}$).
+  \item \textbf{pH--precipitant interaction (PH007)}: PEG~3350 crystallizations succeed at mean pH~6.88 versus pH~6.65 for ammonium sulfate ($p = 3.3 \times 10^{-34}$), indicating precipitant-specific pH optimization.
+  \item \textbf{Ultra-high resolution precipitant (D002)}: 3-methyl-1,5-pentanediol yielded mean resolution 0.91~\AA{} compared to 1.52~\AA{} for PEG~Smear~Broad ($p = 4.1 \times 10^{-98}$), identifying this precipitant as promising for sub-angstrom crystallography.
+\end{itemize}
+
+These findings demonstrate the database's capacity for autonomous knowledge discovery, complementing traditional manual analysis.
+
 \subsection*{Negative control quality assessment}
 
 Synthetic negatives were evaluated for biological plausibility: 100\% of extreme-pH negatives fall outside the viable crystallization range~\cite{jancarik1991}; pH-shifted negatives maintain mean $|\Delta\text{pH}| = 2.1$~\cite{luft2003}; and cross-protein controls show $<30\%$ sequence identity between source and target proteins.
@@ -360,7 +374,7 @@ Synthetic negatives were evaluated for biological plausibility: 100\% of extreme
   \item \textbf{Real-time success prediction}: Input crystallization conditions (pH, temperature, precipitant) for a protein of interest and receive an immediate success probability estimate based on 1.66 million historical trials and ESM-2 structural similarity.
   \item \textbf{ML model training}: Use the balanced dataset (success + failure) with ESM-2 embeddings for crystallization outcome prediction.
   \item \textbf{Expression system optimization}: Analyze expression host and tag combinations correlated with downstream crystallization success.
-  \item \textbf{Drug target assessment}: Evaluate target crystallizability and existing ligand binding data (755,958 records from PDB, ChEMBL, BindingDB, DrugBank) before initiating SBDD campaigns.
+  \item \textbf{Drug target assessment}: Evaluate target crystallizability and existing ligand binding data (1,342,953 records from PDB, ChEMBL, BindingDB, DrugBank) before initiating SBDD campaigns.
 \end{itemize}
 
 \subsection*{Limitations and caveats}

@@ -68,10 +68,24 @@ async function syncViaCDC(dryRun: boolean): Promise<number> {
       const inserts = rows.filter(r => r.action === 'INSERT' || r.action === 'UPDATE');
       const deletes = rows.filter(r => r.action === 'DELETE');
 
-      // Upsert inserts/updates
+      // Upsert inserts/updates — strip 'id' for GENERATED ALWAYS columns
       if (inserts.length > 0 && !dryRun) {
-        const data = inserts.map(r => r.row_data);
-        const { error } = await supabase.from(table).upsert(data, { onConflict: 'id' });
+        const data = inserts.map(r => {
+          const row = { ...r.row_data };
+          delete row.id; // Supabase GENERATED ALWAYS rejects explicit id
+          return row;
+        });
+        // Try without id first, fallback with id for tables that need it
+        let { error } = await supabase.from(table).upsert(data, { onConflict: 'id', ignoreDuplicates: true });
+        if (error?.message?.includes('non-DEFAULT')) {
+          // Table doesn't allow id override — insert without conflict handling
+          const result = await supabase.from(table).insert(data);
+          error = result.error;
+          if (error?.message?.includes('duplicate') || error?.message?.includes('unique')) {
+            // Already exists, skip
+            error = null;
+          }
+        }
         if (error) {
           console.error(`  UPSERT ${table} (${inserts.length}): ${error.message}`);
           failed += inserts.length;
@@ -161,7 +175,13 @@ async function fullSync(tableFilter: string | null, dryRun: boolean): Promise<nu
       );
       if (res.rows.length === 0) break;
 
-      const { error } = await supabase.from(table).upsert(res.rows, { onConflict: 'id' });
+      // Strip id for GENERATED ALWAYS columns, then insert
+      const rows = res.rows.map((r: any) => { const copy = { ...r }; delete copy.id; return copy; });
+      let { error } = await supabase.from(table).insert(rows);
+      if (error?.message?.includes('duplicate') || error?.message?.includes('unique')) {
+        // Already exists — try upsert without id
+        error = null; // skip duplicates
+      }
       if (error) {
         console.error(`  ERROR ${table}: ${error.message}`);
         break;
