@@ -43,13 +43,14 @@ export default async function ProteinDetailPage({
       scalar<number>(`SELECT COUNT(*) FROM kbsi_diffraction WHERE construct_id IN (${placeholders})`, constructIds),
       scalar<number>(`SELECT COUNT(*) FROM kbsi_structure WHERE construct_id IN (${placeholders})`, constructIds),
       query<any>(
-        `SELECT cl.id, cl.binding_kd, cl.binding_ic50, cl.source_db, cl.source_id,
+        `SELECT DISTINCT ON (l.id) cl.id, cl.binding_kd, cl.binding_ic50, cl.source_db, cl.source_id,
                 l.id AS ligand_id, l.name AS ligand_name, l.smiles AS ligand_smiles, l.mw AS ligand_mw, l.source_db AS ligand_source_db, l.source_id AS ligand_source_id,
                 c.id AS construct_id, c.name AS construct_name
          FROM kbsi_construct_ligand cl
          LEFT JOIN kbsi_ligand l ON l.id = cl.ligand_id
          LEFT JOIN kbsi_construct c ON c.id = cl.construct_id
          WHERE cl.construct_id IN (${placeholders})
+         ORDER BY l.id, cl.binding_kd NULLS LAST
          LIMIT 50`,
         constructIds
       ),
@@ -382,15 +383,37 @@ async function SimilarProteinsSection({ proteinId, constructs }: { proteinId: nu
   let similar: any[] = [];
   try {
     similar = await query<any>(
-      'SELECT * FROM find_similar_with_conditions($1, 0.8, 5)',
+      'SELECT * FROM find_similar_with_conditions($1, 0.8, 10)',
       [firstConstruct.id]
     );
   } catch {
-    // Function may not exist on this DB instance
     return null;
   }
 
   if (similar.length === 0) return null;
+
+  // Dedupe by protein_name — keep highest similarity per protein
+  const proteinMap = new Map<string, any>();
+  for (const s of similar) {
+    const key = s.protein_name || String(s.similar_construct_id);
+    const existing = proteinMap.get(key);
+    if (!existing || s.similarity > existing.similarity) {
+      proteinMap.set(key, s);
+    }
+  }
+  const deduped = [...proteinMap.values()]
+    .filter(s => s.protein_name !== constructs[0]?.protein_name) // exclude self
+    .sort((a, b) => b.similarity - a.similarity)
+    .slice(0, 5);
+
+  if (deduped.length === 0) return null;
+
+  // Get protein IDs for linking
+  const proteinIds = await query<{ id: number; full_name: string }>(
+    `SELECT id, full_name FROM kbsi_protein WHERE full_name = ANY($1)`,
+    [deduped.map(s => s.protein_name)]
+  );
+  const nameToProteinId = new Map(proteinIds.map(p => [p.full_name, p.id]));
 
   return (
     <Card>
@@ -399,33 +422,43 @@ async function SimilarProteinsSection({ proteinId, constructs }: { proteinId: nu
       </CardHeader>
       <CardContent>
         <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
-          {similar.map((s: any, i: number) => (
-            <div key={i} className="rounded-lg border p-4 space-y-2 hover:shadow-md transition-shadow">
-              <div className="flex items-center justify-between">
-                <Link href={`/proteins/${s.protein_id || '#'}`} className="font-medium text-primary hover:underline truncate">
-                  {s.protein_name || s.abbreviation || `Protein #${s.protein_id}`}
-                </Link>
-                <Badge variant="secondary" className="text-xs ml-2 shrink-0">
-                  {(s.similarity * 100).toFixed(1)}%
-                </Badge>
-              </div>
-              {s.organism && (
-                <p className="text-xs text-muted-foreground italic truncate">{s.organism}</p>
-              )}
-              <div className="flex flex-wrap gap-1.5 text-xs">
-                {s.best_outcome && (
-                  <Badge variant={s.best_outcome === 'diffraction_quality' || s.best_outcome === 'single_crystal' ? 'default' : 'outline'} className="text-[10px]">
-                    {s.best_outcome}
+          {deduped.map((s: any, i: number) => {
+            const pid = nameToProteinId.get(s.protein_name);
+            return (
+              <div key={i} className="rounded-lg border p-4 space-y-2 hover:shadow-md transition-shadow">
+                <div className="flex items-center justify-between">
+                  {pid ? (
+                    <Link href={`/proteins/${pid}`} className="font-medium text-primary hover:underline truncate">
+                      {s.protein_name}
+                    </Link>
+                  ) : (
+                    <span className="font-medium truncate">{s.protein_name || `Construct #${s.similar_construct_id}`}</span>
+                  )}
+                  <Badge variant="secondary" className="text-xs ml-2 shrink-0">
+                    {(s.similarity * 100).toFixed(1)}%
                   </Badge>
+                </div>
+                {s.organism && (
+                  <p className="text-xs text-muted-foreground italic truncate">{s.organism}</p>
                 )}
-                {s.best_precipitant && (
-                  <span className="text-muted-foreground truncate max-w-[200px]" title={s.best_precipitant}>
-                    {s.best_precipitant}
-                  </span>
-                )}
+                <div className="flex flex-wrap gap-1.5 text-xs">
+                  {s.best_outcome && (
+                    <Badge variant={s.best_outcome === 'diffraction_quality' || s.best_outcome === 'single_crystal' ? 'default' : 'outline'} className="text-[10px]">
+                      {s.best_outcome}
+                    </Badge>
+                  )}
+                  {s.best_precipitant && (
+                    <span className="text-muted-foreground truncate max-w-[200px]" title={s.best_precipitant}>
+                      {s.best_precipitant}
+                    </span>
+                  )}
+                  {s.crystal_count > 0 && (
+                    <span className="text-muted-foreground">{Number(s.crystal_count).toLocaleString()} crystals</span>
+                  )}
+                </div>
               </div>
-            </div>
-          ))}
+            );
+          })}
         </div>
       </CardContent>
     </Card>
