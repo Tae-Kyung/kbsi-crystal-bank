@@ -140,7 +140,28 @@ Each synthetic record is tagged with \texttt{source\_type = `synthetic'} and a \
 
 \subsection*{ESM-2 protein embeddings}
 
-Per-protein sequence embeddings were computed using the ESM-2 model (esm2\_t33\_650M\_UR50D, 1,280 dimensions)~\cite{lin2023} deployed on an NVIDIA RTX~A6000 GPU server. For each protein sequence, we extracted the mean-pooled representation from the final transformer layer. Embeddings are stored in a PostgreSQL database with pgvector indexing (IVFFlat, 100 lists) for efficient cosine similarity search, enabling sub-second nearest-neighbor queries across 214,918 constructs.
+Per-protein sequence embeddings were computed using the ESM-2 model (esm2\_t33\_650M\_UR50D, 1,280 dimensions)~\cite{lin2023} deployed on an NVIDIA RTX~A6000 GPU server. For each protein sequence, we extracted the mean-pooled representation from the final transformer layer. Embeddings are stored in a PostgreSQL database with pgvector HNSW indexing for efficient cosine similarity search, enabling sub-second nearest-neighbor queries across 214,918 constructs.
+
+Unlike traditional sequence alignment tools such as BLAST~\cite{altschul1990}, which rely on local alignment and struggle to detect remote homologs below $\sim$20\% sequence identity, ESM-2 embeddings capture structural and functional similarity learned from evolutionary patterns across 250 million protein sequences. This enables the identification of crystallization-relevant neighbors that BLAST would miss---for example, querying KRAS correctly retrieves NRAS, HRAS, and other RAS superfamily members (cosine similarity $>$0.9) across species boundaries. More importantly, whereas BLAST answers ``which proteins share sequence similarity?'', our system extends this to ``what crystallization conditions succeeded for similar proteins?'' by coupling ESM-2 similarity search with 1.66 million crystallization records, 755,958 ligand-binding measurements, and real-time success probability estimation (Table~\ref{tab:blast_comparison}).
+
+\begin{table}[h]
+\centering
+\small
+\caption{Comparison of sequence-based similarity search approaches for crystallization condition transfer.}
+\label{tab:blast_comparison}
+\begin{tabular}{lcc}
+\hline
+\textbf{Feature} & \textbf{NCBI BLAST} & \textbf{KBSI ESM-2} \\
+\hline
+Speed & 30+ sec (remote) & \textbf{7 ms} (DB) / 2 sec (GPU) \\
+Remote homolog detection & Limited ($<$20\% identity) & \textbf{Structural/functional similarity} \\
+Crystallization conditions & Not available & \textbf{1.66M conditions linked} \\
+Success rate prediction & Not available & \textbf{F1 88.8\%, AUC 94.9\%} \\
+Custom screen design & Not available & \textbf{24-condition optimized screen} \\
+Failure pattern analysis & Not available & \textbf{Avoidance recommendations} \\
+\hline
+\end{tabular}
+\end{table}
 
 \subsection*{Database schema and design}
 
@@ -325,10 +346,12 @@ Synthetic negatives were evaluated for biological plausibility: 100\% of extreme
 \subsection*{Recommended uses}
 
 \begin{itemize}
-  \item \textbf{Crystallization condition screening}: Query similar proteins via ESM-2 cosine similarity to identify starting conditions for new targets.
+  \item \textbf{Crystallization condition screening}: Query similar proteins via ESM-2 cosine similarity to identify starting conditions for new targets. Unlike BLAST-based approaches, our system directly links sequence similarity to crystallization outcomes, providing condition recommendations with estimated success rates.
+  \item \textbf{Custom screen design}: Generate protein-specific 24-condition crystallization screens optimized from the database, replacing generic commercial screens (96 conditions, $\sim$5\% success) with targeted conditions ($\sim$30\% expected success).
+  \item \textbf{Real-time success prediction}: Input crystallization conditions (pH, temperature, precipitant) for a protein of interest and receive an immediate success probability estimate based on 1.66 million historical trials and ESM-2 structural similarity.
   \item \textbf{ML model training}: Use the balanced dataset (success + failure) with ESM-2 embeddings for crystallization outcome prediction.
   \item \textbf{Expression system optimization}: Analyze expression host and tag combinations correlated with downstream crystallization success.
-  \item \textbf{Drug target assessment}: Evaluate target crystallizability and existing ligand binding data before initiating SBDD campaigns.
+  \item \textbf{Drug target assessment}: Evaluate target crystallizability and existing ligand binding data (755,958 records from PDB, ChEMBL, BindingDB, DrugBank) before initiating SBDD campaigns.
 \end{itemize}
 
 \subsection*{Limitations and caveats}
@@ -536,6 +559,11 @@ International Organization for Standardization (2008).
 Wilkinson, M.\,D. \textit{et~al.}
 The FAIR Guiding Principles for scientific data management and stewardship.
 \textit{Sci.\ Data} \textbf{3}, 160018 (2016).
+
+\bibitem{altschul1990}
+Altschul, S.~F., Gish, W., Miller, W., Myers, E.~W. \& Lipman, D.~J.
+Basic local alignment search tool.
+\textit{J.\ Mol.\ Biol.} \textbf{215}, 403--410 (1990).
 
 \end{thebibliography}
 

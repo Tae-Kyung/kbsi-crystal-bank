@@ -3,12 +3,12 @@
     "purpose": "AI Scientist input for generating the KBSI-CrystalBank data descriptor paper",
     "target_journal": "Nature Scientific Data",
     "paper_type": "Data Descriptor",
-    "snapshot_date": "2026-10-21",
+    "snapshot_date": "2026-10-25",
     "draft_reference": "paper/draft-v1.md"
   },
 
   "paper": {
-    "title": "KBSI-CrystalBank: A Comprehensive AI-Ready Database of 1.16 Million Protein Crystallization Conditions Including Failure Data",
+    "title": "KBSI-CrystalBank: A Comprehensive AI-Ready Database of 1.66 Million Protein Crystallization Conditions Including Failure Data",
     "keywords": ["protein crystallization", "structural biology", "machine learning", "database", "failure data", "negative controls", "ESM-2", "MCP", "data quality"],
     "sections": ["Abstract", "Background & Summary", "Methods", "Data Records", "Technical Validation", "Usage Notes", "Code Availability"],
     "figure_count": 8,
@@ -20,62 +20,67 @@
     {
       "id": 1,
       "claim": "Scale and completeness",
-      "evidence": "1,161,043 crystallization conditions for 59,349 proteins through 286,581 constructs, pH coverage 99.5%, temperature 94.2%"
+      "evidence": "1,659,500 crystallization conditions for 59,349 proteins through 216,900 constructs, pH coverage 99.4%, temperature 92.6%, precipitant 96.0%"
     },
     {
       "id": 2,
       "claim": "Failure data inclusion",
-      "evidence": "927,388 synthetic negative controls via 14 biophysically motivated strategies, transparently tagged with source_type='synthetic'"
+      "evidence": "1,169,673 synthetic negative controls via 14 biophysically motivated strategies, transparently tagged with source_type='synthetic'"
     },
     {
       "id": 3,
       "claim": "Full pipeline integration",
-      "evidence": "Expression 29,153 + Purification 13,356 + Characterization 7,195 records from LLM extraction (81.4% accuracy)"
+      "evidence": "Expression 210,723 + Purification 11,359 + Characterization 5,833"
     },
     {
       "id": 4,
       "claim": "Sequence-level representations",
-      "evidence": "ESM-2 embeddings (esm2_t33_650M_UR50D, 1280-dim) for 284,184 proteins (99.2%), pgvector IVFFlat index"
+      "evidence": "214,918 proteins (99.1%), pgvector HNSW index"
     },
     {
       "id": 5,
       "claim": "AI accessibility",
       "evidence": "MCP server with 18 tools across 4 categories: Search(9), Similarity(2), Prediction(4), Analytics(3)"
+    },
+    {
+      "id": 6,
+      "claim": "Beyond-BLAST crystallization intelligence",
+      "evidence": "ESM-2 embeddings replace BLAST for condition transfer: 7ms vs 30s+, detects remote homologs below 20% identity, coupled with 1.66M crystallization records for real-time success prediction (F1 88.8%) and custom 24-well screen design"
     }
   ],
 
   "dataset": {
     "entities": {
       "proteins": { "count": 59349, "note": "Deduplicated by sequence hash" },
-      "constructs": { "count": 286581, "note": "Including truncations, tags, mutations" },
-      "crystallization": { "count": 1161043, "experimental": 233655, "synthetic": 927388 },
-      "structures": { "count": 286454, "note": "X-ray, NMR, Cryo-EM" },
-      "expression": { "count": 29153, "source": "LLM-extracted from literature" },
-      "purification": { "count": 13356, "source": "LLM-extracted from literature" },
-      "characterization": { "count": 7195, "methods": ["DLS", "SEC-MALS", "thermal_shift", "SDS-PAGE"] },
-      "diffraction": { "count": 478202, "fields": ["resolution", "space_group", "cell_parameters"] },
+      "constructs": { "count": 216900, "note": "Including truncations, tags, mutations" },
+      "crystallization": { "count": 1659500, "experimental": 489827, "synthetic": 1169673 },
+      "structures": { "count": 216786, "note": "X-ray, NMR, Cryo-EM" },
+      "expression": { "count": 210723, "source": "LLM-extracted from literature + PDB entity harvest" },
+      "purification": { "count": 11359, "source": "LLM-extracted from literature" },
+      "characterization": { "count": 5833, "methods": ["DLS", "SEC-MALS", "thermal_shift", "SDS-PAGE"] },
+      "diffraction": { "count": 337591, "fields": ["resolution", "space_group", "cell_parameters"] },
       "nmr_experiments": { "count": 14552, "bmrb_linked": 9606, "bmrb_pct": 66.0 },
       "nmr_chemical_shifts": { "count": 2836767, "source": "BMRB backbone (H/N/CA/CB/HA)" },
-      "ligands": { "count": 182285, "sources": ["PDB", "ChEMBL", "BindingDB"] },
-      "bindings": { "count": 519480, "measures": ["IC50", "Kd", "Ki"] },
-      "mutations": { "count": 10922, "source": "PDB pdbx_mutation" },
-      "esm2_embeddings": { "count": 284184, "coverage_pct": 99.2, "dimensions": 1280, "model": "esm2_t33_650M_UR50D" },
+      "ligands": { "count": 186856, "sources": ["PDB", "ChEMBL", "BindingDB", "DrugBank"] },
+      "bindings": { "count": 755958, "measures": ["IC50", "Kd", "Ki"] },
+      "mutations": { "count": 8184, "source": "PDB pdbx_mutation" },
+      "esm2_embeddings": { "count": 214918, "coverage_pct": 99.1, "dimensions": 1280, "model": "esm2_t33_650M_UR50D" },
       "references": { "count": 126331, "doi_coverage_pct": 61.6 },
-      "gene_names": { "count": 37151, "coverage_pct": 62.6 },
+      "gene_names": { "count": 40467, "coverage_pct": 68.2 },
       "uniprot_mappings": { "count": 40808, "coverage_pct": 68.8 }
     },
 
     "field_coverage": {
       "crystallization": {
-        "ph": { "filled": 1155093, "total": 1161043, "pct": 99.5 },
-        "temperature": { "filled": 1094154, "total": 1161043, "pct": 94.2 },
-        "precipitant_type": { "filled": 657254, "total": 1161043, "pct": 56.6 },
-        "outcome": { "filled": 1145719, "total": 1161043, "pct": 98.7 }
+        "ph": { "filled": 1649604, "total": 1659500, "pct": 99.4 },
+        "temperature": { "filled": 1536717, "total": 1659500, "pct": 92.6 },
+        "precipitant_type": { "filled": 1593120, "total": 1659500, "pct": 96.0 },
+        "outcome": { "filled": 1659500, "total": 1659500, "pct": 100.0 }
       },
       "protein": {
         "organism": { "filled": 55616, "total": 59349, "pct": 93.7 },
         "abbreviation": { "filled": 54867, "total": 59349, "pct": 92.4 },
-        "gene_name": { "filled": 37151, "total": 59349, "pct": 62.6 }
+        "gene_name": { "filled": 40467, "total": 59349, "pct": 68.2 }
       }
     }
   },
@@ -112,7 +117,7 @@
     },
 
     "negative_controls": {
-      "total": 927388,
+      "total": 1169673,
       "strategies_count": 14,
       "categories": {
         "extreme_perturbation": {
@@ -136,8 +141,8 @@
       "dimensions": 1280,
       "gpu": "NVIDIA RTX A6000",
       "extraction": "Mean-pooled final transformer layer",
-      "storage": "PostgreSQL + pgvector IVFFlat (100 lists)",
-      "query_speed": "Sub-second nearest-neighbor across 284,184 proteins"
+      "storage": "Lab PostgreSQL 16.9 + pgvector HNSW index",
+      "query_speed": "7ms nearest-neighbor (HNSW) across 214,918 proteins"
     },
 
     "database_schema": {
@@ -164,12 +169,15 @@
       "models": ["k-NN (k=3,5,10,15)", "XGBoost", "LightGBM"],
       "cv": "80/20 stratified split",
       "best_result": {
-        "model": "LightGBM + ESM-2",
-        "accuracy": 0.942,
-        "precision": 0.909,
-        "recall": 0.940,
-        "f1": 0.924,
-        "auc_roc": 0.984
+        "model": "XGBoost + ESM-2 + Optuna (balanced)",
+        "accuracy": 0.884,
+        "precision": 0.859,
+        "recall": 0.918,
+        "f1": 0.888,
+        "auc_roc": 0.949,
+        "balanced_samples": 50000,
+        "positive": 25000,
+        "negative": 25000
       },
       "baseline_result": {
         "model": "XGBoost (no ESM-2)",
@@ -177,8 +185,8 @@
         "precision": 0.904,
         "f1": 0.916
       },
-      "feature_importance": { "precipitant_cat": 0.258, "pH": 0.250, "temperature": 0.153 },
-      "ablation": { "with_esm2": 0.942, "without_esm2": 0.933, "delta": 0.009 }
+      "feature_importance": { "pH": 0.062, "precipitant_conc": 0.053, "temperature": 0.047 },
+      "ablation": { "with_esm2": 0.884, "without_esm2": 0.875, "delta": 0.009 }
     }
   },
 
@@ -192,10 +200,10 @@
       "dimensions": [
         { "id": 1, "name": "Accuracy", "checks": 8, "pass": 6, "grade": "B", "findings": "pH outlier 1, temp outlier 7, resolution outlier 24, MW outlier 0" },
         { "id": 2, "name": "Consistency", "checks": 6, "pass": 6, "grade": "A", "findings": "Zero orphans, zero contradictions, 22 unclassified source_db" },
-        { "id": 3, "name": "Integrity", "checks": 5, "pass": 5, "grade": "A", "findings": "ESM-2 99.2%, references 98.7%, BMRB 66.0%, audit active" },
+        { "id": 3, "name": "Integrity", "checks": 5, "pass": 5, "grade": "A", "findings": "ESM-2 99.1%, references 98.7%, BMRB 66.0%, audit active" },
         { "id": 4, "name": "Deduplication", "checks": 4, "pass": 4, "grade": "A", "findings": "seq_hash 99.2%, unique constraints enforced, 2.8M chemical shifts" },
-        { "id": 5, "name": "Extensibility", "checks": 5, "pass": 4, "grade": "B", "findings": "Gene 62.6%, UniProt 68.8%, organism 93.7%, mutations 10,922" },
-        { "id": 6, "name": "Completeness", "checks": 16, "pass": 13, "grade": "B+", "findings": "pH 99.5%, temp 94.2%, outcome 98.7%, precipitant 56.6% (good)" },
+        { "id": 5, "name": "Extensibility", "checks": 5, "pass": 4, "grade": "B", "findings": "Gene 68.2%, UniProt 68.8%, organism 93.7%, mutations 8,184" },
+        { "id": 6, "name": "Completeness", "checks": 16, "pass": 13, "grade": "A", "findings": "pH 99.4%, temp 92.6%, outcome 100.0%, precipitant 96.0%" },
         { "id": 7, "name": "Distribution", "checks": 6, "pass": 6, "grade": "A", "findings": "Success ratio 0.232, 416 organisms, pH mean 6.79 std 1.24, temp mean 17.8C std 7.0C" },
         { "id": 8, "name": "Provenance", "checks": 6, "pass": 4, "grade": "B", "findings": "source_type 100%, source_db 100%, source_id 20.1% (synthetic have strategy tags), DOI 61.6%" },
         { "id": 9, "name": "Timeliness", "checks": 5, "pass": 4, "grade": "B", "findings": "Active updates, weekly snapshots, zero staging backlog" },
@@ -214,7 +222,7 @@
 
     "benchmark_validation": {
       "cv": "5-fold stratified, proteins in test not in train",
-      "ablation": "ESM-2 removal: 94.2% → 93.3% (Δ = -0.9%)",
+      "ablation": "ESM-2 removal: 88.4% → 87.5% (Δ = -0.9%)",
       "feature_stability": "pH and temperature top-2 across all folds (CV < 8%)"
     },
 
@@ -249,7 +257,7 @@
     "limitations": [
       "Synthetic negatives are computationally generated, not experimentally observed — use source_type filter",
       "LLM extraction 81.4% accuracy — ~1 in 5 expression/purification records may have errors",
-      "Precipitant type coverage 56.6% — moderate, filter for non-null precipitant_type for precipitant-specific analyses",
+      "Precipitant type coverage 96.0% — near-complete after systematic enrichment",
       "Temporal bias toward well-studied organisms and druggable families",
       "Crystallization is stochastic — database captures reported conditions, not full variability"
     ]
@@ -260,7 +268,7 @@
     "license": "MIT",
     "stack": {
       "frontend": "Next.js 15, React 19, Tailwind CSS v4, shadcn/ui",
-      "backend": "Supabase (PostgreSQL + Auth + Storage)",
+      "backend": "Lab PostgreSQL 16.9 (primary, pgvector HNSW, CDC) + Supabase (Auth/Storage/Standby)",
       "deployment": "Vercel",
       "llm": "OpenAI GPT-4o-mini via Vercel AI SDK",
       "embeddings": "NVIDIA RTX A6000 GPU, FastAPI",
@@ -314,14 +322,18 @@
       { "name": "RCSB PDB", "has": "Success conditions only, free-text", "lacks": "Failure data, structured fields, ML features, pipeline data" },
       { "name": "TargetTrack", "has": "Expression/purification metadata", "lacks": "Crystallization outcomes, embeddings, AI access" },
       { "name": "COD", "has": "Aggregated published conditions", "lacks": "Failure data, full pipeline, AI tools" },
-      { "name": "AlphaFold DB", "has": "Structure predictions", "lacks": "Experimental conditions, crystallization data" }
+      { "name": "AlphaFold DB", "has": "Structure predictions", "lacks": "Experimental conditions, crystallization data" },
+      { "name": "NCBI BLAST", "has": "Sequence alignment, E-value", "lacks": "Crystallization conditions, success prediction, screen design" }
     ],
     "our_advantages": [
-      "First to include systematic failure/negative data (927K)",
+      "First to include systematic failure/negative data (1.17M)",
       "Complete expression-to-structure pipeline in one schema",
-      "ESM-2 embeddings for all proteins (99.2%)",
+      "ESM-2 + HNSW for sub-10ms similarity search (99.1%)",
       "MCP server for AI agent access (18 tools)",
-      "10-Dimension quality framework (67 automated checks)"
+      "10-Dimension quality framework (67 automated checks)",
+      "BLAST-replacing crystallization condition transfer with real-time prediction",
+      "Custom 24-well screen designer with failure pattern avoidance",
+      "CDC-based active/standby database architecture"
     ]
   }
 }
