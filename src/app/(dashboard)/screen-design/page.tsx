@@ -286,7 +286,7 @@ export default function ScreenDesignPage() {
       </div>
 
       {/* Search + Generate */}
-      <Card>
+      <Card className="overflow-visible">
         <CardHeader>
           <CardTitle className="text-base">Select Protein</CardTitle>
         </CardHeader>
