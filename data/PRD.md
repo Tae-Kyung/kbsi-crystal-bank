@@ -222,25 +222,28 @@ PDB 공개 데이터를 활용하여 결정화 조건 데이터를 체계적으�
 | Negative Control (극단) | 602,072건 | `bulk-negative-controls.ts` | 7가지 전략 |
 | Negative Control (현실적) | 324,836건 | `realistic-negative-controls.ts` | 7가지 경계 영역 전략 |
 
-### 현재 DB 규모
-- 단백질: **70,023개**
-- Construct: **286,580개**
-- 결정화 데이터: **1,161,043건** (실험 234K + NC 927K)
-- 구조: **286,454건** (X-ray + Cryo-EM + NMR)
-- Expression: **1,620건** (논문 LLM 추출 완료)
-- Purification: **613건** (논문 LLM 추출 완료)
-- Condition Enrichment: **657,254건** (precipitant_type 구조화 56.6%)
-- AlphaFold 연결: **12,748건**
-- 리간드: **6,313개** (ChEMBL)
-- 바인딩 데이터: **7,942건** (IC50/Kd/Ki)
-- UniProt 연결: **13,574건**
+### 현재 DB 규모 (2026-10-25, Lab PG 이관 후)
+- 단백질: **59,349개**
+- Construct: **216,900개** (dedup 완료)
+- 결정화 데이터: **1,659,500건**
+- 구조: **216,786건**
+- Expression: **210,723건**
+- Purification: **11,359건**
+- Diffraction: **337,591건**
+- NMR Chemical Shifts: **2,836,767건**
+- ESM-2 Embeddings: **214,918건** (99.1%)
+- 리간드: **182,285개**
+- 바인딩: **382,576건**
+- Mutations: **8,184건**
+- References: **126,331건**
+- Construct 계층: **25,564건** 매핑
 
 ### Success Metrics 달성률
 | 지표 | 목표 (1년차) | 현재 | 달성률 |
 |------|-------------|------|--------|
-| 등록된 단백질 수 | 250+ | **70,023** | **28,009%** |
-| 실험 데이터 레코드 | 5,000+ | **1,161,043** | **23,221%** |
-| 결정화 예측 정확도 | 70%+ | **94.2%** (LightGBM+ESM-2, F1 92.4%) | **135%** |
+| 등록된 단백질 수 | 250+ | **59,349** | **23,740%** |
+| 실험 데이터 레코드 | 5,000+ | **1,659,500** | **33,190%** |
+| 결정화 예측 정확도 | 70%+ | **88.4%** (LightGBM, balanced F1) | **126%** |
 
 ### 데이터 품질 개선 이력
 | 이슈 | 이전 | 현재 | 상태 |
@@ -341,6 +344,19 @@ Outcome 분포: precipitate 67.3%, diffraction_quality 18.7%, microcrystal 5.7%,
 **v5 해석**: Enrichment v2로 precipitant_conc 중요도가 8배 상승(-0.2%→-1.6%), 데이터가 채워지면서 농도 정보가 예측에 실질 기여하기 시작. F1 하락은 데이터 구성 변화(성공률 30%→18.5%)와 k-NN의 categorical 피처 한계에 기인. precipitant_type은 단순 정수 인코딩으로는 화학적 유사성 반영 불가 → XGBoost/LightGBM + one-hot 인코딩 또는 ESM-2 임베딩 조합 시 본격 효과 예상.
 
 스크립트: `npx tsx scripts/benchmark-prediction.ts --sample 5000 --k 3,5,10,15 --maxload 100000`
+
+#### 벤치마크 v6 — D-5 균형 데이터셋 (2026-10-25, Lab PG)
+
+데이터: 50,000건 (성공 25,000 / 실패 25,000, 균형 샘플링) + ESM-2 1280차원
+
+| Model | Accuracy | Precision | Recall | F1 | AUC |
+|-------|----------|-----------|--------|-----|-----|
+| LightGBM-Optuna (50 trials) | - | - | - | **88.4%** | - |
+| XGBoost-Optuna (50 trials) | - | - | - | ~88% | - |
+
+Feature Importance: temperature > pH > protein_conc > precipitant_conc > precipitant_cat
+
+해석: 균형 데이터셋에서 F1 88.4%는 논문에 사용 가능한 현실적 수치. 불균형 데이터(99% positive)에서의 F1 100%는 의미 없음.
 
 ## 5-3. Phase 5 Features — 탐색 UX 고도화
 
@@ -1209,7 +1225,8 @@ Copilot 분석 시 유사 construct의 NMR 실험 데이터 + 구조결정 방�
 |------|------|
 | 프론트엔드 | Next.js 15 (App Router) + TypeScript |
 | 배포 | Vercel |
-| 데이터베이스 | Supabase (PostgreSQL) |
+| 데이터베이스 | Lab PostgreSQL 16.9 (Primary) + Supabase (Standby/Auth) |
+| DB 동기화 | CDC (Change Data Capture) 기반 Lab PG → Supabase 증분 동기화 |
 | 파일 저장 | Supabase Storage |
 | 인증 | Supabase Auth |
 | 테이블 명명 | `kbsi_` 접두사 |
@@ -1333,3 +1350,40 @@ npm run report:update                  # Report
 - precipitant one-hot 인코딩 (top 30)
 - 5-fold stratified CV로 신뢰구간 산출
 - Neural Network (MLP) 실험
+
+---
+
+## Phase 11: Lab PostgreSQL 이관 + 고도화 (2026-10-24~25 완료)
+
+### F27. Supabase → Lab PostgreSQL 이관
+- 31개 테이블, 5.7M rows 100% 정합성 이관
+- 프론트엔드 47개 파일 전환 (Supabase REST → Lab PG 직접 SQL)
+- Supabase Auth/Storage만 유지, 데이터 쿼리 완전 전환
+- 성능: dashboard_stats 164ms (Supabase 대비 180x), 3-table JOIN 288ms (불가→가능)
+- Connection pool: max=5, idle=10s (Vercel serverless 최적화)
+
+### F28. CDC 기반 Standby 아키텍처
+- Lab PG (Active) → Supabase (Standby) CDC 동기화
+- 17개 테이블 CDC 트리거 — 모든 변경 자동 기록
+- 자동 failover: Lab PG 3회 실패 → Supabase 전환, 60초 복구
+- /api/health: DB 상태 확인, /admin: DB 모니터링 대시보드
+- npm run sync:backup / sync:full
+
+### F29. DB 고급 기능
+- pgvector 0.8.0 + HNSW index (IVFFlat 대비 빠른 ANN)
+- Materialized View 6개 (대시보드, 생물종, 침전제, 패밀리, 랭킹, pH 프로필)
+- Full-text Search (tsvector + GIN, websearch_to_tsquery)
+- median() / iqr_stats() 통계 함수
+- construct_hierarchy() — Recursive CTE
+- recommend_conditions() — 결정화 조건 추천
+- find_similar_with_conditions() — ESM-2 유사 서열 + 조건 비교
+- data_quality_report() — 7개 무결성 체크
+- FK 인덱스 21개 추가, 미사용 인덱스 5개 삭제
+- DB 최적화: work_mem 32MB, random_page_cost 1.1
+
+### F30. UI 고도화
+- 검색: Full-text Search + 관련도 랭킹
+- 대시보드: Median/IQR 통계, 성공률 Top 10, pH 프로필 차트
+- 단백질 상세: 유사 서열 (ESM-2) + 조건 추천
+- Construct 상세: 계층 트리 (부모 + 직계 자식 최대 10개)
+- 관리자: DB Primary/Standby 상태 + CDC Sync 모니터링

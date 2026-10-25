@@ -459,3 +459,90 @@ Claude: (src/lib/utils/sequence.ts + tests/utils/sequence.test.ts 생성)
         [PASS] MW/pI 테스트: OK
         >> TASK COMPLETE
 ```
+
+---
+
+## Phase 11: Lab PostgreSQL 이관 + 고도화 (2026-10-24~25)
+
+### 11.1 DB 이관
+
+| ID | 태스크 | 상태 | 검증 |
+|----|--------|------|------|
+| P11.1.1 | Lab PG 스키마 생성 (31 테이블) | ✅ 완료 | 테이블 31개 확인 |
+| P11.1.2 | 데이터 이관 (5.7M rows) | ✅ 완료 | 21개 테이블 100% 정합성 |
+| P11.1.3 | pgvector 설치 + embedding 이관 (214K) | ✅ 완료 | HNSW index 생성 |
+| P11.1.4 | Vercel 환경변수 설정 | ✅ 완료 | PG_HOST/PORT/DATABASE/USER/PASSWORD |
+
+### 11.2 프론트엔드 전환
+
+| ID | 태스크 | 상태 | 검증 |
+|----|--------|------|------|
+| P11.2.1 | Server Components 전환 (14개) | ✅ 완료 | tsc --noEmit 통과 |
+| P11.2.2 | API Routes 전환 (31개) | ✅ 완료 | 8/8 API 테스트 통과 |
+| P11.2.3 | MCP/Tool 전환 (16개) | ✅ 완료 | crystallization-queries.ts |
+| P11.2.4 | Client Components 전환 (1개) | ✅ 완료 | fetch API 경유 |
+| P11.2.5 | Supabase from('kbsi_*') 잔여 참조 확인 | ✅ 완료 | 0건 |
+
+### 11.3 고급 DB 기능
+
+| ID | 태스크 | 상태 | 검증 |
+|----|--------|------|------|
+| P11.3.1 | Materialized View 6개 | ✅ 완료 | dashboard 5ms |
+| P11.3.2 | Full-text Search (tsvector + GIN) | ✅ 완료 | 'kinase human' → 3건 |
+| P11.3.3 | median() / iqr_stats() | ✅ 완료 | median(ph) = 7.0 |
+| P11.3.4 | construct_hierarchy() | ✅ 완료 | recursive CTE |
+| P11.3.5 | recommend_conditions() | ✅ 완료 | 1.8s |
+| P11.3.6 | find_similar_with_conditions() | ✅ 완료 | HNSW 7ms |
+| P11.3.7 | data_quality_report() | ✅ 완료 | 7개 체크 OK |
+| P11.3.8 | FK 인덱스 21개 추가 | ✅ 완료 | JOIN 4.4x 개선 |
+| P11.3.9 | 미사용 인덱스 5개 삭제 | ✅ 완료 | 69MB 절약 |
+
+### 11.4 Standby 아키텍처
+
+| ID | 태스크 | 상태 | 검증 |
+|----|--------|------|------|
+| P11.4.1 | CDC changelog + 트리거 17개 | ✅ 완료 | kbsi_sync_changelog |
+| P11.4.2 | sync-to-supabase.ts (CDC 재생) | ✅ 완료 | npm run sync:backup |
+| P11.4.3 | 자동 failover (3회 실패 → 전환) | ✅ 완료 | src/lib/db.ts |
+| P11.4.4 | /api/health endpoint | ✅ 완료 | 200/503 |
+| P11.4.5 | 관리자 DB 상태 대시보드 | ✅ 완료 | /admin |
+
+### 11.5 UI 고도화
+
+| ID | 태스크 | 상태 | 검증 |
+|----|--------|------|------|
+| P11.5.1 | FTS 검색 + 랭킹 | ✅ 완료 | proteins 페이지 |
+| P11.5.2 | 대시보드 IQR 통계 | ✅ 완료 | Median/IQR 바 |
+| P11.5.3 | 성공률 Top 10 랭킹 | ✅ 완료 | mv_protein_success_ranking |
+| P11.5.4 | pH 프로필 차트 | ✅ 완료 | PEG 3350 |
+| P11.5.5 | 유사 서열 + 조건 추천 | ✅ 완료 | 단백질 상세 |
+| P11.5.6 | Construct 계층 트리 | ✅ 완료 | 직계 자식 10개 |
+| P11.5.7 | DB 상태 모니터링 | ✅ 완료 | /admin |
+
+### 11.6 데이터 정리
+
+| ID | 태스크 | 상태 | 검증 |
+|----|--------|------|------|
+| P11.6.1 | pH 이상치 정리 (233건) | ✅ 완료 | NULL 처리 |
+| P11.6.2 | 온도 이상치 정리 (53건) | ✅ 완료 | NULL 처리 |
+| P11.6.3 | Precipitant 정규화 (+43,838건) | ✅ 완료 | batch_normalize |
+| P11.6.4 | organism_normalized (+27,616건) | ✅ 완료 | |
+| P11.6.5 | gene_name 백필 (+3,316건) | ✅ 완료 | |
+| P11.6.6 | theoretical_mw 백필 (+5,393건) | ✅ 완료 | |
+| P11.6.7 | Construct 계층 매핑 (25,564건) | ✅ 완료 | mutant→FL, domain→FL |
+
+### 11.7 벤치마크
+
+| ID | 태스크 | 상태 | 검증 |
+|----|--------|------|------|
+| P11.7.1 | D-5 불균형 (50K) | ✅ 완료 | F1 100% (의미 없음) |
+| P11.7.2 | D-5 균형 (25K+25K) | 🔄 진행 중 | LightGBM F1 88.4% |
+
+### 11.8 DB 최적화
+
+| ID | 태스크 | 상태 | 검증 |
+|----|--------|------|------|
+| P11.8.1 | Connection pool 최적화 | ✅ 완료 | max=5, idle=10s |
+| P11.8.2 | VACUUM ANALYZE | ✅ 완료 | dead tuples 0 |
+| P11.8.3 | work_mem/random_page_cost 튜닝 | ✅ 완료 | ALTER DATABASE |
+| P11.8.4 | shared_buffers 튜닝 | ⬜ 대기 | Kosal에게 요청 |
