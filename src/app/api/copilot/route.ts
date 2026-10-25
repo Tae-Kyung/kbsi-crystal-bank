@@ -115,9 +115,9 @@ export async function POST(request: Request) {
         );
 
         if (similar?.length) {
-          const existingIds = new Set(similarConstructs.map((c: any) => c.id));
+          const existingIds = new Set(similarConstructs.map((c: any) => Number(c.id)));
           const newIds = similar
-            .filter((r: any) => !existingIds.has(r.construct_id))
+            .filter((r: any) => !existingIds.has(Number(r.construct_id)))
             .map((r: any) => r.construct_id);
 
           if (newIds.length > 0) {
@@ -130,12 +130,12 @@ export async function POST(request: Request) {
               [newIds]
             );
 
-            const simMap = new Map(similar.map((r: any) => [r.construct_id, Math.round(r.similarity * 1000) / 10]));
+            const simMap = new Map(similar.map((r: any) => [Number(r.construct_id), Math.round(r.similarity * 1000) / 10]));
             if (extraConstructs) {
               similarConstructs.push(...extraConstructs.map((c: any) => ({
                 ...c,
                 kbsi_protein: { full_name: c['kbsi_protein.full_name'], abbreviation: c['kbsi_protein.abbreviation'], organism: c['kbsi_protein.organism'] },
-                similarity: simMap.get(c.id) || 50,
+                similarity: simMap.get(Number(c.id)) || 50,
               })));
             }
           }
@@ -187,9 +187,9 @@ export async function POST(request: Request) {
           [cIds]
         );
 
-        const constructMap = new Map((constructs || []).map((c: any) => [c.id, c]));
+        const constructMap = new Map((constructs || []).map((c: any) => [Number(c.id), c]));
         similarConstructs = gpuResult.results.map((r: any) => {
-          const c = constructMap.get(r.construct_id) || {};
+          const c = constructMap.get(Number(r.construct_id)) || {};
           return {
             ...c,
             kbsi_protein: { full_name: (c as any)['kbsi_protein.full_name'], abbreviation: (c as any)['kbsi_protein.abbreviation'], organism: (c as any)['kbsi_protein.organism'] },
