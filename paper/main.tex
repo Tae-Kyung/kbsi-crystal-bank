@@ -255,7 +255,7 @@ We developed a 10-dimensional data quality framework to systematically assess KB
 1 & Accuracy & 8 & 6 & B & pH/temp outliers minimal; 24 resolution outliers \\
 2 & Consistency & 6 & 6 & A & Zero orphan records; zero contradictions \\
 3 & Integrity & 5 & 5 & A & ESM-2 99.1\%; references 98.7\%; BMRB 66.0\% \\
-4 & Deduplication & 4 & 4 & A & Sequence hash 99.2\%; unique constraints enforced \\
+4 & Deduplication & 4 & 4 & A & Sequence hash 99.1\%; unique constraints enforced \\
 5 & Extensibility & 5 & 4 & B & Gene name 62.6\%; UniProt 68.8\%; organism 93.7\% \\
 6 & Completeness & 16 & 12 & B & pH 99.4\%; temperature 92.6\%; precipitant 96.0\%; outcome 98.7\% \\
 7 & Distribution & 6 & 6 & A & Balanced classes; 416 organisms; no excessive bias \\
@@ -278,9 +278,9 @@ We developed a 10-dimensional data quality framework to systematically assess KB
 
 \textbf{Extensibility} measures annotation richness: gene names (62.6\%), UniProt mappings (68.8\%), organism annotation (93.7\%), 8,184 mutations, and 5,833 characterization records.
 
-\textbf{Completeness} quantifies non-null field coverage at three levels: crystallization fields (pH 99.4\%, temperature 92.6\%, precipitant 96.0\%, outcome 98.7\%), protein annotations (organism 93.7\%, abbreviation 92.4\%), and pipeline stages (expression 10.2\%, purification 4.7\% of constructs).
+\textbf{Completeness} quantifies non-null field coverage at three levels: crystallization fields (pH 99.4\%, temperature 92.6\%, precipitant 96.0\%, outcome 98.7\%), protein annotations (organism 93.7\%, abbreviation 92.4\%), and pipeline stages (expression 97.2\%, purification 5.2\% of constructs).
 
-\textbf{Distribution} assesses class balance: 218,329 successes (18.8\%) vs.\ 942,714 failures, 416 unique organisms with \textit{Homo sapiens} at 27.6\%, pH mean 6.79 (std 1.24), temperature mean 17.8\textdegree C (std 7.0\textdegree C).
+\textbf{Distribution} assesses class balance: 489,827 experimental conditions vs.\ 1,169,673 synthetic negatives, 416 unique organisms with \textit{Homo sapiens} at 27.6\%, pH mean 6.79 (std 1.24), temperature mean 17.8\textdegree C (std 7.0\textdegree C).
 
 \textbf{Provenance} measures source traceability: \texttt{source\_type} 100\%, \texttt{source\_db} 100\%, structure PDB~ID 100\%, reference DOI 61.6\%.
 
@@ -448,7 +448,7 @@ The authors declare no competing interests.
 \begin{figure}[H]
 \centering
 \includegraphics[width=\textwidth]{figures/fig8_distribution_analysis.png}
-\caption{\textbf{Distribution analysis.} (a)~Outcome balance: success 18.8\% vs.\ failure 81.2\%, with experimental/synthetic breakdown. (b)~Data source composition: 20.1\% experimental, 79.9\% synthetic. (c)~Key metrics summary.}
+\caption{\textbf{Distribution analysis.} (a)~Outcome balance: success vs.\ failure, with experimental/synthetic breakdown. (b)~Data source composition: 29.5\% experimental, 70.5\% synthetic. (c)~Key metrics summary.}
 \label{fig:distanalysis}
 \end{figure}
 
